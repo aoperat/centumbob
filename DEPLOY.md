@@ -17,9 +17,15 @@
 
 ### 2. GitHub Pages 설정
 
+**자동 활성화**: GitHub Actions가 자동으로 Pages를 활성화합니다.
+
+수동 설정이 필요한 경우:
+
 1. GitHub 저장소의 **Settings** > **Pages**로 이동
 2. **Source**를 "GitHub Actions"로 선택
 3. 저장소 이름 확인 (자동으로 base 경로에 사용됨)
+
+**참고**: 첫 배포 시 Pages가 자동으로 활성화되므로 수동 설정이 필요 없을 수 있습니다.
 
 ### 3. base 경로 자동 설정
 
