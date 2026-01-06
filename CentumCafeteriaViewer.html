@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>센텀시티 구내식당 식단표</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // ---------------------------------------------------------
+        // 1. 데이터 (JSON Data)
+        // ---------------------------------------------------------
+        const MENU_DATA = {
+            "벽산E센텀 (만나)": {
+                "name": "벽산E센텀 (만나)",
+                "type": "text",
+                "price": { "lunch": "7,000원", "dinner": "7,000원" },
+                "data": {
+                    "date": "1월 5일 ~ 1월 9일",
+                    "menus": {
+                        "월": {
+                            "점심": ["백미밥/흑미밥", "사골시락국", "치킨가스", "돈육콩나물찜", "연근튀김", "치커리적채무침", "김치수제비", "김치"],
+                            "저녁": ["백미밥", "시래기국", "모듬가스강정", "마파두부", "소세지야채볶음", "콩나물무침", "김치수제비", "김치"]
+                        },
+                        "화": {
+                            "점심": ["백미밥/흑미밥", "부대찌개", "훈제오리불고기", "깐풍만두", "명태포야채무침", "겨울초겉절이", "떡국", "김치"],
+                            "저녁": ["백미밥", "미역국", "돈고추장불고기", "양배추샐러드", "만두볶음", "치커리적채무침", "떡국", "김치"]
+                        },
+                        "수": {
+                            "점심": ["백미밥/흑미밥", "순두부찌개", "닭고기김치볶음", "돈민찌메란장조림", "애호박볶음", "무말랭이", "쌀국수볶음", "김치"],
+                            "저녁": ["백미밥", "부대찌개", "폭찹스테이크", "오징어가스", "멸치볶음", "숙주나물", "쌀국수볶음", "김치"]
+                        },
+                        "목": {
+                            "점심": ["백미밥/흑미밥", "김치콩나물국", "폭찹스테이크", "두부구이", "숙주나물", "해물볶음우동", "모둠떡볶이", "김치"],
+                            "저녁": ["백미밥", "매콤어묵탕", "콩나물불고기", "가지미조림", "미트볼조림", "단배추된장무침", "모둠떡볶이", "김치"]
+                        },
+                        "금": {
+                            "점심": ["백미밥/흑미밥", "짬뽕국", "탕수육", "비엔나야채볶음", "깍두기", "유채나물", "짜장면", "김치"],
+                            "저녁": ["백미밥", "북엇국", "탕수육", "깐풍만두", "마카로니샐러드", "청경채나물", "짜장면", "김치"]
+                        }
+                    },
+                    "text": "구매한 식권은 반품 환불 불가입니다...",
+                },
+                "imageUrls": ["/uploads/sample1.png"],
+            },
+            "동서대 (파티박스)": {
+                "name": "동서대 (파티박스)",
+                "type": "text",
+                "price": { "lunch": "6,500원", "dinner": "6,500원" },
+                "data": {
+                    "date": "1월 5일 ~ 1월 9일",
+                    "menus": {
+                        "월": ["백미/흑미밥", "김치찌개", "묵은지닭볶음탕", "사천짜장면", "만두유린기", "김치/깍두기", "밑반찬 2종류", "그린샐러드", "계란후라이 커피믹스"],
+                        "화": ["백미/흑미밥", "북어콩나물국", "순살돈가스", "가자미조림", "궁중식잡채", "김치/깍두기", "밑반찬 2종류", "마카로니 샐러드", "계란후라이 커피믹스"],
+                        "수": ["백미/흑미밥", "들기미역국", "생선가스/타르소스", "김치제육볶음", "햄계란구이", "김치/깍두기", "밑반찬 2종류", "그린샐러드", "계란후라이 커피믹스"],
+                        "목": ["백미/흑미밥", "부대찌개", "모듬순대볶음", "꽈리고추 계란장조림", "마파두부덮밥", "김치/깍두기", "밑반찬 2종류", "참치샐러드", "계란후라이 커피믹스"],
+                        "금": ["백미/흑미밥", "잔치국수", "유자소스치킨", "도토리묵무침", "김치/깍두기", "밑반찬 2종류", "야쿠르트", "계란후라이 커피믹스"]
+                    },
+                    "text": "주 간 식 단 표..."
+                },
+                "imageUrls": ["/uploads/sample2.png"],
+            },
+            "에이스하이테크21 (다와푸드)": {
+                "name": "에이스하이테크21 (다와푸드)",
+                "type": "text",
+                "price": { "lunch": "6,500원", "dinner": "6,500원" },
+                "data": {
+                    "date": "1월 5일 ~ 1월 9일",
+                    "menus": {
+                        "월": ["백미밥", "시락국", "굴소스돈불고기", "후르츠탕수육", "고추장멸치볶음", "상추/쌈장", "나물", "김치", "야채샐러드", "탄산음료"],
+                        "화": ["백미밥", "콩나물무우국", "닭볶음탕", "부추고기산적", "크래미브로콜리", "양념깻잎지", "나물", "김치", "야채샐러드", "탄산음료"],
+                        "수": ["백미밥", "감자된장국", "치킨까스", "무말랭떡볶이", "계란찜", "물파래무침", "나물", "김치", "야채샐러드", "탄산음료"],
+                        "목": ["백미밥", "소고기육개장", "고추장돈불고기", "한식잡채", "편육/쌈장", "알마늘고추지", "나물", "김치", "야채샐러드", "탄산음료"],
+                        "금": ["백미밥", "계란떡국", "유자간장치킨", "마파두부", "고추참어묵볶음", "단무지무침", "나물", "김치", "야채샐러드", "탄산음료"]
+                    },
+                    "text": "* 상기 메뉴는 식자재 수급 현황에 따라..."
+                },
+                "imageUrls": ["/uploads/sample3.png"],
+            },
+            "부산영상산업센터 (STX f&c)": {
+                "name": "부산영상산업센터 (STX f&c)",
+                "type": "text",
+                "price": { "lunch": "6,500원", "dinner": "5,000원" },
+                "data": {
+                    "date": "1월 5일 ~ 1월 9일",
+                    "menus": {
+                        "월": ["백미밥/잡곡밥", "홍합탕국", "콩나물제육볶음", "버터알감자", "물파래무침", "배추김치/깍두기", "그린샐러드&옥수수D"],
+                        "화": ["백미밥/잡곡밥", "김치해장수제비", "불고기소스함박", "야채비빔만두", "연근조림", "배추김치/깍두기", "그린샐러드&옥힐X샐러D"],
+                        "수": ["백미밥/잡곡밥", "소고기매추국", "춘천식고구마닭갈비", "들기름막국수", "무생채", "배추김치/깍두기", "그린샐러드&옥수시D"],
+                        "목": ["차돌깍두기볶음밥", "순두부백탕", "야채계란찜", "불어묵브로콜리볶음", "건파래자반", "배추김치/깍두기", "그린샐러드&흰D"],
+                        "금": ["백미밥/잡곡밥", "야채고로케&칠리S", "닭가슴살냉채", "오징어젓무말무침", "배추김치/깍두기", "그린샐러드&드레싱"]
+                    },
+                    "text": "영산산업센터 주간메뉴표..."
+                },
+                "imageUrls": ["/uploads/sample4.png"],
+            }
+        };
+
+        // ---------------------------------------------------------
+        // 2. React Components
+        // ---------------------------------------------------------
+        const { useState, useEffect } = React;
+
+        // --- 아이콘 ---
+        const IconUtensils = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" /><path d="M7 2v20" /><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" /></svg>
+        );
+        const IconImage = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>
+        );
+        const IconX = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+        );
+        const IconCalendar = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></svg>
+        );
+
+        // --- 메뉴 아이템 리스트 (테이블 셀 내부용) ---
+        const MenuList = ({ items }) => {
+            if (!items || items.length === 0) return <p className="text-gray-400 text-xs italic">정보 없음</p>;
+            return (
+                <ul className="space-y-1 mt-2">
+                    {items.map((item, idx) => (
+                        <li key={idx} className="text-sm text-slate-700 leading-snug break-keep">
+                            · {item}
+                        </li>
+                    ))}
+                </ul>
+            );
+        };
+
+        // --- 메인 앱 ---
+        const App = () => {
+            const [activeDay, setActiveDay] = useState("월");
+            const [modalImage, setModalImage] = useState(null);
+
+            const days = ["월", "화", "수", "목", "금"];
+            const cafeteriaKeys = Object.keys(MENU_DATA);
+
+            // 오늘 요일 자동 선택 (주말은 월요일)
+            useEffect(() => {
+                const dayIndex = new Date().getDay();
+                const dayMap = ["일", "월", "화", "수", "목", "금", "토"];
+                let currentDay = dayMap[dayIndex];
+                if (currentDay === "일" || currentDay === "토") currentDay = "월";
+                setActiveDay(currentDay);
+            }, []);
+
+            // 메뉴 데이터 추출 헬퍼 함수
+            const getMenuData = (cafeteriaName, day, type) => {
+                const data = MENU_DATA[cafeteriaName];
+                const menus = data.data.menus;
+                const dayMenu = menus[day];
+
+                // 가격 정보 가져오기
+                const priceKey = type === '점심' ? 'lunch' : 'dinner';
+                const price = data.price[priceKey];
+
+                if (!dayMenu) return { menu: null, price };
+
+                // 데이터가 배열인 경우 (단일 메뉴) -> 점심에만 표시
+                if (Array.isArray(dayMenu)) {
+                    if (type === '점심') return { menu: dayMenu, price };
+                    return { menu: null, price };
+                }
+
+                // 데이터가 객체인 경우 (점심/저녁 분리)
+                if (typeof dayMenu === 'object') {
+                    return { menu: dayMenu[type], price };
+                }
+                return { menu: null, price };
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col items-center pb-10">
+
+                    {/* 상단 헤더 & 요일 탭 */}
+                    <header className="bg-white w-full sticky top-0 z-20 shadow-sm border-b border-gray-200">
+                        <div className="max-w-7xl mx-auto px-4 pt-4 pb-2">
+                            <div className="flex justify-between items-center mb-4">
+                                <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                    <span className="bg-blue-600 text-white p-1.5 rounded-lg"><IconUtensils className="w-5 h-5" /></span>
+                                    센텀 밥집
+                                </h1>
+                                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full flex items-center gap-1">
+                                    <IconCalendar /> 1월 5일 ~ 9일
+                                </span>
+                            </div>
+
+                            {/* 요일 선택 탭 */}
+                            <div className="flex justify-between bg-slate-100 p-1 rounded-xl max-w-md mx-auto sm:mx-0">
+                                {days.map((day) => {
+                                    const isActive = activeDay === day;
+                                    return (
+                                        <button
+                                            key={day}
+                                            onClick={() => setActiveDay(day)}
+                                            className={`
+                                                flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200
+                                                ${isActive
+                                                    ? "bg-white text-blue-600 shadow-sm ring-1 ring-black/5"
+                                                    : "text-slate-400 hover:text-slate-600"}
+                                            `}
+                                        >
+                                            {day}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* 메인 컨텐츠 영역 (테이블 구조) */}
+                    <main className="w-full max-w-7xl px-4 mt-6">
+                        <div className="mb-3 text-sm font-medium text-slate-500 ml-1">
+                            <span className="text-blue-600 font-bold">{activeDay}요일</span>의 식단 비교
+                        </div>
+
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            {/* 모바일 대응: 가로 스크롤 허용 */}
+                            <div className="overflow-x-auto">
+                                <table className="w-full border-collapse min-w-[800px]">
+                                    <thead>
+                                        <tr>
+                                            {/* 왼쪽 상단 빈 셀 (헤더 교차점) */}
+                                            <th className="p-4 bg-slate-50 border-b border-r border-slate-200 w-24 sticky left-0 z-10 text-slate-400 font-medium text-xs uppercase tracking-wider">
+                                                구분
+                                            </th>
+                                            {/* 상단 헤더: 회사명 */}
+                                            {cafeteriaKeys.map((name, idx) => {
+                                                const hasImage = MENU_DATA[name].imageUrls && MENU_DATA[name].imageUrls.length > 0;
+                                                return (
+                                                    <th key={idx} className="p-4 bg-slate-50 border-b border-slate-200 text-left min-w-[200px]">
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-slate-800 font-bold text-sm block truncate w-full" title={name}>
+                                                                {name.split('(')[0].trim()}
+                                                            </span>
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="text-[10px] text-slate-400 font-normal truncate">
+                                                                    {name.includes('(') ? name.match(/\((.*?)\)/)?.[1] || '' : ''}
+                                                                </span>
+                                                                {hasImage && (
+                                                                    <button
+                                                                        onClick={() => setModalImage(MENU_DATA[name].imageUrls[0])}
+                                                                        className="ml-auto p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                                        title="원본 이미지 보기"
+                                                                    >
+                                                                        <IconImage />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </th>
+                                                );
+                                            })}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200">
+                                        {/* 점심 행 */}
+                                        <tr>
+                                            <th className="p-4 bg-white border-r border-slate-200 sticky left-0 z-10">
+                                                <div className="flex flex-col items-center justify-center gap-1">
+                                                    <span className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
+                                                        <IconUtensils className="w-4 h-4" />
+                                                    </span>
+                                                    <span className="text-xs font-bold text-slate-600">점심</span>
+                                                </div>
+                                            </th>
+                                            {cafeteriaKeys.map((name, idx) => {
+                                                const { menu, price } = getMenuData(name, activeDay, '점심');
+                                                return (
+                                                    <td key={idx} className="p-4 align-top bg-white hover:bg-slate-50 transition-colors">
+                                                        {menu && (
+                                                            <div className="inline-block px-2 py-0.5 bg-orange-50 border border-orange-100 rounded text-orange-700 text-xs font-bold mb-1">
+                                                                {price}
+                                                            </div>
+                                                        )}
+                                                        <MenuList items={menu} />
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                        {/* 저녁 행 */}
+                                        <tr>
+                                            <th className="p-4 bg-slate-50/50 border-r border-slate-200 sticky left-0 z-10">
+                                                <div className="flex flex-col items-center justify-center gap-1">
+                                                    <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                                                        <span className="text-xs font-bold">🌙</span>
+                                                    </span>
+                                                    <span className="text-xs font-bold text-slate-600">저녁</span>
+                                                </div>
+                                            </th>
+                                            {cafeteriaKeys.map((name, idx) => {
+                                                const { menu, price } = getMenuData(name, activeDay, '저녁');
+                                                return (
+                                                    <td key={idx} className="p-4 align-top bg-slate-50/50 hover:bg-slate-100 transition-colors">
+                                                        {menu && (
+                                                            <div className="inline-block px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-indigo-700 text-xs font-bold mb-1">
+                                                                {price}
+                                                            </div>
+                                                        )}
+                                                        <MenuList items={menu} />
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* 하단 안내 */}
+                        <div className="text-center text-xs text-slate-400 py-6">
+                            * 점심/저녁 데이터가 없는 경우 공란으로 표시됩니다.<br />
+                            * 좌우로 스크롤하여 더 많은 식당을 확인하세요.
+                        </div>
+                    </main>
+
+                    {/* 이미지 모달 */}
+                    {modalImage && (
+                        <div
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+                            onClick={() => setModalImage(null)}
+                        >
+                            <div
+                                className="bg-white rounded-xl overflow-hidden w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]"
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <div className="flex justify-between items-center p-4 border-b">
+                                    <h3 className="font-bold text-slate-800">식단표 원본</h3>
+                                    <button onClick={() => setModalImage(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition-colors"><IconX /></button>
+                                </div>
+                                <div className="overflow-auto p-0 bg-slate-900 flex-1 flex items-center justify-center min-h-[300px]">
+                                    <img
+                                        src={modalImage}
+                                        alt="Original Menu"
+                                        className="max-w-full h-auto object-contain"
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

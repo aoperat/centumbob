@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>센텀 밥집 - 데이터 관리자</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* 애니메이션 */
+        .fade-in {
+            animation: fadeIn 0.2s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 아이콘 컴포넌트 ---
+        const IconFileText = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" x2="8" y1="13" y2="13" /><line x1="16" x2="8" y1="17" y2="17" /><line x1="10" x2="8" y1="9" y2="9" /></svg>
+        );
+        const IconSave = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+        );
+        const IconCheck = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20 6 9 17 4 12" /></svg>
+        );
+        const IconUpload = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
+        );
+        const IconX = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" x2="6" y1="6" y2="18" /><line x1="6" x2="18" y1="6" y2="18" /></svg>
+        );
+        const IconPlus = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" x2="12" y1="5" y2="19" /><line x1="5" x2="19" y1="12" y2="12" /></svg>
+        );
+        const IconTrash = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+        );
+        const IconSettings = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
+        );
+        const IconRefreshCw = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></svg>
+        );
+        const IconWand2 = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z" /><path d="m14 7 3 3" /><path d="M5 6v4" /><path d="M19 14v4" /><path d="M10 2v2" /><path d="M7 8H3" /><path d="M21 16h-4" /><path d="M11 3H9" /></svg>
+        );
+
+
+        // --- 메뉴 리스트 편집기 컴포넌트 (핵심 기능) ---
+        const MenuListEditor = ({ items, onChange }) => {
+            const [editingIndex, setEditingIndex] = useState(null);
+            const inputRef = useRef(null);
+
+            // 편집 모드 진입 시 focus
+            useEffect(() => {
+                if (editingIndex !== null && inputRef.current) {
+                    inputRef.current.focus();
+                }
+            }, [editingIndex]);
+
+            const handleAdd = () => {
+                const newItems = [...items, "새 메뉴"];
+                onChange(newItems);
+                setEditingIndex(newItems.length - 1); // 바로 편집 모드
+            };
+
+            const handleDelete = (index, e) => {
+                e.stopPropagation();
+                const newItems = items.filter((_, i) => i !== index);
+                onChange(newItems);
+            };
+
+            const handleEditStart = (index) => {
+                setEditingIndex(index);
+            };
+
+            const handleEditSave = (index, newValue) => {
+                const newItems = [...items];
+                newItems[index] = newValue;
+                onChange(newItems);
+                setEditingIndex(null);
+            };
+
+            const handleKeyDown = (e, index, value) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleEditSave(index, value);
+                }
+            };
+
+            return (
+                <div className="w-full h-full flex flex-col">
+                    <div className="flex-1 overflow-y-auto space-y-1 p-2 custom-scrollbar max-h-[160px]">
+                        {items.length === 0 && (
+                            <p className="text-slate-300 text-xs text-center py-4">메뉴 없음</p>
+                        )}
+                        {items.map((item, index) => (
+                            <div
+                                key={index}
+                                onClick={() => handleEditStart(index)}
+                                className={`
+                                    group flex items-center justify-between text-sm px-2 py-1.5 rounded cursor-pointer transition-colors
+                                    ${editingIndex === index ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-100'}
+                                `}
+                            >
+                                {editingIndex === index ? (
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        defaultValue={item}
+                                        onBlur={(e) => handleEditSave(index, e.target.value)}
+                                        onKeyDown={(e) => handleKeyDown(e, index, e.target.value)}
+                                        className="w-full bg-transparent outline-none text-slate-800 font-medium"
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                ) : (
+                                    <>
+                                        <span className="text-slate-600 truncate">{item}</span>
+                                        <button
+                                            onClick={(e) => handleDelete(index, e)}
+                                            className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+                                        >
+                                            <IconX size={14} />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    <button
+                        onClick={handleAdd}
+                        className="w-full py-1.5 text-xs font-bold text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-t border-slate-100 transition-colors flex items-center justify-center gap-1"
+                    >
+                        <IconPlus size={14} /> 메뉴 추가
+                    </button>
+                </div>
+            );
+        };
+
+        // --- 모의 AI 분석 함수 ---
+        const mockAnalyzeImage = async (file) => {
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve({
+                        price: { lunch: "7,000원", dinner: "7,000원" },
+                        menus: {
+                            "월": { lunch: ["흑미밥", "김치찌개", "계란말이", "멸치볶음"], dinner: ["백미밥", "순두부찌개", "제육볶음"] },
+                            "화": { lunch: ["백미밥", "북엇국", "돈가스", "샐러드"], dinner: ["볶음밥", "짬뽕국", "탕수육"] },
+                            "수": { lunch: ["비빔밥", "된장국", "핫도그"], dinner: ["치킨마요덮밥", "우동국물"] },
+                            "목": { lunch: ["카레라이스", "김치", "콩나물국"], dinner: ["라면", "공기밥", "단무지"] },
+                            "금": { lunch: ["잔치국수", "주먹밥"], dinner: ["운영안함"] }
+                        }
+                    });
+                }, 1500);
+            });
+        };
+
+        const AdminApp = () => {
+            // --- Global State ---
+            const [currentTab, setCurrentTab] = useState("entry"); // 'entry' | 'management'
+
+            // --- Management State ---
+            const [restaurants, setRestaurants] = useState(["벽산E센텀 (만나)", "동서대 (파티박스)", "에이스하이테크21 (다와푸드)", "부산영상산업센터 (STX f&c)"]);
+            const [dateRanges, setDateRanges] = useState(["1월 5일 ~ 1월 9일", "1월 12일 ~ 1월 16일", "1월 19일 ~ 1월 23일"]);
+
+            // --- Entry State ---
+            const [selectedCafeteria, setSelectedCafeteria] = useState(restaurants[0]);
+            const [selectedDateRange, setSelectedDateRange] = useState(dateRanges[1]);
+            const [imageFile, setImageFile] = useState(null);
+            const [imagePreview, setImagePreview] = useState(null);
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+            const [prices, setPrices] = useState({ lunch: "", dinner: "" });
+            const [menuGrid, setMenuGrid] = useState({
+                "월": { lunch: [], dinner: [] },
+                "화": { lunch: [], dinner: [] },
+                "수": { lunch: [], dinner: [] },
+                "목": { lunch: [], dinner: [] },
+                "금": { lunch: [], dinner: [] },
+            });
+
+            // 식당 목록이 바뀌면 선택값 안전장치
+            useEffect(() => {
+                if (!restaurants.includes(selectedCafeteria)) {
+                    setSelectedCafeteria(restaurants[0] || "");
+                }
+            }, [restaurants]);
+            // 날짜 목록이 바뀌면 선택값 안전장치
+            useEffect(() => {
+                if (!dateRanges.includes(selectedDateRange)) {
+                    setSelectedDateRange(dateRanges[0] || "");
+                }
+            }, [dateRanges]);
+
+
+            // --- Handlers (Entry) ---
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    setImageFile(file);
+                    const reader = new FileReader();
+                    reader.onloadend = () => setImagePreview(reader.result);
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleAnalyze = async () => {
+                if (!imageFile) return alert("이미지를 먼저 업로드해주세요.");
+                setIsAnalyzing(true);
+                try {
+                    const result = await mockAnalyzeImage(imageFile);
+                    setPrices(result.price);
+                    setMenuGrid(result.menus);
+                } catch (error) {
+                    alert("분석 실패");
+                } finally {
+                    setIsAnalyzing(false);
+                }
+            };
+
+            const handleMenuChange = (day, type, newItems) => {
+                setMenuGrid(prev => ({
+                    ...prev,
+                    [day]: { ...prev[day], [type]: newItems }
+                }));
+            };
+
+            const handleSave = () => {
+                const finalData = {
+                    name: selectedCafeteria,
+                    date: selectedDateRange,
+                    price: prices,
+                    menus: menuGrid
+                };
+                console.log("최종 데이터:", finalData);
+                alert(`${selectedCafeteria} (${selectedDateRange}) 데이터 저장 완료!\n(콘솔 확인)`);
+            };
+
+            // --- Handlers (Management) ---
+            const [newResInput, setNewResInput] = useState("");
+            const [newDateInput, setNewDateInput] = useState("");
+
+            const addRestaurant = () => {
+                if (!newResInput.trim()) return;
+                setRestaurants([...restaurants, newResInput.trim()]);
+                setNewResInput("");
+            };
+            const deleteRestaurant = (idx) => {
+                if (confirm("정말 삭제하시겠습니까?")) {
+                    setRestaurants(restaurants.filter((_, i) => i !== idx));
+                }
+            };
+
+            const addDateRange = () => {
+                if (!newDateInput.trim()) return;
+                setDateRanges([...dateRanges, newDateInput.trim()]);
+                setNewDateInput("");
+            };
+            const deleteDateRange = (idx) => {
+                if (confirm("정말 삭제하시겠습니까?")) {
+                    setDateRanges(dateRanges.filter((_, i) => i !== idx));
+                }
+            };
+
+
+            const days = ["월", "화", "수", "목", "금"];
+
+            return (
+                <div className="min-h-screen flex flex-col bg-slate-50">
+                    {/* 상단 네비게이션 헤더 */}
+                    <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+                        <div className="px-6 h-16 flex justify-between items-center">
+                            <div className="flex items-center gap-8">
+                                <div className="flex items-center gap-2">
+                                    <div className="bg-slate-800 text-white p-2 rounded-lg"><IconFileText size={20} /></div>
+                                    <h1 className="text-xl font-bold text-slate-800">식단 데이터 관리자</h1>
+                                </div>
+                                {/* 탭 메뉴 */}
+                                <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                                    <button
+                                        onClick={() => setCurrentTab("entry")}
+                                        className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${currentTab === 'entry' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        데이터 입력
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentTab("management")}
+                                        className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-1 ${currentTab === 'management' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        <IconSettings size={14} /> 기준 데이터 관리
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 액션 버튼 (입력 탭에서만 표시) */}
+                            {currentTab === 'entry' && (
+                                <button
+                                    onClick={handleSave}
+                                    className="px-5 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
+                                >
+                                    <IconSave size={18} />
+                                    데이터 게시
+                                </button>
+                            )}
+                        </div>
+                    </header>
+
+                    {/* 메인 컨텐츠 */}
+                    <main className="flex-1 flex overflow-hidden">
+
+                        {/* ================= 탭 1: 데이터 입력 ================= */}
+                        {currentTab === 'entry' && (
+                            <div className="flex w-full h-full fade-in">
+                                {/* 왼쪽 패널: 이미지 및 설정 */}
+                                <div className="w-4/12 bg-white border-r border-slate-200 flex flex-col overflow-y-auto custom-scrollbar z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+                                    <div className="p-6 space-y-6">
+                                        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+                                            <h2 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wider">
+                                                <IconCheck size={16} className="text-green-600" />
+                                                Target Selection
+                                            </h2>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-400 mb-1.5">식당 선택</label>
+                                                    <select
+                                                        value={selectedCafeteria}
+                                                        onChange={(e) => setSelectedCafeteria(e.target.value)}
+                                                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-700 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    >
+                                                        {restaurants.map((res, i) => (
+                                                            <option key={i} value={res}>{res}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-400 mb-1.5">날짜 범위 선택</label>
+                                                    <select
+                                                        value={selectedDateRange}
+                                                        onChange={(e) => setSelectedDateRange(e.target.value)}
+                                                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-700 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    >
+                                                        {dateRanges.map((date, i) => (
+                                                            <option key={i} value={date}>{date}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <h2 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wider">
+                                                    <IconUpload size={16} className="text-blue-600" />
+                                                    Source Image
+                                                </h2>
+                                                {imagePreview && (
+                                                    <button onClick={() => { setImageFile(null); setImagePreview(null); }} className="text-xs text-red-500 font-bold hover:underline">삭제</button>
+                                                )}
+                                            </div>
+
+                                            {!imagePreview ? (
+                                                <label className="block w-full h-48 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50/50 transition-all group">
+                                                    <div className="bg-white p-3 rounded-full mb-2 shadow-sm group-hover:scale-110 transition-transform">
+                                                        <IconUpload size={24} className="text-slate-400 group-hover:text-blue-500" />
+                                                    </div>
+                                                    <span className="text-slate-500 text-sm font-medium group-hover:text-blue-600">이미지 업로드</span>
+                                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                                </label>
+                                            ) : (
+                                                <div className="relative group rounded-xl overflow-hidden border border-slate-200">
+                                                    <img src={imagePreview} alt="Preview" className="w-full h-auto" />
+                                                </div>
+                                            )}
+
+                                            <button
+                                                onClick={handleAnalyze}
+                                                disabled={!imageFile || isAnalyzing}
+                                                className={`w-full py-3 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all
+                                                    ${!imageFile
+                                                        ? "bg-slate-300 cursor-not-allowed"
+                                                        : isAnalyzing
+                                                            ? "bg-slate-800 cursor-wait"
+                                                            : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-lg hover:scale-[1.02]"
+                                                    }`}
+                                            >
+                                                {isAnalyzing ? (
+                                                    <><IconRefreshCw size={18} className="animate-spin" /> 분석 중...</>
+                                                ) : (
+                                                    <><IconWand2 size={18} /> 메뉴 추출하기</>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 오른쪽 패널: 에디터 */}
+                                <div className="w-8/12 bg-slate-50 flex flex-col overflow-y-auto custom-scrollbar">
+                                    <div className="p-8 max-w-[1200px] mx-auto w-full">
+                                        <div className="mb-6 flex justify-between items-end">
+                                            <div>
+                                                <h2 className="text-2xl font-bold text-slate-800">메뉴 데이터 편집</h2>
+                                                <p className="text-slate-500 text-sm mt-1">추출된 메뉴를 확인하고 수정하세요. 항목을 클릭하여 수정할 수 있습니다.</p>
+                                            </div>
+                                        </div>
+
+                                        {/* 가격 정보 */}
+                                        <div className="grid grid-cols-2 gap-4 mb-6">
+                                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold">L</div>
+                                                <div className="flex-1">
+                                                    <label className="text-xs font-bold text-slate-400 block mb-1">점심 가격</label>
+                                                    <input
+                                                        type="text"
+                                                        value={prices.lunch}
+                                                        onChange={(e) => setPrices({ ...prices, lunch: e.target.value })}
+                                                        className="w-full font-bold text-slate-800 outline-none border-b border-transparent focus:border-blue-500 transition-colors placeholder-slate-300"
+                                                        placeholder="가격 입력"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">D</div>
+                                                <div className="flex-1">
+                                                    <label className="text-xs font-bold text-slate-400 block mb-1">저녁 가격</label>
+                                                    <input
+                                                        type="text"
+                                                        value={prices.dinner}
+                                                        onChange={(e) => setPrices({ ...prices, dinner: e.target.value })}
+                                                        className="w-full font-bold text-slate-800 outline-none border-b border-transparent focus:border-blue-500 transition-colors placeholder-slate-300"
+                                                        placeholder="가격 입력"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 요일별 메뉴 테이블 (리스트 에디터 적용) */}
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full min-w-[800px] table-fixed">
+                                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                                        <tr>
+                                                            <th className="w-20 px-4 py-3 text-center text-xs font-bold text-slate-400 uppercase border-r border-slate-200">구분</th>
+                                                            {days.map(day => (
+                                                                <th key={day} className="px-4 py-3 text-center text-sm font-bold text-slate-700 border-r border-slate-200 last:border-r-0">
+                                                                    {day}요일
+                                                                </th>
+                                                            ))}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-200">
+                                                        {/* 점심 행 */}
+                                                        <tr>
+                                                            <th className="bg-slate-50/50 border-r border-slate-200 align-top py-6">
+                                                                <div className="flex flex-col items-center justify-center gap-1">
+                                                                    <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">점심</span>
+                                                                </div>
+                                                            </th>
+                                                            {days.map(day => (
+                                                                <td key={day} className="border-r border-slate-200 last:border-r-0 p-0 align-top h-48 bg-white hover:bg-slate-50/30 transition-colors">
+                                                                    <MenuListEditor
+                                                                        items={menuGrid[day].lunch}
+                                                                        onChange={(newItems) => handleMenuChange(day, 'lunch', newItems)}
+                                                                    />
+                                                                </td>
+                                                            ))}
+                                                        </tr>
+                                                        {/* 저녁 행 */}
+                                                        <tr>
+                                                            <th className="bg-slate-50/50 border-r border-slate-200 align-top py-6">
+                                                                <div className="flex flex-col items-center justify-center gap-1">
+                                                                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">저녁</span>
+                                                                </div>
+                                                            </th>
+                                                            {days.map(day => (
+                                                                <td key={day} className="border-r border-slate-200 last:border-r-0 p-0 align-top h-48 bg-white hover:bg-slate-50/30 transition-colors">
+                                                                    <MenuListEditor
+                                                                        items={menuGrid[day].dinner}
+                                                                        onChange={(newItems) => handleMenuChange(day, 'dinner', newItems)}
+                                                                    />
+                                                                </td>
+                                                            ))}
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+
+                        {/* ================= 탭 2: 기준 데이터 관리 ================= */}
+                        {currentTab === 'management' && (
+                            <div className="w-full h-full p-8 overflow-y-auto custom-scrollbar fade-in bg-slate-50">
+                                <div className="max-w-4xl mx-auto space-y-8">
+
+                                    {/* 식당 관리 섹션 */}
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                                            <div>
+                                                <h3 className="text-lg font-bold text-slate-800">식당 목록 관리</h3>
+                                                <p className="text-xs text-slate-500">데이터 입력 시 선택할 식당 목록을 관리합니다.</p>
+                                            </div>
+                                            <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">{restaurants.length}개</span>
+                                        </div>
+                                        <div className="p-6">
+                                            <div className="flex gap-2 mb-4">
+                                                <input
+                                                    type="text"
+                                                    placeholder="새 식당 이름 입력 (예: 센텀호텔 구내식당)"
+                                                    value={newResInput}
+                                                    onChange={(e) => setNewResInput(e.target.value)}
+                                                    onKeyDown={(e) => e.key === 'Enter' && addRestaurant()}
+                                                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                                                />
+                                                <button
+                                                    onClick={addRestaurant}
+                                                    className="bg-slate-800 text-white px-5 py-2 rounded-lg font-bold hover:bg-slate-900 transition-colors"
+                                                >
+                                                    추가
+                                                </button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {restaurants.map((res, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-lg hover:border-blue-200 hover:bg-white transition-all group">
+                                                        <span className="text-slate-700 font-medium">{res}</span>
+                                                        <button
+                                                            onClick={() => deleteRestaurant(idx)}
+                                                            className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+                                                        >
+                                                            <IconTrash size={18} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 날짜 관리 섹션 */}
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                                            <div>
+                                                <h3 className="text-lg font-bold text-slate-800">날짜 범위 관리</h3>
+                                                <p className="text-xs text-slate-500">주간 식단표의 날짜 범위를 미리 등록해두세요.</p>
+                                            </div>
+                                            <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">{dateRanges.length}개</span>
+                                        </div>
+                                        <div className="p-6">
+                                            <div className="flex gap-2 mb-4">
+                                                <input
+                                                    type="text"
+                                                    placeholder="새 날짜 범위 입력 (예: 1월 26일 ~ 1월 30일)"
+                                                    value={newDateInput}
+                                                    onChange={(e) => setNewDateInput(e.target.value)}
+                                                    onKeyDown={(e) => e.key === 'Enter' && addDateRange()}
+                                                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all"
+                                                />
+                                                <button
+                                                    onClick={addDateRange}
+                                                    className="bg-green-600 text-white px-5 py-2 rounded-lg font-bold hover:bg-green-700 transition-colors"
+                                                >
+                                                    추가
+                                                </button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {dateRanges.map((date, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-lg hover:border-green-200 hover:bg-white transition-all group">
+                                                        <span className="text-slate-700 font-medium">{date}</span>
+                                                        <button
+                                                            onClick={() => deleteDateRange(idx)}
+                                                            className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+                                                        >
+                                                            <IconTrash size={18} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AdminApp />);
+    </script>
+</body>
+
+</html>

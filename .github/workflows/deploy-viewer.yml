@@ -1,0 +1,66 @@
+name: Deploy Viewer to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'viewer/**'
+      - 'data/menu-data.json'
+      - '.github/workflows/deploy-viewer.yml'
+  workflow_dispatch: # 수동 실행 가능
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: viewer/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./viewer
+        run: npm ci
+
+      - name: Copy menu data
+        run: |
+          mkdir -p viewer/public/data
+          cp data/menu-data.json viewer/public/data/menu-data.json || echo "menu-data.json not found, using existing file"
+
+      - name: Get repository name
+        id: repo
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          echo "REPO_NAME=$REPO_NAME" >> $GITHUB_OUTPUT
+          echo "Repository name: $REPO_NAME"
+
+      - name: Build
+        working-directory: ./viewer
+        run: npm run build
+        env:
+          NODE_ENV: production
+          VITE_BASE_PATH: /${{ steps.repo.outputs.REPO_NAME }}/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './viewer/dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
