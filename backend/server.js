@@ -111,8 +111,9 @@ const openai = new OpenAI({
 
 // Supabase 클라이언트 초기화
 const supabaseUrl = process.env.SUPABASE_URL || 'https://vaqfjjkwpzrolebvbnbl.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_JWT_TOKEN;
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+// service_role 키가 없으면 anon 키 사용 (RLS 정책이 제대로 설정되어 있어야 함)
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_JWT_TOKEN;
+const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
