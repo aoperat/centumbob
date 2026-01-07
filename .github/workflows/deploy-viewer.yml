@@ -51,6 +51,7 @@ jobs:
         env:
           NODE_ENV: production
           VITE_BASE_PATH: /${{ steps.repo.outputs.REPO_NAME }}/
+          VITE_BUILD_TIME: ${{ github.run_number }}-${{ github.sha }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

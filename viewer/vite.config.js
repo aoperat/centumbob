@@ -17,5 +17,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  define: {
+    // 빌드 타임스탬프를 환경 변수로 주입 (캐시 버스터용)
+    __BUILD_TIME__: JSON.stringify(
+      process.env.VITE_BUILD_TIME || new Date().toISOString()
+    ),
+  },
 })
 

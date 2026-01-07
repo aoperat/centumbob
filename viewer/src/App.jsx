@@ -26,8 +26,14 @@ function App() {
         // Vite에서는 public 폴더의 파일을 절대 경로로 접근
         // import.meta.env.BASE_URL은 vite.config.js의 base 설정값
         const basePath = import.meta.env.BASE_URL;
+        // 캐시 버스터: 빌드 타임스탬프를 쿼리 파라미터로 추가
+        const buildTime =
+          typeof __BUILD_TIME__ !== "undefined" ? __BUILD_TIME__ : Date.now();
         const dataPath = `${basePath}data/menu-data.json`.replace(/\/\//g, "/");
-        const response = await fetch(dataPath);
+        const urlWithCacheBuster = `${dataPath}?v=${buildTime}`;
+        const response = await fetch(urlWithCacheBuster, {
+          cache: "no-store", // 추가적인 캐시 방지
+        });
 
         if (!response.ok) {
           throw new Error(`데이터를 불러올 수 없습니다. (${response.status})`);
@@ -141,32 +147,6 @@ function App() {
                 </span>
               )}
             </div>
-          </div>
-
-          {/* 카카오톡 채널 링크 */}
-          <div className="flex flex-wrap gap-2 mb-3 text-xs">
-            <a
-              href="https://pf.kakao.com/_FxbaQC"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z" />
-              </svg>
-              삼촌밥차런치펍
-            </a>
-            <a
-              href="https://pf.kakao.com/_CiVis"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z" />
-              </svg>
-              슈마우스만찬센텀점
-            </a>
           </div>
 
           {/* 요일 선택 탭 */}
@@ -340,6 +320,43 @@ function App() {
         <div className="text-center text-xs text-slate-400 py-6">
           * 점심/저녁 데이터가 없는 경우 공란으로 표시됩니다.
           <br />* 좌우로 스크롤하여 더 많은 식당을 확인하세요.
+        </div>
+
+        {/* 외부 링크 */}
+        <div className="flex flex-wrap gap-2 justify-center mb-6 text-xs">
+          <a
+            href="https://pf.kakao.com/_FxbaQC"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z" />
+            </svg>
+            삼촌밥차런치펍
+          </a>
+          <a
+            href="https://pf.kakao.com/_CiVis"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z" />
+            </svg>
+            슈마우스만찬센텀점
+          </a>
+          <a
+            href="https://blog.naver.com/dawafood-qubi"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#03C75A] text-white rounded-lg hover:bg-[#02b350] transition-colors font-medium shadow-sm"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16.273 12.845L7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727v12.845z" />
+            </svg>
+            큐비e센텀
+          </a>
         </div>
       </main>
 
