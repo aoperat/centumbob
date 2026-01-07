@@ -571,10 +571,44 @@ app.post('/api/publish', async (req, res) => {
       });
     }
 
+    // viewer/public/images/ 디렉토리 생성
+    const viewerImagesDir = path.join(__dirname, '..', 'viewer', 'public', 'images');
+    if (!fs.existsSync(viewerImagesDir)) {
+      fs.mkdirSync(viewerImagesDir, { recursive: true });
+    }
+
     // 뷰어 형식으로 변환 (식당명을 키로 하는 객체)
     const viewerData = {};
     allData.forEach(dbData => {
-      const transformed = transformDbDataForViewer(dbData);
+      let imageBase64 = null;
+      
+      // 이미지 파일이 있으면 base64로 인코딩
+      if (dbData.image_path) {
+        try {
+          const imageAbsolutePath = path.join(__dirname, dbData.image_path);
+          if (fs.existsSync(imageAbsolutePath)) {
+            const imageBuffer = fs.readFileSync(imageAbsolutePath);
+            const imageExt = path.extname(imageAbsolutePath).toLowerCase();
+            let mimeType = 'image/jpeg';
+            
+            if (imageExt === '.png') mimeType = 'image/png';
+            else if (imageExt === '.gif') mimeType = 'image/gif';
+            else if (imageExt === '.webp') mimeType = 'image/webp';
+            
+            imageBase64 = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
+            
+            // 이미지 파일을 viewer/public/images/로도 복사 (상대 경로 참조용)
+            const imageFileName = path.basename(imageAbsolutePath);
+            const viewerImagePath = path.join(viewerImagesDir, imageFileName);
+            fs.copyFileSync(imageAbsolutePath, viewerImagePath);
+            console.log('이미지 복사 완료:', viewerImagePath);
+          }
+        } catch (imageError) {
+          console.error('이미지 처리 오류:', imageError);
+        }
+      }
+      
+      const transformed = transformDbDataForViewer(dbData, imageBase64);
       viewerData[transformed.name] = transformed;
     });
 

@@ -31,7 +31,7 @@ export const transformDataForViewer = (adminData) => {
 };
 
 // DB 데이터를 뷰어 형식으로 변환
-export const transformDbDataForViewer = (dbData) => {
+export const transformDbDataForViewer = (dbData, imageBase64 = null) => {
   const { restaurant_name, date_range, price_lunch, price_dinner, menus, image_path } = dbData;
   
   // 메뉴 데이터 변환: lunch/dinner → 점심/저녁
@@ -47,9 +47,15 @@ export const transformDbDataForViewer = (dbData) => {
   });
 
   // 이미지 URL 생성
+  // GitHub Pages에서 접근 가능하도록 base64 인코딩 또는 상대 경로 사용
   const imageUrls = [];
-  if (image_path) {
-    imageUrls.push(`/api/images/${encodeURIComponent(restaurant_name)}/${encodeURIComponent(date_range)}`);
+  if (imageBase64) {
+    // base64 인코딩된 이미지 사용
+    imageUrls.push(imageBase64);
+  } else if (image_path) {
+    // 상대 경로로 이미지 참조 (viewer/public/images/ 폴더에 복사됨)
+    const imageFileName = image_path.split(/[/\\]/).pop();
+    imageUrls.push(`images/${imageFileName}`);
   }
 
   return {

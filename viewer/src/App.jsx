@@ -178,6 +178,16 @@ function App() {
                   {/* 상단 헤더: 회사명 */}
                   {cafeteriaKeys.map((name, idx) => {
                     const hasImage = menuData[name]?.imageUrls && menuData[name].imageUrls.length > 0;
+                    const getImageUrl = (imageUrl) => {
+                      // base64 이미지는 그대로 사용
+                      if (imageUrl.startsWith('data:')) {
+                        return imageUrl;
+                      }
+                      // 상대 경로인 경우 base 경로 추가
+                      const basePath = import.meta.env.BASE_URL;
+                      return `${basePath}${imageUrl}`.replace(/\/\//g, '/');
+                    };
+                    
                     return (
                       <th key={idx} className="p-4 bg-slate-50 border-b border-slate-200 text-left min-w-[200px]">
                         <div className="flex flex-col gap-1">
@@ -190,7 +200,7 @@ function App() {
                             </span>
                             {hasImage && (
                               <button
-                                onClick={() => setModalImage(menuData[name].imageUrls[0])}
+                                onClick={() => setModalImage(getImageUrl(menuData[name].imageUrls[0]))}
                                 className="ml-auto p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                 title="원본 이미지 보기"
                               >
