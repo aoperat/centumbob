@@ -1,6 +1,11 @@
-import { useState, useEffect } from 'react';
-import { IconUtensils, IconImage, IconX, IconCalendar } from './components/Icons';
-import MenuList from './components/MenuList';
+import { useState, useEffect } from "react";
+import {
+  IconUtensils,
+  IconImage,
+  IconX,
+  IconCalendar,
+} from "./components/Icons";
+import MenuList from "./components/MenuList";
 
 function App() {
   const [activeDay, setActiveDay] = useState("월");
@@ -21,23 +26,23 @@ function App() {
         // Vite에서는 public 폴더의 파일을 절대 경로로 접근
         // import.meta.env.BASE_URL은 vite.config.js의 base 설정값
         const basePath = import.meta.env.BASE_URL;
-        const dataPath = `${basePath}data/menu-data.json`.replace(/\/\//g, '/');
+        const dataPath = `${basePath}data/menu-data.json`.replace(/\/\//g, "/");
         const response = await fetch(dataPath);
-        
+
         if (!response.ok) {
           throw new Error(`데이터를 불러올 수 없습니다. (${response.status})`);
         }
-        
+
         const data = await response.json();
         setMenuData(data);
-        
+
         // 첫 번째 식당의 날짜 정보 가져오기
         const firstCafeteria = Object.values(data)[0];
         if (firstCafeteria && firstCafeteria.data) {
           setCurrentDate(firstCafeteria.data.date || "");
         }
       } catch (err) {
-        console.error('데이터 로드 오류:', err);
+        console.error("데이터 로드 오류:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -60,26 +65,26 @@ function App() {
   const getMenuData = (cafeteriaName, day, type) => {
     const data = menuData[cafeteriaName];
     if (!data) return { menu: null, price: "" };
-    
+
     const menus = data.data?.menus;
     if (!menus) return { menu: null, price: "" };
-    
+
     const dayMenu = menus[day];
 
     // 가격 정보 가져오기
-    const priceKey = type === '점심' ? 'lunch' : 'dinner';
+    const priceKey = type === "점심" ? "lunch" : "dinner";
     const price = data.price?.[priceKey] || "";
 
     if (!dayMenu) return { menu: null, price };
 
     // 데이터가 배열인 경우 (단일 메뉴) -> 점심에만 표시
     if (Array.isArray(dayMenu)) {
-      if (type === '점심') return { menu: dayMenu, price };
+      if (type === "점심") return { menu: dayMenu, price };
       return { menu: null, price };
     }
 
     // 데이터가 객체인 경우 (점심/저녁 분리)
-    if (typeof dayMenu === 'object') {
+    if (typeof dayMenu === "object") {
       return { menu: dayMenu[type], price };
     }
     return { menu: null, price };
@@ -140,25 +145,25 @@ function App() {
 
           {/* 카카오톡 채널 링크 */}
           <div className="flex flex-wrap gap-2 mb-3 text-xs">
-            <a 
-              href="https://pf.kakao.com/_FxbaQC" 
-              target="_blank" 
+            <a
+              href="https://pf.kakao.com/_FxbaQC"
+              target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z"/>
+                <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z" />
               </svg>
               삼촌밥차런치펍
             </a>
-            <a 
-              href="https://pf.kakao.com/_CiVis" 
-              target="_blank" 
+            <a
+              href="https://pf.kakao.com/_CiVis"
+              target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z"/>
+                <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z" />
               </svg>
               슈마우스만찬센텀점
             </a>
@@ -174,9 +179,11 @@ function App() {
                   onClick={() => setActiveDay(day)}
                   className={`
                     flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200
-                    ${isActive
-                      ? "bg-white text-blue-600 shadow-sm ring-1 ring-black/5"
-                      : "text-slate-400 hover:text-slate-600"}
+                    ${
+                      isActive
+                        ? "bg-white text-blue-600 shadow-sm ring-1 ring-black/5"
+                        : "text-slate-400 hover:text-slate-600"
+                    }
                   `}
                 >
                   {day}
@@ -190,7 +197,8 @@ function App() {
       {/* 메인 컨텐츠 영역 (테이블 구조) */}
       <main className="w-full max-w-7xl px-4 mt-6">
         <div className="mb-3 text-sm font-medium text-slate-500 ml-1">
-          <span className="text-blue-600 font-bold">{activeDay}요일</span>의 식단 비교
+          <span className="text-blue-600 font-bold">{activeDay}요일</span>의
+          식단 비교
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -205,30 +213,44 @@ function App() {
                   </th>
                   {/* 상단 헤더: 회사명 */}
                   {cafeteriaKeys.map((name, idx) => {
-                    const hasImage = menuData[name]?.imageUrls && menuData[name].imageUrls.length > 0;
+                    const hasImage =
+                      menuData[name]?.imageUrls &&
+                      menuData[name].imageUrls.length > 0;
                     const getImageUrl = (imageUrl) => {
                       // base64 이미지는 그대로 사용
-                      if (imageUrl.startsWith('data:')) {
+                      if (imageUrl.startsWith("data:")) {
                         return imageUrl;
                       }
                       // 상대 경로인 경우 base 경로 추가
                       const basePath = import.meta.env.BASE_URL;
-                      return `${basePath}${imageUrl}`.replace(/\/\//g, '/');
+                      return `${basePath}${imageUrl}`.replace(/\/\//g, "/");
                     };
-                    
+
                     return (
-                      <th key={idx} className="p-4 bg-slate-50 border-b border-slate-200 text-left min-w-[200px]">
+                      <th
+                        key={idx}
+                        className="p-4 bg-slate-50 border-b border-slate-200 text-left min-w-[200px]"
+                      >
                         <div className="flex flex-col gap-1">
-                          <span className="text-slate-800 font-bold text-sm block truncate w-full" title={name}>
-                            {name.split('(')[0].trim()}
+                          <span
+                            className="text-slate-800 font-bold text-sm block truncate w-full"
+                            title={name}
+                          >
+                            {name.split("(")[0].trim()}
                           </span>
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] text-slate-400 font-normal truncate">
-                              {name.includes('(') ? name.match(/\((.*?)\)/)?.[1] || '' : ''}
+                              {name.includes("(")
+                                ? name.match(/\((.*?)\)/)?.[1] || ""
+                                : ""}
                             </span>
                             {hasImage && (
                               <button
-                                onClick={() => setModalImage(getImageUrl(menuData[name].imageUrls[0]))}
+                                onClick={() =>
+                                  setModalImage(
+                                    getImageUrl(menuData[name].imageUrls[0])
+                                  )
+                                }
                                 className="ml-auto p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                 title="원본 이미지 보기"
                               >
@@ -250,13 +272,22 @@ function App() {
                       <span className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
                         <IconUtensils className="w-4 h-4" />
                       </span>
-                      <span className="text-xs font-bold text-slate-600">점심</span>
+                      <span className="text-xs font-bold text-slate-600">
+                        점심
+                      </span>
                     </div>
                   </th>
                   {cafeteriaKeys.map((name, idx) => {
-                    const { menu, price } = getMenuData(name, activeDay, '점심');
+                    const { menu, price } = getMenuData(
+                      name,
+                      activeDay,
+                      "점심"
+                    );
                     return (
-                      <td key={idx} className="p-4 align-top bg-white hover:bg-slate-50 transition-colors">
+                      <td
+                        key={idx}
+                        className="p-4 align-top bg-white hover:bg-slate-50 transition-colors"
+                      >
                         {menu && menu.length > 0 && (
                           <div className="inline-block px-2 py-0.5 bg-orange-50 border border-orange-100 rounded text-orange-700 text-xs font-bold mb-1">
                             {price}
@@ -274,13 +305,22 @@ function App() {
                       <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
                         <span className="text-xs font-bold">🌙</span>
                       </span>
-                      <span className="text-xs font-bold text-slate-600">저녁</span>
+                      <span className="text-xs font-bold text-slate-600">
+                        저녁
+                      </span>
                     </div>
                   </th>
                   {cafeteriaKeys.map((name, idx) => {
-                    const { menu, price } = getMenuData(name, activeDay, '저녁');
+                    const { menu, price } = getMenuData(
+                      name,
+                      activeDay,
+                      "저녁"
+                    );
                     return (
-                      <td key={idx} className="p-4 align-top bg-slate-50/50 hover:bg-slate-100 transition-colors">
+                      <td
+                        key={idx}
+                        className="p-4 align-top bg-slate-50/50 hover:bg-slate-100 transition-colors"
+                      >
                         {menu && menu.length > 0 && (
                           <div className="inline-block px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-indigo-700 text-xs font-bold mb-1">
                             {price}
@@ -298,8 +338,8 @@ function App() {
 
         {/* 하단 안내 */}
         <div className="text-center text-xs text-slate-400 py-6">
-          * 점심/저녁 데이터가 없는 경우 공란으로 표시됩니다.<br />
-          * 좌우로 스크롤하여 더 많은 식당을 확인하세요.
+          * 점심/저녁 데이터가 없는 경우 공란으로 표시됩니다.
+          <br />* 좌우로 스크롤하여 더 많은 식당을 확인하세요.
         </div>
       </main>
 
@@ -311,12 +351,12 @@ function App() {
         >
           <div
             className="bg-white rounded-xl overflow-hidden w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]"
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center p-4 border-b">
               <h3 className="font-bold text-slate-800">식단표 원본</h3>
-              <button 
-                onClick={() => setModalImage(null)} 
+              <button
+                onClick={() => setModalImage(null)}
                 className="p-1.5 hover:bg-slate-100 rounded-full transition-colors"
               >
                 <IconX />
@@ -327,7 +367,9 @@ function App() {
                 src={modalImage}
                 alt="Original Menu"
                 className="max-w-full h-auto object-contain"
-                onError={(e) => { e.target.style.display = 'none'; }}
+                onError={(e) => {
+                  e.target.style.display = "none";
+                }}
               />
             </div>
           </div>
@@ -338,4 +380,3 @@ function App() {
 }
 
 export default App;
-
