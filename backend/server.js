@@ -898,7 +898,7 @@ app.listen(PORT, () => {
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
   console.log(`OpenAI API 키: ${process.env.OPENAI_API_KEY ? '설정됨' : '설정되지 않음'}`);
   console.log(`Supabase URL: ${supabaseUrl}`);
-  console.log(`Supabase 키: ${supabaseServiceKey ? '설정됨' : '설정되지 않음'}`);
+  console.log(`Supabase 키: ${supabaseKey ? '설정됨' : '설정되지 않음'}`);
   console.log(`데이터 저장 경로: ${menuDataPath}`);
 });
 
