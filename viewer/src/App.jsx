@@ -26,11 +26,9 @@ function App() {
         // Vite에서는 public 폴더의 파일을 절대 경로로 접근
         // import.meta.env.BASE_URL은 vite.config.js의 base 설정값
         const basePath = import.meta.env.BASE_URL;
-        // 캐시 버스터: 빌드 타임스탬프를 쿼리 파라미터로 추가
-        const buildTime =
-          typeof __BUILD_TIME__ !== "undefined" ? __BUILD_TIME__ : Date.now();
+        // 캐시 버스터: 매 요청마다 새로운 타임스탬프 사용
         const dataPath = `${basePath}data/menu-data.json`.replace(/\/\//g, "/");
-        const urlWithCacheBuster = `${dataPath}?v=${buildTime}`;
+        const urlWithCacheBuster = `${dataPath}?t=${Date.now()}`;
         const response = await fetch(urlWithCacheBuster, {
           cache: "no-store", // 추가적인 캐시 방지
         });
