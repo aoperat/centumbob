@@ -22,6 +22,19 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
   const [complaints, setComplaints] = useState([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [userEmailFilter, setUserEmailFilter] = useState("");
+  
+  // 상세 보기에서 최신 데이터 로드
+  const loadComplaintDetail = async (id) => {
+    if (!id) return null;
+    try {
+      const { getComplaint } = await import("../utils/api");
+      const result = await getComplaint(id);
+      return result.data;
+    } catch (error) {
+      console.error("민원 상세 조회 실패:", error);
+      return null;
+    }
+  };
 
   // 민원 제출
   const handleSubmit = async (e) => {
@@ -396,9 +409,13 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                   {complaints.map((complaint) => (
                     <div
                       key={complaint.id}
-                      onClick={() => {
-                        setSelectedComplaint(complaint);
+                      onClick={async () => {
+                        // 최신 데이터 로드
+                        setIsLoading(true);
+                        const latestComplaint = await loadComplaintDetail(complaint.id);
+                        setSelectedComplaint(latestComplaint || complaint);
                         setView("detail");
+                        setIsLoading(false);
                       }}
                       className="p-4 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-all"
                     >
@@ -422,6 +439,11 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                             <span className="text-sm text-slate-500">
                               {complaint.restaurant_name}
                             </span>
+                            {complaint.admin_response && (
+                              <span className="px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700">
+                                답변완료
+                              </span>
+                            )}
                           </div>
                           <h4 className="font-bold text-slate-800 mb-1">
                             {complaint.title}
@@ -446,6 +468,28 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
           {/* 민원 상세 */}
           {view === "detail" && selectedComplaint && (
             <div className="space-y-4">
+              {/* 새로고침 버튼 */}
+              <div className="flex justify-end">
+                <button
+                  onClick={async () => {
+                    setIsLoading(true);
+                    const latest = await loadComplaintDetail(selectedComplaint.id);
+                    if (latest) {
+                      setSelectedComplaint(latest);
+                      // 목록도 업데이트
+                      const updatedList = complaints.map(c => 
+                        c.id === latest.id ? latest : c
+                      );
+                      setComplaints(updatedList);
+                    }
+                    setIsLoading(false);
+                  }}
+                  disabled={isLoading}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
+                >
+                  {isLoading ? "새로고침 중..." : "새로고침"}
+                </button>
+              </div>
               <div className="flex items-center gap-2">
                 <span
                   className={`px-3 py-1 rounded-lg text-sm font-bold ${getStatusColor(
