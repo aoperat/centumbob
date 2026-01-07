@@ -60,7 +60,11 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
         loadComplaints(formData.user_email);
       }
     } catch (error) {
-      alert(`민원 제출 실패: ${error.message}`);
+      let errorMessage = error.message;
+      if (errorMessage.includes('백엔드 서버') || errorMessage.includes('연결할 수 없습니다')) {
+        errorMessage = '백엔드 서버에 연결할 수 없습니다.\n\n현재 민원 기능을 사용할 수 없습니다.\n관리자에게 문의해주세요.';
+      }
+      alert(`민원 제출 실패: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +86,11 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
       const result = await getComplaints(filters);
       setComplaints(result.data || []);
     } catch (error) {
-      alert(`민원 조회 실패: ${error.message}`);
+      let errorMessage = error.message;
+      if (errorMessage.includes('백엔드 서버') || errorMessage.includes('연결할 수 없습니다')) {
+        errorMessage = '백엔드 서버에 연결할 수 없습니다.\n\n현재 민원 조회 기능을 사용할 수 없습니다.\n관리자에게 문의해주세요.';
+      }
+      alert(`민원 조회 실패: ${errorMessage}`);
       setComplaints([]);
     } finally {
       setIsLoading(false);
