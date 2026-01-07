@@ -129,11 +129,39 @@ function App() {
               </span>
               센텀 밥집
             </h1>
-            {currentDate && (
-              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full flex items-center gap-1">
-                <IconCalendar /> {currentDate}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {currentDate && (
+                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full flex items-center gap-1">
+                  <IconCalendar /> {currentDate}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* 카카오톡 채널 링크 */}
+          <div className="flex flex-wrap gap-2 mb-3 text-xs">
+            <a 
+              href="https://pf.kakao.com/_FxbaQC" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z"/>
+              </svg>
+              삼촌밥차런치펍
+            </a>
+            <a 
+              href="https://pf.kakao.com/_CiVis" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z"/>
+              </svg>
+              슈마우스만찬센텀점
+            </a>
           </div>
 
           {/* 요일 선택 탭 */}
