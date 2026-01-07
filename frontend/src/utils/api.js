@@ -82,10 +82,42 @@ export const publishMenuData = async () => {
 };
 
 // ==================== 민원 관련 API ====================
+// Supabase Edge Function 사용 (서버리스) 또는 로컬 백엔드
+
+// Edge Function URL (환경 변수로 오버라이드 가능)
+const SUPABASE_EDGE_FUNCTION_URL = import.meta.env.VITE_COMPLAINTS_API_URL || 
+  'https://vaqfjjkwpzrolebvbnbl.supabase.co/functions/v1/complaints-api';
+
+// 로컬 백엔드 URL (개발 환경)
+const LOCAL_API_URL = 'http://localhost:3001';
+
+// API URL 결정: 환경 변수가 있으면 사용, 없으면 Edge Function 또는 로컬
+const getComplaintsApiUrl = () => {
+  if (import.meta.env.VITE_COMPLAINTS_API_URL) {
+    return import.meta.env.VITE_COMPLAINTS_API_URL;
+  }
+  // 개발 환경에서는 로컬 백엔드 우선, 없으면 Edge Function
+  return import.meta.env.DEV ? LOCAL_API_URL : SUPABASE_EDGE_FUNCTION_URL;
+};
+
+const COMPLAINTS_API_BASE = getComplaintsApiUrl();
+
+// Edge Function인지 로컬 백엔드인지 확인
+const isEdgeFunction = COMPLAINTS_API_BASE.includes('/functions/v1/');
+
+// API 엔드포인트 생성
+const getComplaintsEndpoint = (path = '') => {
+  if (isEdgeFunction) {
+    // Edge Function은 /api/complaints 없이 직접 호출
+    return `${COMPLAINTS_API_BASE}${path}`;
+  }
+  // 로컬 백엔드는 /api/complaints 포함
+  return `${COMPLAINTS_API_BASE}/api/complaints${path}`;
+};
 
 // 민원 제출
 export const submitComplaint = async (complaintData) => {
-  const response = await fetch('/api/complaints', {
+  const response = await fetch(getComplaintsEndpoint(''), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -113,7 +145,7 @@ export const getComplaints = async (filters = {}) => {
   if (offset) params.append('offset', offset);
 
   const queryString = params.toString();
-  const url = `/api/complaints${queryString ? `?${queryString}` : ''}`;
+  const url = getComplaintsEndpoint(queryString ? `?${queryString}` : '');
 
   const response = await fetch(url);
 
@@ -127,7 +159,7 @@ export const getComplaints = async (filters = {}) => {
 
 // 특정 민원 조회
 export const getComplaint = async (id) => {
-  const response = await fetch(`/api/complaints/${id}`);
+  const response = await fetch(getComplaintsEndpoint(`/${id}`));
 
   if (!response.ok) {
     const error = await response.json();
@@ -139,7 +171,7 @@ export const getComplaint = async (id) => {
 
 // 민원 업데이트 (관리자용)
 export const updateComplaint = async (id, updateData) => {
-  const response = await fetch(`/api/complaints/${id}`, {
+  const response = await fetch(getComplaintsEndpoint(`/${id}`), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

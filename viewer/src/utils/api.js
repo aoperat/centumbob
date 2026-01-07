@@ -1,16 +1,18 @@
-// 백엔드 API 기본 URL
-// 개발 환경에서는 localhost, 프로덕션에서는 실제 백엔드 URL 사용
+// Supabase Edge Function URL (서버리스)
+// 프로덕션에서는 Supabase Edge Function 사용, 개발 환경에서는 환경 변수 또는 localhost
+const SUPABASE_URL = 'https://vaqfjjkwpzrolebvbnbl.supabase.co';
+const EDGE_FUNCTION_NAME = 'complaints-api';
+const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/${EDGE_FUNCTION_NAME}`;
+
 let API_BASE_URL = import.meta.env.VITE_API_URL;
 
-// 프로덕션에서 API URL이 없으면 빈 문자열 (에러 처리)
+// 프로덕션에서는 Supabase Edge Function을 기본값으로 사용
 if (import.meta.env.PROD) {
   if (!API_BASE_URL || API_BASE_URL === 'http://localhost:3001') {
-    API_BASE_URL = ''; // 프로덕션에서 localhost는 사용하지 않음
-    console.warn('⚠️ 백엔드 API URL이 설정되지 않았습니다. 민원 기능이 작동하지 않습니다.');
-    console.warn('⚠️ GitHub 저장소 Settings > Secrets > Actions에 VITE_API_URL을 설정하고 재배포해주세요.');
+    API_BASE_URL = EDGE_FUNCTION_URL; // Supabase Edge Function 사용
   }
 } else {
-  // 개발 환경
+  // 개발 환경: 환경 변수가 있으면 사용, 없으면 localhost
   API_BASE_URL = API_BASE_URL || 'http://localhost:3001';
 }
 
@@ -18,6 +20,10 @@ if (import.meta.env.PROD) {
 const getApiUrl = (endpoint) => {
   if (!API_BASE_URL) {
     throw new Error('백엔드 서버가 설정되지 않았습니다. 관리자에게 문의해주세요.');
+  }
+  // Edge Function은 /api/complaints 대신 직접 호출
+  if (API_BASE_URL.includes('/functions/v1/')) {
+    return API_BASE_URL + endpoint.replace('/api/complaints', '');
   }
   return `${API_BASE_URL}${endpoint}`;
 };
