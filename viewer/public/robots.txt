@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /data/
+
+# Sitemap 위치
+Sitemap: https://aoperat.github.io/centumbob/sitemap.xml
+

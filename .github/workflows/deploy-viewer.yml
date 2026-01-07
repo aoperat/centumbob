@@ -5,9 +5,9 @@ on:
     branches:
       - main
     paths:
-      - 'viewer/**'
-      - 'data/menu-data.json'
-      - '.github/workflows/deploy-viewer.yml'
+      - "viewer/**"
+      - "data/menu-data.json"
+      - ".github/workflows/deploy-viewer.yml"
   workflow_dispatch: # 수동 실행 가능
 
 jobs:
@@ -25,8 +25,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: "18"
+          cache: "npm"
           cache-dependency-path: viewer/package-lock.json
 
       - name: Install dependencies
@@ -54,24 +54,74 @@ jobs:
           VITE_BUILD_TIME: ${{ github.run_number }}-${{ github.sha }}
           VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3001' }}
 
-      - name: Inject version into HTML
+      - name: Get GitHub username
+        id: username
+        run: |
+          USERNAME=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+          echo "USERNAME=$USERNAME" >> $GITHUB_OUTPUT
+          echo "GitHub username: $USERNAME"
+
+      - name: Inject version and URLs into HTML
         working-directory: ./viewer/dist
         run: |
           VERSION="${{ github.run_number }}-${{ github.sha }}"
+          REPO_NAME="${{ steps.repo.outputs.REPO_NAME }}"
+          USERNAME="${{ steps.username.outputs.USERNAME }}"
+          BASE_URL="https://${USERNAME}.github.io/${REPO_NAME}"
+
+          # 버전 치환
           sed -i "s/__APP_VERSION__/$VERSION/g" index.html
+
+          # URL 치환 (사용자명과 레포지토리명)
+          sed -i "s|https://aoperat.github.io/centumbob/|${BASE_URL}/|g" index.html
+          sed -i "s|https://사용자명.github.io/centumbob_v2/|${BASE_URL}/|g" index.html
+          sed -i "s|사용자명|${USERNAME}|g" index.html
+          sed -i "s|centumbob_v2|${REPO_NAME}|g" index.html
+          sed -i "s|centumbob|${REPO_NAME}|g" index.html
+
           echo "Injected version: $VERSION"
+          echo "Injected base URL: $BASE_URL"
+
+      - name: Update robots.txt and sitemap.xml with correct URLs
+        working-directory: ./viewer/dist
+        run: |
+          REPO_NAME="${{ steps.repo.outputs.REPO_NAME }}"
+          USERNAME="${{ steps.username.outputs.USERNAME }}"
+          BASE_URL="https://${USERNAME}.github.io/${REPO_NAME}"
+
+          # robots.txt 업데이트
+          if [ -f robots.txt ]; then
+            sed -i "s|https://aoperat.github.io/centumbob/|${BASE_URL}/|g" robots.txt
+            sed -i "s|https://사용자명.github.io/centumbob_v2/|${BASE_URL}/|g" robots.txt
+            sed -i "s|사용자명|${USERNAME}|g" robots.txt
+            sed -i "s|centumbob_v2|${REPO_NAME}|g" robots.txt
+            sed -i "s|centumbob|${REPO_NAME}|g" robots.txt
+          fi
+
+          # sitemap.xml 업데이트
+          if [ -f sitemap.xml ]; then
+            sed -i "s|https://aoperat.github.io/centumbob/|${BASE_URL}/|g" sitemap.xml
+            sed -i "s|https://사용자명.github.io/centumbob_v2/|${BASE_URL}/|g" sitemap.xml
+            sed -i "s|사용자명|${USERNAME}|g" sitemap.xml
+            sed -i "s|centumbob_v2|${REPO_NAME}|g" sitemap.xml
+            sed -i "s|centumbob|${REPO_NAME}|g" sitemap.xml
+            # 날짜를 오늘 날짜로 업데이트
+            TODAY=$(date +%Y-%m-%d)
+            sed -i "s|<lastmod>2025-01-01</lastmod>|<lastmod>${TODAY}</lastmod>|g" sitemap.xml
+          fi
+
+          echo "Updated robots.txt and sitemap.xml with base URL: $BASE_URL"
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
         with:
-          enablement: true  # Pages가 비활성화되어 있으면 자동으로 활성화
+          enablement: true # Pages가 비활성화되어 있으면 자동으로 활성화
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './viewer/dist'
+          path: "./viewer/dist"
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-

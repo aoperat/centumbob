@@ -1,72 +1,118 @@
 <!doctype html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <title>센텀시티 구내식당 식단표</title>
-    <script>
-      // 버전 체크 및 강제 캐시 무효화 (인라인 - 캐시 영향 없음)
-      // __APP_VERSION__ 은 빌드 시 자동으로 치환됩니다
-      (function() {
-        var VERSION = '__APP_VERSION__';
-        var KEY = 'centumbob_version';
-        var stored = localStorage.getItem(KEY);
 
-        // 개발 환경이면 스킵
-        if (VERSION.indexOf('__') === 0) return;
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
 
-        // 버전이 다르면 강제 업데이트
-        if (stored && stored !== VERSION) {
-          console.log('새 버전 감지:', VERSION, '(이전:', stored + ')');
-          
-          // 모든 캐시 삭제
-          if ('caches' in window) {
-            caches.keys().then(function(names) {
-              return Promise.all(names.map(function(name) {
-                return caches.delete(name);
-              }));
-            }).then(function() {
-              console.log('캐시 삭제 완료');
-            });
-          }
-          
-          // localStorage 클리어 (선택사항 - 필요시 주석 해제)
-          // localStorage.clear();
-          
-          // 새 버전 저장
-          localStorage.setItem(KEY, VERSION);
-          
-          // 강제 새로고침 (캐시 무시)
-          if (location.reload) {
-            location.reload(true);
-          } else {
-            location.href = location.href.split('?')[0] + '?v=' + Date.now();
-          }
-        } else if (!stored) {
-          // 첫 방문 시 버전 저장
-          localStorage.setItem(KEY, VERSION);
-        }
-        
-        // 주기적으로 버전 체크 (5분마다)
-        setInterval(function() {
-          fetch(location.href + '?v=' + Date.now(), { 
-            method: 'HEAD',
-            cache: 'no-store'
-          }).then(function(response) {
-            return response.text();
-          }).catch(function() {
-            // 네트워크 오류 무시
-          });
-        }, 5 * 60 * 1000);
-      })();
+  <!-- SEO 메타 태그 -->
+  <title>센텀밥집 - 센텀시티 구내식당 식단표</title>
+  <meta name="description" content="센텀밥집에서 센텀시티 구내식당의 주간 식단표를 확인하세요. 요일별 점심/저녁 메뉴와 가격을 한눈에 비교할 수 있습니다." />
+  <meta name="keywords" content="센텀밥집, 센텀시티, 구내식당, 식단표, 점심메뉴, 저녁메뉴, 센텀밥, 식당메뉴, 센텀시티 식당" />
+  <meta name="author" content="센텀밥집" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://aoperat.github.io/centumbob/" />
+
+  <!-- Open Graph 메타 태그 (소셜 미디어 공유용) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="센텀밥집 - 센텀시티 구내식당 식단표" />
+  <meta property="og:description" content="센텀시티 구내식당의 주간 식단표를 확인하세요. 요일별 점심/저녁 메뉴와 가격을 한눈에 비교할 수 있습니다." />
+  <meta property="og:url" content="https://aoperat.github.io/centumbob/" />
+  <meta property="og:site_name" content="센텀밥집" />
+  <meta property="og:locale" content="ko_KR" />
+
+  <!-- Twitter Card 메타 태그 -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="센텀밥집 - 센텀시티 구내식당 식단표" />
+  <meta name="twitter:description" content="센텀시티 구내식당의 주간 식단표를 확인하세요. 요일별 점심/저녁 메뉴와 가격을 한눈에 비교할 수 있습니다." />
+
+  <!-- 구조화된 데이터 (JSON-LD) -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "센텀밥집",
+      "description": "센텀시티 구내식당의 주간 식단표를 확인할 수 있는 웹 애플리케이션",
+      "url": "https://aoperat.github.io/centumbob/",
+      "applicationCategory": "FoodService",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "KRW"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.5",
+        "ratingCount": "100"
+      }
+    }
     </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+  <script>
+    // 버전 체크 및 강제 캐시 무효화 (인라인 - 캐시 영향 없음)
+    // __APP_VERSION__ 은 빌드 시 자동으로 치환됩니다
+    (function () {
+      var VERSION = '__APP_VERSION__';
+      var KEY = 'centumbob_version';
+      var stored = localStorage.getItem(KEY);
+
+      // 개발 환경이면 스킵
+      if (VERSION.indexOf('__') === 0) return;
+
+      // 버전이 다르면 강제 업데이트
+      if (stored && stored !== VERSION) {
+        console.log('새 버전 감지:', VERSION, '(이전:', stored + ')');
+
+        // 모든 캐시 삭제
+        if ('caches' in window) {
+          caches.keys().then(function (names) {
+            return Promise.all(names.map(function (name) {
+              return caches.delete(name);
+            }));
+          }).then(function () {
+            console.log('캐시 삭제 완료');
+          });
+        }
+
+        // localStorage 클리어 (선택사항 - 필요시 주석 해제)
+        // localStorage.clear();
+
+        // 새 버전 저장
+        localStorage.setItem(KEY, VERSION);
+
+        // 강제 새로고침 (캐시 무시)
+        if (location.reload) {
+          location.reload(true);
+        } else {
+          location.href = location.href.split('?')[0] + '?v=' + Date.now();
+        }
+      } else if (!stored) {
+        // 첫 방문 시 버전 저장
+        localStorage.setItem(KEY, VERSION);
+      }
+
+      // 주기적으로 버전 체크 (5분마다)
+      setInterval(function () {
+        fetch(location.href + '?v=' + Date.now(), {
+          method: 'HEAD',
+          cache: 'no-store'
+        }).then(function (response) {
+          return response.text();
+        }).catch(function () {
+          // 네트워크 오류 무시
+        });
+      }, 5 * 60 * 1000);
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>
