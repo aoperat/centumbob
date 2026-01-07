@@ -7,6 +7,7 @@ import {
 } from "./components/Icons";
 import MenuList from "./components/MenuList";
 import ComplaintModal from "./components/ComplaintModal";
+import { getPageViews, incrementPageView } from "./utils/api";
 
 function App() {
   const [activeDay, setActiveDay] = useState("월");
@@ -16,6 +17,7 @@ function App() {
   const [error, setError] = useState(null);
   const [currentDate, setCurrentDate] = useState("");
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
+  const [pageViewCount, setPageViewCount] = useState(null);
 
   const days = ["월", "화", "수", "목", "금"];
   const cafeteriaKeys = Object.keys(menuData);
@@ -68,14 +70,67 @@ function App() {
     loadMenuData();
   }, []);
 
-  // 오늘 요일 자동 선택 (주말은 월요일)
+  // 방문자수 조회 및 증가
   useEffect(() => {
+    const trackPageView = async () => {
+      try {
+        // 프로덕션: BASE_URL 사용, 개발: "/" 사용
+        const pagePath = import.meta.env.PROD
+          ? import.meta.env.BASE_URL || "/centumbob/"
+          : "/centumbob/";
+
+        // 중복 카운트 방지: sessionStorage 사용
+        const viewKey = `page_view_${pagePath}`;
+        const hasViewed = sessionStorage.getItem(viewKey);
+
+        if (!hasViewed) {
+          // 방문자수 증가
+          await incrementPageView(pagePath);
+          sessionStorage.setItem(viewKey, "true");
+        }
+
+        // 방문자수 조회
+        const result = await getPageViews(pagePath);
+        console.log("방문자수 API 응답:", result); // 디버깅용
+
+        if (result?.success && result?.data) {
+          // Edge Function 응답 구조: { success: true, data: { view_count: number, ... } }
+          const viewCount = result.data.view_count ?? 0;
+          console.log("설정할 방문자수:", viewCount); // 디버깅용
+          setPageViewCount(viewCount);
+        } else if (result?.data?.view_count !== undefined) {
+          // 다른 응답 구조 대비
+          setPageViewCount(result.data.view_count);
+        } else {
+          // 응답 구조가 예상과 다를 경우
+          console.warn("예상하지 못한 응답 구조:", result);
+          setPageViewCount(0); // 기본값 설정
+        }
+      } catch (error) {
+        console.error("방문자수 추적 실패:", error);
+        // 에러 발생 시에도 0으로 설정하여 "로딩 중..." 대신 표시
+        setPageViewCount(0);
+      }
+    };
+
+    trackPageView();
+  }, []);
+
+  // 오늘 요일 계산
+  const getTodayDay = () => {
     const dayIndex = new Date().getDay();
     const dayMap = ["일", "월", "화", "수", "목", "금", "토"];
-    let currentDay = dayMap[dayIndex];
-    if (currentDay === "일" || currentDay === "토") currentDay = "월";
+    return dayMap[dayIndex];
+  };
+
+  const todayDay = getTodayDay();
+  const isWeekend = todayDay === "일" || todayDay === "토";
+
+  // 오늘 요일 자동 선택 (주말은 월요일)
+  useEffect(() => {
+    const currentDay = isWeekend ? "월" : todayDay;
     setActiveDay(currentDay);
-  }, []);
+  }, [todayDay, isWeekend]);
 
   // 메뉴 데이터 추출 헬퍼 함수
   const getMenuData = (cafeteriaName, day, type) => {
@@ -169,20 +224,28 @@ function App() {
           <div className="flex justify-between bg-slate-100 p-1 rounded-xl max-w-md mx-auto sm:mx-0">
             {days.map((day) => {
               const isActive = activeDay === day;
+              const isToday = !isWeekend && day === todayDay;
               return (
                 <button
                   key={day}
                   onClick={() => setActiveDay(day)}
                   className={`
-                    flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200
+                    relative flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200
                     ${
                       isActive
-                        ? "bg-white text-blue-600 shadow-sm ring-1 ring-black/5"
+                        ? isToday
+                          ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 ring-2 ring-blue-400/50 scale-105"
+                          : "bg-white text-blue-600 shadow-sm ring-1 ring-black/5"
+                        : isToday
+                        ? "bg-blue-50 text-blue-600 hover:bg-blue-100 ring-1 ring-blue-200"
                         : "text-slate-400 hover:text-slate-600"
                     }
                   `}
                 >
-                  {day}
+                  <span className="relative z-10">{day}</span>
+                  {isActive && isToday && (
+                    <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-400/20 to-blue-600/20 animate-pulse"></div>
+                  )}
                 </button>
               );
             })}
@@ -329,6 +392,23 @@ function App() {
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* 방문자수 표시 */}
+        <div className="w-full max-w-7xl px-4 mt-4 mb-2">
+          <div className="text-center text-sm text-slate-600">
+            {pageViewCount !== null && pageViewCount !== undefined ? (
+              <span>
+                오늘{" "}
+                <span className="font-bold text-blue-600">
+                  {pageViewCount.toLocaleString()}
+                </span>
+                명이 방문했어요
+              </span>
+            ) : (
+              <span className="text-slate-400">로딩 중...</span>
+            )}
           </div>
         </div>
 
