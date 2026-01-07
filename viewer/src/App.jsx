@@ -6,6 +6,7 @@ import {
   IconCalendar,
 } from "./components/Icons";
 import MenuList from "./components/MenuList";
+import ComplaintModal from "./components/ComplaintModal";
 
 function App() {
   const [activeDay, setActiveDay] = useState("월");
@@ -14,9 +15,20 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentDate, setCurrentDate] = useState("");
+  const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
 
   const days = ["월", "화", "수", "목", "금"];
   const cafeteriaKeys = Object.keys(menuData);
+
+  // 식당 목록 및 날짜 범위 추출 (민원 모달용)
+  const restaurants = cafeteriaKeys;
+  const dateRanges = [];
+  // menuData에서 날짜 범위 추출
+  Object.values(menuData).forEach((data) => {
+    if (data.data?.date && !dateRanges.includes(data.data.date)) {
+      dateRanges.push(data.data.date);
+    }
+  });
 
   // JSON 데이터 로드
   useEffect(() => {
@@ -144,6 +156,12 @@ function App() {
                   <IconCalendar /> {currentDate}
                 </span>
               )}
+              <button
+                onClick={() => setIsComplaintModalOpen(true)}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                민원 제출
+              </button>
             </div>
           </div>
 
@@ -390,6 +408,14 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* 민원 제출 모달 */}
+      <ComplaintModal
+        isOpen={isComplaintModalOpen}
+        onClose={() => setIsComplaintModalOpen(false)}
+        restaurants={restaurants}
+        dateRanges={dateRanges}
+      />
     </div>
   );
 }

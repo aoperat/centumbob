@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { IconFileText, IconSave, IconSettings } from './components/Icons';
 import EntryTab from './components/EntryTab';
 import ManagementTab from './components/ManagementTab';
+import ComplaintTab from './components/ComplaintTab';
+import ComplaintAdminTab from './components/ComplaintAdminTab';
 import { saveMenuData, publishMenuData } from './utils/api';
 
 function App() {
   const entryTabRef = useRef(null);
   // --- Global State ---
-  const [currentTab, setCurrentTab] = useState("entry"); // 'entry' | 'management'
+  const [currentTab, setCurrentTab] = useState("entry"); // 'entry' | 'management' | 'complaint' | 'complaint-admin'
 
   // --- Management State ---
   const [restaurants, setRestaurants] = useState([
@@ -96,6 +98,26 @@ function App() {
               >
                 <IconSettings size={14} /> 기준 데이터 관리
               </button>
+              <button
+                onClick={() => setCurrentTab("complaint")}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${
+                  currentTab === 'complaint' 
+                    ? 'bg-white text-blue-600 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                민원 제출
+              </button>
+              <button
+                onClick={() => setCurrentTab("complaint-admin")}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${
+                  currentTab === 'complaint-admin' 
+                    ? 'bg-white text-blue-600 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                민원 관리
+              </button>
             </div>
           </div>
 
@@ -148,6 +170,21 @@ function App() {
             setRestaurants={setRestaurants}
             dateRanges={dateRanges}
             setDateRanges={setDateRanges}
+          />
+        )}
+
+        {/* ================= 탭 3: 민원 제출 ================= */}
+        {currentTab === 'complaint' && (
+          <ComplaintTab
+            restaurants={restaurants}
+            dateRanges={dateRanges}
+          />
+        )}
+
+        {/* ================= 탭 4: 민원 관리 ================= */}
+        {currentTab === 'complaint-admin' && (
+          <ComplaintAdminTab
+            restaurants={restaurants}
           />
         )}
       </main>

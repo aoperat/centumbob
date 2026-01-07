@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
 import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -19,7 +20,14 @@ const PORT = process.env.PORT || 3001;
 
 // CORS 설정
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: [
+    'http://localhost:3000', 
+    'http://127.0.0.1:3000',
+    'http://localhost:5173', // Vite 개발 서버 (viewer)
+    'http://127.0.0.1:5173',  // Vite 개발 서버 (viewer)
+    // 프로덕션 도메인은 환경 변수로 추가 가능
+    ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [])
+  ],
   credentials: true
 }));
 
@@ -99,6 +107,16 @@ const upload = multer({
 // OpenAI 클라이언트 초기화
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
+});
+
+// Supabase 클라이언트 초기화
+const supabaseUrl = process.env.SUPABASE_URL || 'https://vaqfjjkwpzrolebvbnbl.supabase.co';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_JWT_TOKEN;
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
 });
 
 // 이미지 분석 엔드포인트
@@ -665,9 +683,221 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// ==================== 민원 관련 API ====================
+
+// 민원 제출
+app.post('/api/complaints', async (req, res) => {
+  try {
+    const { restaurant_name, date_range, category, title, content, user_name, user_email } = req.body;
+
+    // 필수 필드 검증
+    if (!restaurant_name || !category || !title || !content || !user_name || !user_email) {
+      return res.status(400).json({ 
+        error: '필수 필드가 누락되었습니다. (restaurant_name, category, title, content, user_name, user_email)' 
+      });
+    }
+
+    // 카테고리 검증
+    const validCategories = ['메뉴', '가격', '품질', '기타'];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ 
+        error: `유효하지 않은 카테고리입니다. 가능한 값: ${validCategories.join(', ')}` 
+      });
+    }
+
+    // Supabase에 민원 저장
+    const { data, error } = await supabase
+      .from('complaints')
+      .insert([
+        {
+          restaurant_name,
+          date_range: date_range || null,
+          category,
+          title,
+          content,
+          user_name,
+          user_email,
+          status: 'pending'
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase 오류:', error);
+      return res.status(500).json({ 
+        error: '민원 제출 중 오류가 발생했습니다.',
+        message: error.message 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: '민원이 성공적으로 제출되었습니다.',
+      data 
+    });
+
+  } catch (error) {
+    console.error('민원 제출 오류:', error);
+    res.status(500).json({ 
+      error: '민원 제출 중 오류가 발생했습니다.',
+      message: error.message 
+    });
+  }
+});
+
+// 민원 목록 조회
+app.get('/api/complaints', async (req, res) => {
+  try {
+    const { status, restaurant_name, user_email, limit = 100, offset = 0 } = req.query;
+
+    let query = supabase
+      .from('complaints')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    // 필터링
+    if (status) {
+      query = query.eq('status', status);
+    }
+    if (restaurant_name) {
+      query = query.eq('restaurant_name', restaurant_name);
+    }
+    if (user_email) {
+      query = query.eq('user_email', user_email);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error('Supabase 오류:', error);
+      return res.status(500).json({ 
+        error: '민원 조회 중 오류가 발생했습니다.',
+        message: error.message 
+      });
+    }
+
+    res.json({ 
+      success: true,
+      data: data || [],
+      count: data?.length || 0
+    });
+
+  } catch (error) {
+    console.error('민원 조회 오류:', error);
+    res.status(500).json({ 
+      error: '민원 조회 중 오류가 발생했습니다.',
+      message: error.message 
+    });
+  }
+});
+
+// 특정 민원 상세 조회
+app.get('/api/complaints/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data, error } = await supabase
+      .from('complaints')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ 
+          error: '민원을 찾을 수 없습니다.' 
+        });
+      }
+      console.error('Supabase 오류:', error);
+      return res.status(500).json({ 
+        error: '민원 조회 중 오류가 발생했습니다.',
+        message: error.message 
+      });
+    }
+
+    res.json({ 
+      success: true,
+      data 
+    });
+
+  } catch (error) {
+    console.error('민원 조회 오류:', error);
+    res.status(500).json({ 
+      error: '민원 조회 중 오류가 발생했습니다.',
+      message: error.message 
+    });
+  }
+});
+
+// 민원 업데이트 (상태 변경 및 답변 작성)
+app.put('/api/complaints/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, admin_response } = req.body;
+
+    // 업데이트할 필드 구성
+    const updateData = {};
+    if (status) {
+      const validStatuses = ['pending', 'processing', 'resolved', 'closed'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ 
+          error: `유효하지 않은 상태입니다. 가능한 값: ${validStatuses.join(', ')}` 
+        });
+      }
+      updateData.status = status;
+    }
+    if (admin_response !== undefined) {
+      updateData.admin_response = admin_response;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ 
+        error: '업데이트할 필드가 없습니다.' 
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('complaints')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ 
+          error: '민원을 찾을 수 없습니다.' 
+        });
+      }
+      console.error('Supabase 오류:', error);
+      return res.status(500).json({ 
+        error: '민원 업데이트 중 오류가 발생했습니다.',
+        message: error.message 
+      });
+    }
+
+    res.json({ 
+      success: true,
+      message: '민원이 성공적으로 업데이트되었습니다.',
+      data 
+    });
+
+  } catch (error) {
+    console.error('민원 업데이트 오류:', error);
+    res.status(500).json({ 
+      error: '민원 업데이트 중 오류가 발생했습니다.',
+      message: error.message 
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
   console.log(`OpenAI API 키: ${process.env.OPENAI_API_KEY ? '설정됨' : '설정되지 않음'}`);
+  console.log(`Supabase URL: ${supabaseUrl}`);
+  console.log(`Supabase 키: ${supabaseServiceKey ? '설정됨' : '설정되지 않음'}`);
   console.log(`데이터 저장 경로: ${menuDataPath}`);
 });
 
