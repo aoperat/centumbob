@@ -8,6 +8,32 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>센텀시티 구내식당 식단표</title>
+    <script>
+      // 버전 체크 (인라인 - 캐시 영향 없음)
+      // __APP_VERSION__ 은 빌드 시 자동으로 치환됩니다
+      (function() {
+        var VERSION = '__APP_VERSION__';
+        var KEY = 'centumbob_version';
+        var stored = localStorage.getItem(KEY);
+
+        // 개발 환경이면 스킵
+        if (VERSION.indexOf('__') === 0) return;
+
+        if (stored && stored !== VERSION) {
+          localStorage.setItem(KEY, VERSION);
+          // 캐시 클리어 시도
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              names.forEach(function(name) { caches.delete(name); });
+            });
+          }
+          // 강제 새로고침
+          location.reload(true);
+        } else {
+          localStorage.setItem(KEY, VERSION);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
