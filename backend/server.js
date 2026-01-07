@@ -25,6 +25,7 @@ app.use(cors({
     'http://127.0.0.1:3000',
     'http://localhost:5173', // Vite 개발 서버 (viewer)
     'http://127.0.0.1:5173',  // Vite 개발 서버 (viewer)
+    'https://aoperat.github.io', // GitHub Pages (viewer)
     // 프로덕션 도메인은 환경 변수로 추가 가능
     ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [])
   ],
