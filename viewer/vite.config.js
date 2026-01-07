@@ -16,6 +16,14 @@ export default defineConfig({
     : '/',
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        // 파일명에 해시 추가하여 캐시 무효화
+        entryFileNames: 'assets/[name].[hash].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash].[ext]',
+      },
+    },
   },
   define: {
     // 빌드 타임스탬프를 환경 변수로 주입 (캐시 버스터용)

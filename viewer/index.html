@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0" />
     <title>센텀시티 구내식당 식단표</title>
     <script>
-      // 버전 체크 (인라인 - 캐시 영향 없음)
+      // 버전 체크 및 강제 캐시 무효화 (인라인 - 캐시 영향 없음)
       // __APP_VERSION__ 은 빌드 시 자동으로 치환됩니다
       (function() {
         var VERSION = '__APP_VERSION__';
@@ -19,19 +19,49 @@
         // 개발 환경이면 스킵
         if (VERSION.indexOf('__') === 0) return;
 
+        // 버전이 다르면 강제 업데이트
         if (stored && stored !== VERSION) {
-          localStorage.setItem(KEY, VERSION);
-          // 캐시 클리어 시도
+          console.log('새 버전 감지:', VERSION, '(이전:', stored + ')');
+          
+          // 모든 캐시 삭제
           if ('caches' in window) {
             caches.keys().then(function(names) {
-              names.forEach(function(name) { caches.delete(name); });
+              return Promise.all(names.map(function(name) {
+                return caches.delete(name);
+              }));
+            }).then(function() {
+              console.log('캐시 삭제 완료');
             });
           }
-          // 강제 새로고침
-          location.reload(true);
-        } else {
+          
+          // localStorage 클리어 (선택사항 - 필요시 주석 해제)
+          // localStorage.clear();
+          
+          // 새 버전 저장
+          localStorage.setItem(KEY, VERSION);
+          
+          // 강제 새로고침 (캐시 무시)
+          if (location.reload) {
+            location.reload(true);
+          } else {
+            location.href = location.href.split('?')[0] + '?v=' + Date.now();
+          }
+        } else if (!stored) {
+          // 첫 방문 시 버전 저장
           localStorage.setItem(KEY, VERSION);
         }
+        
+        // 주기적으로 버전 체크 (5분마다)
+        setInterval(function() {
+          fetch(location.href + '?v=' + Date.now(), { 
+            method: 'HEAD',
+            cache: 'no-store'
+          }).then(function(response) {
+            return response.text();
+          }).catch(function() {
+            // 네트워크 오류 무시
+          });
+        }, 5 * 60 * 1000);
       })();
     </script>
   </head>

@@ -52,6 +52,7 @@ jobs:
           NODE_ENV: production
           VITE_BASE_PATH: /${{ steps.repo.outputs.REPO_NAME }}/
           VITE_BUILD_TIME: ${{ github.run_number }}-${{ github.sha }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3001' }}
 
       - name: Inject version into HTML
         working-directory: ./viewer/dist

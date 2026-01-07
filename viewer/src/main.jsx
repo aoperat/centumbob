@@ -12,22 +12,34 @@ const checkVersion = async () => {
   const storedVersion = localStorage.getItem(STORAGE_KEY);
 
   if (storedVersion && storedVersion !== APP_VERSION && APP_VERSION !== 'dev') {
+    console.log('🔄 새 버전 감지! 업데이트 중...', { 이전: storedVersion, 새: APP_VERSION });
+    
     // 새 버전 감지 - 캐시 클리어 후 새로고침
     localStorage.setItem(STORAGE_KEY, APP_VERSION);
 
-    // Service Worker 캐시 클리어
+    // 모든 캐시 클리어
     if ('caches' in window) {
-      const cacheNames = await caches.keys();
-      await Promise.all(cacheNames.map(name => caches.delete(name)));
+      try {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+        console.log('✅ 캐시 삭제 완료');
+      } catch (e) {
+        console.warn('캐시 삭제 실패:', e);
+      }
     }
 
     // 강제 새로고침 (캐시 무시)
-    window.location.reload();
+    // location.reload(true)는 deprecated이므로 쿼리 파라미터 추가
+    const url = new URL(window.location.href);
+    url.searchParams.set('_v', Date.now());
+    window.location.href = url.toString();
     return false;
   }
 
   // 버전 저장
-  localStorage.setItem(STORAGE_KEY, APP_VERSION);
+  if (APP_VERSION !== 'dev') {
+    localStorage.setItem(STORAGE_KEY, APP_VERSION);
+  }
   return true;
 };
 
