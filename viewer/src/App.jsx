@@ -74,11 +74,19 @@ function App() {
   useEffect(() => {
     const trackPageView = async () => {
       // 프로덕션: BASE_URL 사용, 개발: "/" 사용
-      const pagePath = import.meta.env.PROD
+      let pagePath = import.meta.env.PROD
         ? import.meta.env.BASE_URL || "/centumbob/"
         : "/centumbob/";
+
+      // 날짜별 방문자수 집계를 위해 경로에 날짜 추가 (오늘 날짜 기준)
+      const today = new Date();
+      const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       
-      console.log("방문자수 추적 경로:", pagePath); // 디버깅용
+      // 경로가 /로 끝나면 그대로 날짜 추가, 아니면 / 추가 후 날짜
+      // 예: /centumbob/ -> /centumbob/2026-01-09
+      pagePath = pagePath.endsWith('/') ? `${pagePath}${dateString}` : `${pagePath}/${dateString}`;
+      
+      console.log("방문자수 추적 경로 (일별):", pagePath); // 디버깅용
 
       // 중복 카운트 방지: sessionStorage 사용
       const viewKey = `page_view_${pagePath}`;
