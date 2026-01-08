@@ -19,7 +19,8 @@ const ManagementTab = ({
     name: '',
     price_lunch: '',
     price_dinner: '',
-    has_dinner: true
+    has_dinner: true,
+    webhook_url: ''
   });
 
   // 날짜 관련 상태
@@ -57,7 +58,8 @@ const ManagementTab = ({
         name: restaurant.name,
         price_lunch: restaurant.price_lunch || '',
         price_dinner: restaurant.price_dinner || '',
-        has_dinner: restaurant.has_dinner === 1
+        has_dinner: restaurant.has_dinner === 1,
+        webhook_url: restaurant.webhook_url || ''
       });
     } else {
       setEditingId(null);
@@ -65,7 +67,8 @@ const ManagementTab = ({
         name: '',
         price_lunch: '',
         price_dinner: '',
-        has_dinner: true
+        has_dinner: true,
+        webhook_url: ''
       });
     }
     setIsModalOpen(true);
@@ -165,6 +168,7 @@ const ManagementTab = ({
                   <th className="px-6 py-3 font-bold">점심 가격</th>
                   <th className="px-6 py-3 font-bold">저녁 가격</th>
                   <th className="px-6 py-3 font-bold text-center">저녁 제공</th>
+                  <th className="px-6 py-3 font-bold text-center">웹훅</th>
                   <th className="px-6 py-3 font-bold text-center">상태</th>
                   <th className="px-6 py-3 font-bold text-right">관리</th>
                 </tr>
@@ -172,7 +176,7 @@ const ManagementTab = ({
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
+                    <td colSpan="7" className="px-6 py-8 text-center text-slate-500">
                       <div className="flex justify-center items-center gap-2">
                         <IconRefreshCw className="animate-spin" /> 로딩 중...
                       </div>
@@ -180,7 +184,7 @@ const ManagementTab = ({
                   </tr>
                 ) : dbRestaurants.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center text-slate-500">등록된 식당이 없습니다.</td>
+                    <td colSpan="7" className="px-6 py-8 text-center text-slate-500">등록된 식당이 없습니다.</td>
                   </tr>
                 ) : (
                   dbRestaurants.map((res) => (
@@ -194,16 +198,23 @@ const ManagementTab = ({
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
+                        {res.webhook_url ? (
+                          <span className="inline-block px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700">설정됨</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center">
                         <span className={`inline-block w-2 h-2 rounded-full ${res.is_active ? 'bg-green-500' : 'bg-slate-300'}`}></span>
                       </td>
                       <td className="px-6 py-4 text-right space-x-2">
-                        <button 
+                        <button
                           onClick={() => openModal(res)}
                           className="text-blue-600 hover:text-blue-800 font-medium text-xs px-2 py-1 rounded hover:bg-blue-50 transition-colors"
                         >
                           수정
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleDeleteRestaurant(res.id, res.name)}
                           className="text-red-500 hover:text-red-700 font-medium text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors"
                         >
@@ -314,14 +325,31 @@ const ManagementTab = ({
                   <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${formData.has_dinner ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300 group-hover:border-blue-400'}`}>
                     {formData.has_dinner && <IconCheck size={14} className="text-white" />}
                   </div>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     className="hidden"
                     checked={formData.has_dinner}
                     onChange={(e) => setFormData({ ...formData, has_dinner: e.target.checked })}
                   />
                   <span className="text-sm font-medium text-slate-700">저녁 식사 제공</span>
                 </label>
+              </div>
+
+              <div className="mt-4">
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">
+                  이미지 웹훅 URL
+                  <span className="text-slate-400 font-normal ml-1">(선택)</span>
+                </label>
+                <input
+                  type="url"
+                  value={formData.webhook_url}
+                  onChange={(e) => setFormData({ ...formData, webhook_url: e.target.value })}
+                  placeholder="예: http://localhost:5678/webhook/xxxxx"
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  n8n 등의 웹훅 URL을 입력하면 자동으로 이미지를 가져올 수 있습니다.
+                </p>
               </div>
             </div>
 

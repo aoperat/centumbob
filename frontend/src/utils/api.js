@@ -298,3 +298,26 @@ export const generateBlogPost = async (day, dateRange) => {
   }
 };
 
+// ==================== 웹훅 이미지 API ====================
+
+// 웹훅으로 이미지 가져오기
+export const fetchImageFromWebhook = async (webhookUrl, restaurantName) => {
+  const response = await fetch('/api/webhook/fetch-image', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      webhook_url: webhookUrl,
+      restaurant_name: restaurantName
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '웹훅 이미지 가져오기 실패');
+  }
+
+  return await response.json();
+};
+

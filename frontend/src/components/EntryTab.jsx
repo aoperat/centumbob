@@ -1,7 +1,7 @@
 import { useState, useImperativeHandle, forwardRef, useEffect, useRef } from 'react';
-import { IconCheck, IconUpload, IconRefreshCw, IconWand2 } from './Icons';
+import { IconCheck, IconUpload, IconRefreshCw, IconWand2, IconDownload } from './Icons';
 import MenuListEditor from './MenuListEditor';
-import { analyzeImage, loadMenuData } from '../utils/api';
+import { analyzeImage, loadMenuData, fetchImageFromWebhook } from '../utils/api';
 
 const EntryTab = forwardRef(({ 
   restaurants, 
@@ -26,6 +26,7 @@ const EntryTab = forwardRef(({
   });
   const containerRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingWebhook, setIsFetchingWebhook] = useState(false);
   const [restaurantDetails, setRestaurantDetails] = useState({}); // 식당 상세 정보 캐시
 
   // 식당 목록 상세 정보 불러오기
@@ -179,6 +180,46 @@ const EntryTab = forwardRef(({
     }
   };
 
+  // 웹훅에서 이미지 가져오기
+  const handleFetchFromWebhook = async () => {
+    // 현재 선택된 식당의 웹훅 URL 확인
+    const currentRestaurant = restaurantDetails[selectedCafeteria];
+
+    if (!currentRestaurant?.webhook_url) {
+      alert('선택한 식당에 웹훅 URL이 설정되어 있지 않습니다.\n기준 정보 관리에서 웹훅 URL을 설정해주세요.');
+      return;
+    }
+
+    setIsFetchingWebhook(true);
+    try {
+      const result = await fetchImageFromWebhook(
+        currentRestaurant.webhook_url,
+        selectedCafeteria
+      );
+
+      if (result.success && result.imageData) {
+        // Base64 데이터를 File 객체로 변환
+        const response = await fetch(result.imageData);
+        const blob = await response.blob();
+        const file = new File(
+          [blob],
+          `webhook_image_${Date.now()}.${result.extension}`,
+          { type: result.contentType }
+        );
+
+        // 기존 이미지 처리 로직 사용
+        processImageFile(file);
+
+        console.log('[웹훅] 이미지 가져오기 성공:', result.size, 'bytes');
+      }
+    } catch (error) {
+      console.error('[웹훅] 이미지 가져오기 실패:', error);
+      alert('웹훅에서 이미지를 가져오는데 실패했습니다.\n' + error.message);
+    } finally {
+      setIsFetchingWebhook(false);
+    }
+  };
+
   const handleMenuChange = (day, type, newItems) => {
     setMenuGrid(prev => ({
       ...prev,
@@ -262,6 +303,25 @@ const EntryTab = forwardRef(({
                 </button>
               )}
             </div>
+
+            {/* 웹훅 버튼 - 이미지가 없고 웹훅 URL이 설정된 경우에만 표시 */}
+            {!imagePreview && restaurantDetails[selectedCafeteria]?.webhook_url && (
+              <button
+                onClick={handleFetchFromWebhook}
+                disabled={isFetchingWebhook}
+                className={`w-full py-3 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all mb-3
+                  ${isFetchingWebhook
+                    ? "bg-slate-400 cursor-wait"
+                    : "bg-gradient-to-r from-green-600 to-emerald-600 hover:shadow-lg hover:scale-[1.02]"
+                  }`}
+              >
+                {isFetchingWebhook ? (
+                  <><IconRefreshCw size={18} className="animate-spin" /> 가져오는 중...</>
+                ) : (
+                  <><IconDownload size={18} /> 웹훅에서 이미지 가져오기</>
+                )}
+              </button>
+            )}
 
             {!imagePreview ? (
               <label className="block w-full h-48 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50/50 transition-all group">

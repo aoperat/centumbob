@@ -70,6 +70,18 @@ try {
     console.error('마이그레이션 오류:', migrationError);
   }
 
+  // 마이그레이션: webhook_url 컬럼 확인 및 추가
+  try {
+    const tableInfo = db.pragma('table_info(restaurants)');
+    const hasWebhookUrlColumn = tableInfo.find(col => col.name === 'webhook_url');
+    if (!hasWebhookUrlColumn) {
+      console.log('restaurants 테이블에 webhook_url 컬럼 추가 중...');
+      db.exec('ALTER TABLE restaurants ADD COLUMN webhook_url TEXT DEFAULT NULL');
+    }
+  } catch (migrationError) {
+    console.error('webhook_url 마이그레이션 오류:', migrationError);
+  }
+
   console.log('데이터베이스 테이블 초기화 완료');
 } catch (tableError) {
   console.error('테이블 생성 실패:', tableError);
@@ -212,25 +224,25 @@ export const getActiveRestaurants = () => {
 
 // 식당 추가
 export const addRestaurant = (data) => {
-  const { name, price_lunch, price_dinner, has_dinner } = data;
+  const { name, price_lunch, price_dinner, has_dinner, webhook_url } = data;
 
   // 현재 최대 sort_order 구하기
   const maxOrder = db.prepare('SELECT MAX(sort_order) as max_order FROM restaurants').get();
   const newOrder = (maxOrder?.max_order || 0) + 1;
 
   const stmt = db.prepare(`
-    INSERT INTO restaurants (name, price_lunch, price_dinner, has_dinner, sort_order)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO restaurants (name, price_lunch, price_dinner, has_dinner, webhook_url, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
 
   const hasDinnerVal = has_dinner === undefined ? 1 : (has_dinner ? 1 : 0);
-  const result = stmt.run(name, price_lunch || '', price_dinner || '', hasDinnerVal, newOrder);
-  return { id: result.lastInsertRowid, name, price_lunch, price_dinner, has_dinner: hasDinnerVal, sort_order: newOrder };
+  const result = stmt.run(name, price_lunch || '', price_dinner || '', hasDinnerVal, webhook_url || null, newOrder);
+  return { id: result.lastInsertRowid, name, price_lunch, price_dinner, has_dinner: hasDinnerVal, webhook_url: webhook_url || null, sort_order: newOrder };
 };
 
 // 식당 수정
 export const updateRestaurant = (id, data) => {
-  const { name, price_lunch, price_dinner, has_dinner, is_active, sort_order } = data;
+  const { name, price_lunch, price_dinner, has_dinner, is_active, sort_order, webhook_url } = data;
 
   const updates = [];
   const params = [];
@@ -258,6 +270,10 @@ export const updateRestaurant = (id, data) => {
   if (sort_order !== undefined) {
     updates.push('sort_order = ?');
     params.push(sort_order);
+  }
+  if (webhook_url !== undefined) {
+    updates.push('webhook_url = ?');
+    params.push(webhook_url || null);
   }
 
   if (updates.length === 0) {

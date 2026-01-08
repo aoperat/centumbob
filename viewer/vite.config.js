@@ -9,10 +9,13 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    port: 9113,
+  },
   // 개발 환경에서는 '/' 사용, 프로덕션에서는 base 경로 사용
   // GitHub Actions에서 자동으로 레포지토리 이름으로 설정됨
-  base: process.env.NODE_ENV === 'production' 
-    ? (process.env.VITE_BASE_PATH || '/centumbob_v2/') 
+  base: process.env.NODE_ENV === 'production'
+    ? (process.env.VITE_BASE_PATH || '/centumbob_v2/')
     : '/',
   build: {
     outDir: 'dist',
