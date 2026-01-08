@@ -26,6 +26,28 @@ const EntryTab = forwardRef(({
   });
   const containerRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [restaurantDetails, setRestaurantDetails] = useState({}); // 식당 상세 정보 캐시
+
+  // 식당 목록 상세 정보 불러오기
+  useEffect(() => {
+    const fetchRestaurantDetails = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/api/restaurants');
+        if (response.ok) {
+          const data = await response.json();
+          // 식당 이름을 키로 하는 객체로 변환
+          const details = data.reduce((acc, curr) => {
+            acc[curr.name] = curr;
+            return acc;
+          }, {});
+          setRestaurantDetails(details);
+        }
+      } catch (error) {
+        console.error('식당 상세 정보 로드 실패:', error);
+      }
+    };
+    fetchRestaurantDetails();
+  }, []);
 
   // 식당/날짜 변경 시 데이터 자동 불러오기
   useEffect(() => {
@@ -37,7 +59,7 @@ const EntryTab = forwardRef(({
         const data = await loadMenuData(selectedCafeteria, selectedDateRange);
         
         if (data) {
-          // 가격 정보 설정
+          // 데이터가 있으면 저장된 데이터 사용
           setPrices({
             lunch: data.price_lunch || "",
             dinner: data.price_dinner || ""
@@ -61,8 +83,14 @@ const EntryTab = forwardRef(({
             setSavedImageUrl(null);
           }
         } else {
-          // 데이터가 없으면 초기화
-          setPrices({ lunch: "", dinner: "" });
+          // 데이터가 없으면 초기화하되, 식당 기본 정보가 있으면 채워넣기
+          const detail = restaurantDetails[selectedCafeteria];
+          
+          setPrices({ 
+            lunch: detail?.price_lunch || "", 
+            dinner: detail?.price_dinner || "" 
+          });
+          
           setMenuGrid({
             "월": { lunch: [], dinner: [] },
             "화": { lunch: [], dinner: [] },
@@ -82,7 +110,7 @@ const EntryTab = forwardRef(({
     };
 
     fetchData();
-  }, [selectedCafeteria, selectedDateRange]);
+  }, [selectedCafeteria, selectedDateRange, restaurantDetails]);
 
   // 이미지 파일 처리 공통 함수
   const processImageFile = (file) => {

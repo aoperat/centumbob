@@ -4,12 +4,22 @@ import EntryTab from './components/EntryTab';
 import ManagementTab from './components/ManagementTab';
 import ComplaintTab from './components/ComplaintTab';
 import ComplaintAdminTab from './components/ComplaintAdminTab';
+import BlogTab from './components/BlogTab';
 import { saveMenuData, publishMenuData } from './utils/api';
 
 function App() {
   const entryTabRef = useRef(null);
   // --- Global State ---
-  const [currentTab, setCurrentTab] = useState("entry"); // 'entry' | 'management' | 'complaint' | 'complaint-admin'
+  // 새로고침 시 탭 상태 유지 (localStorage 사용)
+  const [currentTab, setCurrentTab] = useState(() => {
+    const savedTab = localStorage.getItem('centumbob_admin_currentTab');
+    return savedTab || "entry";
+  });
+  
+  // 탭 변경 시 localStorage에 저장
+  useEffect(() => {
+    localStorage.setItem('centumbob_admin_currentTab', currentTab);
+  }, [currentTab]);
 
   // --- Management State ---
   const [restaurants, setRestaurants] = useState([
@@ -118,6 +128,16 @@ function App() {
               >
                 민원 관리
               </button>
+              <button
+                onClick={() => setCurrentTab("blog")}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-1 ${
+                  currentTab === 'blog' 
+                    ? 'bg-white text-purple-600 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <IconFileText size={14} /> 블로그 생성
+              </button>
             </div>
           </div>
 
@@ -185,6 +205,13 @@ function App() {
         {currentTab === 'complaint-admin' && (
           <ComplaintAdminTab
             restaurants={restaurants}
+          />
+        )}
+
+        {/* ================= 탭 5: 블로그 생성 ================= */}
+        {currentTab === 'blog' && (
+          <BlogTab
+            dateRanges={dateRanges}
           />
         )}
       </main>

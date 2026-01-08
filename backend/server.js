@@ -7,8 +7,15 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { saveMenuData, getMenuData, getAllMenuData, getMenuDataList } from './database.js';
+import { 
+  saveMenuData, getMenuData, getAllMenuData, getMenuDataList,
+  getAllRestaurants, getActiveRestaurants, addRestaurant, updateRestaurant, deleteRestaurant, updateRestaurantOrders
+} from './database.js';
 import { transformDbDataForViewer } from './utils/transform.js';
+import { parseDateFromRange, generateJekyllPost, generateTistoryPost, saveBlogImage, generateBlogContent } from './utils/blogGenerator.js';
+import { getDailyNews } from './utils/newsProvider.js';
+import puppeteer from 'puppeteer';
+import { createWorker } from 'tesseract.js';
 
 dotenv.config();
 
@@ -16,15 +23,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 // CORS 설정
 app.use(cors({
   origin: [
-    'http://localhost:3000', 
+    'http://localhost:3000', // 프론트엔드 (개발 서버)
     'http://127.0.0.1:3000',
-    'http://localhost:5173', // Vite 개발 서버 (viewer)
-    'http://127.0.0.1:5173',  // Vite 개발 서버 (viewer)
+    'http://localhost:3001', // 프론트엔드 (관리자 페이지)
+    'http://127.0.0.1:3001',
+    'http://localhost:5174', // 뷰어 페이지 (개발 서버)
+    'http://127.0.0.1:5174',
+    'http://localhost:5173', // 뷰어 페이지 (기존 포트, 호환성)
+    'http://127.0.0.1:5173',
     'https://aoperat.github.io', // GitHub Pages (viewer)
     // 프로덕션 도메인은 환경 변수로 추가 가능
     ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [])
@@ -33,6 +44,33 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// 헬스 체크 엔드포인트
+app.get('/api/health', (req, res) => {
+  try {
+    // 데이터베이스 연결 확인
+    const testQuery = getMenuDataList();
+    res.json({
+      status: 'ok',
+      database: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      database: 'disconnected',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 뷰어 페이지 정적 파일 서빙 (블로그 생성용)
+const viewerDistPath = path.join(__dirname, '..', 'viewer', 'dist');
+if (fs.existsSync(viewerDistPath)) {
+  app.use('/viewer', express.static(viewerDistPath));
+  console.log('뷰어 페이지 정적 파일 서빙 활성화:', viewerDistPath);
+}
 
 // uploads 디렉토리 설정
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -136,6 +174,20 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
     const imageBase64 = req.file.buffer.toString('base64');
     const imageDataUrl = `data:${req.file.mimetype};base64,${imageBase64}`;
 
+    // 1. Tesseract OCR로 텍스트 1차 추출
+    console.log('OCR 분석 시작...');
+    let ocrText = '';
+    try {
+      const worker = await createWorker('kor+eng');
+      const ret = await worker.recognize(req.file.buffer);
+      ocrText = ret.data.text;
+      await worker.terminate();
+      console.log('OCR 분석 완료 (텍스트 길이):', ocrText.length);
+    } catch (ocrError) {
+      console.warn('OCR 분석 실패 (GPT Vision만 사용):', ocrError);
+      // OCR 실패해도 계속 진행
+    }
+
     // GPT API 호출 함수 (재시도 로직 포함)
     const callGPTAPI = async (retryCount = 0) => {
       try {
@@ -148,6 +200,15 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
             {
               type: "text",
               text: `이 식단표 이미지를 정확하게 분석하여 다음 정보를 JSON 형식으로 추출해주세요.
+
+[참고 정보]
+다음은 이미지에서 OCR(광학 문자 인식)로 추출한 원본 텍스트입니다. 
+이미지가 흐릿하거나 글자가 잘 안 보일 때 이 텍스트를 참고하여 정확도를 높이세요. 
+단, OCR 텍스트는 구조가 깨져있을 수 있으므로 메뉴의 배치나 요일 확인은 반드시 이미지를 기준으로 하세요.
+
+--- OCR 추출 텍스트 시작 ---
+${ocrText}
+--- OCR 추출 텍스트 끝 ---
 
 중요 지침:
 1. 이미지의 텍스트를 정확히 읽어야 합니다. 추측하지 마세요.
@@ -539,30 +600,46 @@ app.get('/api/load', (req, res) => {
     
     // 특정 식당/날짜 데이터 조회
     if (restaurant && date) {
-      const menuData = getMenuData(restaurant, date);
-      
-      if (!menuData) {
-        console.log('[/api/load] 데이터 없음:', restaurant, date);
-        // 404 대신 200 OK와 null 반환하여 프론트엔드에서 조용히 처리
-        return res.status(200).json(null);
-      }
+      try {
+        const menuData = getMenuData(restaurant, date);
+        
+        if (!menuData) {
+          console.log('[/api/load] 데이터 없음:', restaurant, date);
+          // 404 대신 200 OK와 null 반환하여 프론트엔드에서 조용히 처리
+          return res.status(200).json(null);
+        }
 
-      // 이미지 URL 생성 - 이미지 경로를 직접 사용 (URL 인코딩 문제 방지)
-      let imageUrl = null;
-      if (menuData.image_path) {
-        // 이미지 경로를 직접 사용하여 URL 파라미터 인코딩 문제 방지
-        imageUrl = `/api/images/path/${encodeURIComponent(menuData.image_path)}`;
-      }
+        // 이미지 URL 생성 - 이미지 경로를 직접 사용 (URL 인코딩 문제 방지)
+        let imageUrl = null;
+        if (menuData.image_path) {
+          // 이미지 경로를 직접 사용하여 URL 파라미터 인코딩 문제 방지
+          imageUrl = `/api/images/path/${encodeURIComponent(menuData.image_path)}`;
+        }
 
-      res.json({
-        ...menuData,
-        imageUrl: imageUrl
-      });
+        res.json({
+          ...menuData,
+          imageUrl: imageUrl
+        });
+      } catch (dbError) {
+        console.error('[/api/load] 데이터베이스 조회 오류:', dbError);
+        res.status(500).json({
+          error: '데이터베이스 조회 중 오류가 발생했습니다.',
+          message: dbError.message
+        });
+      }
     } 
     // 목록 조회
     else if (req.query.list === 'true') {
-      const list = getMenuDataList();
-      res.json(list);
+      try {
+        const list = getMenuDataList();
+        res.json(list);
+      } catch (listError) {
+        console.error('[/api/load] 목록 조회 오류:', listError);
+        res.status(500).json({
+          error: '목록 조회 중 오류가 발생했습니다.',
+          message: listError.message
+        });
+      }
     }
     // 파라미터 없으면 에러
     else {
@@ -571,10 +648,12 @@ app.get('/api/load', (req, res) => {
       });
     }
   } catch (error) {
-    console.error('데이터 조회 오류:', error);
+    console.error('[/api/load] 전체 오류:', error);
+    console.error('[/api/load] 스택 트레이스:', error.stack);
     res.status(500).json({ 
       error: '데이터 조회 중 오류가 발생했습니다.',
-      message: error.message 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -663,6 +742,352 @@ app.post('/api/publish', async (req, res) => {
       error: '데이터 게시 중 오류가 발생했습니다.',
       message: error.message 
     });
+  }
+});
+
+// ==================== 블로그 생성 API ====================
+
+// 블로그 생성 상태 확인 엔드포인트 (디버깅용)
+app.get('/api/blog/status', (req, res) => {
+  try {
+    const viewerDistPath = path.join(__dirname, '..', 'viewer', 'dist', 'index.html');
+    const viewerUrl = process.env.VIEWER_URL || 'http://localhost:5174';
+    
+    res.json({
+      status: 'ok',
+      viewerUrl: viewerUrl,
+      viewerDistExists: fs.existsSync(viewerDistPath),
+      puppeteerInstalled: true,
+      platform: process.platform,
+      nodeVersion: process.version
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: '상태 확인 실패',
+      message: error.message
+    });
+  }
+});
+
+// 블로그 포스트 생성 (스크린샷 + Jekyll 포스트)
+app.post('/api/blog/generate', async (req, res) => {
+  let browser = null;
+  
+  try {
+    console.log('[블로그 생성] 요청 받음:', req.body);
+    const { day, dateRange } = req.body;
+
+    // 필수 파라미터 검증
+    if (!day || !dateRange) {
+      console.error('[블로그 생성] 필수 파라미터 누락:', { day, dateRange });
+      return res.status(400).json({ 
+        error: 'day와 dateRange 파라미터가 필요합니다.' 
+      });
+    }
+
+    // 요일 검증
+    const validDays = ['월', '화', '수', '목', '금'];
+    if (!validDays.includes(day)) {
+      console.error('[블로그 생성] 유효하지 않은 요일:', day);
+      return res.status(400).json({ 
+        error: `유효하지 않은 요일입니다. 가능한 값: ${validDays.join(', ')}` 
+      });
+    }
+
+    // 날짜 파싱
+    let dateInfo;
+    try {
+      dateInfo = parseDateFromRange(dateRange, day);
+      console.log('[블로그 생성] 날짜 정보:', dateInfo);
+    } catch (parseError) {
+      console.error('[블로그 생성] 날짜 파싱 오류:', parseError);
+      return res.status(400).json({
+        error: '날짜 파싱 실패',
+        message: parseError.message,
+        details: `날짜 범위: "${dateRange}", 요일: "${day}"`
+      });
+    }
+
+    // 뷰어 페이지 URL 생성
+    // 1순위: 환경 변수
+    // 2순위: 개발 서버 (5174 포트) - 항상 개발 서버 우선 사용
+    // 3순위: 빌드된 뷰어 페이지 (정적 파일) - 개발 서버가 없을 때만
+    let viewerUrl = process.env.VIEWER_URL;
+    
+    if (!viewerUrl) {
+      // 개발 서버 포트 (5174) 우선 사용
+      viewerUrl = 'http://localhost:5174';
+      console.log('[블로그 생성] 개발 서버 사용:', viewerUrl);
+      
+      // 개발 서버가 실행 중인지 확인 (선택적)
+      // 만약 개발 서버가 없으면 빌드된 파일 사용
+      // const viewerDistPath = path.join(__dirname, '..', 'viewer', 'dist', 'index.html');
+      // if (fs.existsSync(viewerDistPath)) {
+      //   const serverPort = process.env.PORT || 3000;
+      //   viewerUrl = `http://localhost:${serverPort}/viewer`;
+      //   console.log('[블로그 생성] 빌드된 뷰어 페이지 사용 (개발 서버 없음):', viewerUrl);
+      // }
+    } else {
+      console.log('[블로그 생성] 환경 변수에서 뷰어 URL 사용:', viewerUrl);
+    }
+    
+    const urlWithDay = `${viewerUrl}?day=${encodeURIComponent(day)}`;
+    console.log('[블로그 생성] 뷰어 페이지 URL:', urlWithDay);
+
+    // Puppeteer로 스크린샷 생성
+    try {
+      console.log('[블로그 생성] Puppeteer 브라우저 시작...');
+      
+      // Windows 환경에서의 Puppeteer 설정
+      const puppeteerOptions = {
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=IsolateOrigins,site-per-process'
+        ]
+      };
+      
+      // Windows에서 실행 파일 경로가 필요한 경우
+      if (process.platform === 'win32') {
+        // Windows에서는 기본 실행 파일 경로 사용
+        console.log('[블로그 생성] Windows 환경 감지');
+      }
+      
+      browser = await puppeteer.launch(puppeteerOptions);
+      console.log('[블로그 생성] Puppeteer 브라우저 시작 완료');
+    } catch (browserError) {
+      console.error('[블로그 생성] Puppeteer 브라우저 시작 실패:', browserError);
+      console.error('[블로그 생성] 에러 상세:', {
+        message: browserError.message,
+        stack: browserError.stack,
+        name: browserError.name
+      });
+      throw new Error(`Puppeteer 브라우저 시작 실패: ${browserError.message}. Chrome/Chromium이 설치되어 있는지 확인하세요.`);
+    }
+    
+    let page;
+    try {
+      page = await browser.newPage();
+      console.log('[블로그 생성] 새 페이지 생성 완료');
+    } catch (pageError) {
+      console.error('[블로그 생성] 페이지 생성 실패:', pageError);
+      throw new Error(`페이지 생성 실패: ${pageError.message}`);
+    }
+    
+    // 뷰포트 크기 설정 (식단표 전체가 보이도록)
+    await page.setViewport({ width: 1920, height: 1080 });
+    console.log('[블로그 생성] 뷰포트 설정 완료');
+    
+    // 페이지 로드 대기
+    try {
+      console.log('[블로그 생성] 페이지 로드 시작:', urlWithDay);
+      
+      // 먼저 페이지가 접근 가능한지 확인
+      const response = await page.goto(urlWithDay, { 
+        waitUntil: 'networkidle0',
+        timeout: 60000 
+      });
+      
+      if (!response || !response.ok()) {
+        throw new Error(`페이지 응답 실패: ${response ? response.status() : '응답 없음'}`);
+      }
+      
+      console.log('[블로그 생성] 페이지 로드 완료, 상태:', response.status());
+    } catch (gotoError) {
+      console.error('[블로그 생성] 페이지 로드 실패:', gotoError);
+      console.error('[블로그 생성] 에러 상세:', {
+        message: gotoError.message,
+        name: gotoError.name,
+        url: urlWithDay
+      });
+      throw new Error(`뷰어 페이지 접속 실패: ${gotoError.message}. 뷰어 페이지가 ${urlWithDay}에서 실행 중인지 확인하세요.`);
+    }
+    
+    // 메뉴 데이터가 로드되고 렌더링될 때까지 대기
+    try {
+      console.log('[블로그 생성] 메뉴 테이블 렌더링 대기 중...');
+      
+      // 로딩 스피너가 사라지고 메뉴 테이블이 나타날 때까지 대기
+      await page.waitForFunction(
+        () => {
+          // 로딩 스피너가 없고, 메뉴 테이블이 존재하는지 확인
+          const loadingSpinner = document.querySelector('.animate-spin');
+          const menuTable = document.querySelector('table');
+          return !loadingSpinner && menuTable !== null;
+        },
+        { timeout: 30000 }
+      );
+      console.log('[블로그 생성] 메뉴 테이블 렌더링 완료');
+      
+      // 추가 대기 (애니메이션 및 레이아웃 안정화)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('[블로그 생성] 렌더링 안정화 대기 완료');
+    } catch (waitError) {
+      console.warn('[블로그 생성] 메뉴 테이블 대기 실패, 계속 진행:', waitError.message);
+      // 대기 실패해도 계속 진행 (타임아웃 등)
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    
+    // 스크린샷 생성
+    const screenshotDir = path.join(__dirname, '..', '_posts', 'assets', 'images');
+    try {
+      if (!fs.existsSync(screenshotDir)) {
+        fs.mkdirSync(screenshotDir, { recursive: true });
+        console.log('[블로그 생성] 스크린샷 디렉토리 생성:', screenshotDir);
+      }
+    } catch (dirError) {
+      console.error('[블로그 생성] 디렉토리 생성 실패:', dirError);
+      throw new Error(`디렉토리 생성 실패: ${dirError.message}`);
+    }
+    
+    const screenshotFilename = `menu-${dateInfo.dateString}.png`;
+    const screenshotPath = path.join(screenshotDir, screenshotFilename);
+    
+    try {
+      console.log('[블로그 생성] 스크린샷 생성 시작...');
+      
+      // 메뉴 테이블만 스크린샷 캡처
+      const tableElement = await page.$('main table');
+      if (tableElement) {
+        console.log('[블로그 생성] 테이블 요소 찾음, 테이블만 캡처');
+        await tableElement.screenshot({
+          path: screenshotPath,
+          type: 'png'
+        });
+      } else {
+        // 테이블을 찾을 수 없으면 전체 페이지 캡처 (폴백)
+        console.log('[블로그 생성] 테이블 요소를 찾을 수 없음, 전체 페이지 캡처');
+        await page.screenshot({
+          path: screenshotPath,
+          fullPage: true,
+          type: 'png'
+        });
+      }
+      
+      console.log('[블로그 생성] 스크린샷 생성 완료:', screenshotPath);
+    } catch (screenshotError) {
+      console.error('[블로그 생성] 스크린샷 생성 실패:', screenshotError);
+      throw new Error(`스크린샷 생성 실패: ${screenshotError.message}`);
+    }
+    
+    // 이미지를 _posts/assets/images로 복사하고 상대 경로 얻기
+    const postsDir = path.join(__dirname, '..', '_posts');
+    let imageRelativePath;
+    try {
+      imageRelativePath = saveBlogImage(screenshotPath, screenshotFilename, postsDir);
+      console.log('[블로그 생성] 이미지 저장 완료:', imageRelativePath);
+    } catch (imageError) {
+      console.error('[블로그 생성] 이미지 저장 실패:', imageError);
+      throw new Error(`이미지 저장 실패: ${imageError.message}`);
+    }
+    
+    // 뉴스 데이터 가져오기 (실제 뉴스 크롤링 + GPT 정리)
+    console.log('[블로그 생성] 뉴스 데이터 수집 시작...');
+    const newsData = await getDailyNews(dateInfo.dateString);
+    console.log('[블로그 생성] 뉴스 데이터 수집 완료:', JSON.stringify(newsData, null, 2).slice(0, 500) + '...');
+
+    // GPT 콘텐츠 생성 (메뉴 데이터가 있는 경우)
+    let gptContent = null;
+    try {
+      console.log('[블로그 생성] GPT 콘텐츠 생성 시작...');
+      const allMenuData = getAllMenuData();
+      // 해당 날짜 범위의 메뉴 데이터만 필터링
+      const relevantMenuData = allMenuData.filter(menu => menu.date_range === dateRange);
+      
+      if (relevantMenuData.length > 0) {
+        gptContent = await generateBlogContent({
+          menuDataList: relevantMenuData,
+          day: day,
+          koreanDate: dateInfo.koreanDate,
+          apiKey: process.env.OPENAI_API_KEY,
+          newsData: newsData // 뉴스 데이터 주입
+        });
+        console.log('[블로그 생성] GPT 콘텐츠 생성 완료');
+      } else {
+        console.log('[블로그 생성] 해당 날짜 범위의 메뉴 데이터가 없어 GPT 콘텐츠 생성 건너뜀');
+      }
+    } catch (gptError) {
+      console.warn('[블로그 생성] GPT 콘텐츠 생성 실패, 기본 콘텐츠로 진행:', gptError.message);
+      // GPT 오류는 치명적이지 않으므로 계속 진행
+    }
+    
+    // Jekyll 블로그 포스트 생성
+    let postPath;
+    try {
+      postPath = generateJekyllPost({
+        dateString: dateInfo.dateString,
+        koreanDate: dateInfo.koreanDate,
+        day: day,
+        imagePath: imageRelativePath,
+        postsDir: postsDir,
+        gptContent: gptContent
+      });
+      console.log('[블로그 생성] Jekyll 포스트 생성 완료:', postPath);
+    } catch (postError) {
+      console.error('[블로그 생성] Jekyll 포스트 생성 실패:', postError);
+      throw new Error(`블로그 포스트 생성 실패: ${postError.message}`);
+    }
+
+    // 티스토리 HTML 포스트 생성
+    let tistoryPath;
+    try {
+      tistoryPath = generateTistoryPost({
+        dateString: dateInfo.dateString,
+        koreanDate: dateInfo.koreanDate,
+        imagePath: imageRelativePath,
+        postsDir: postsDir,
+        gptContent: gptContent
+      });
+      console.log('[블로그 생성] 티스토리 HTML 생성 완료:', tistoryPath);
+    } catch (tistoryError) {
+      console.warn('[블로그 생성] 티스토리 HTML 생성 실패 (계속 진행):', tistoryError.message);
+      // 티스토리 생성 실패해도 계속 진행
+    }
+
+    const responseData = {
+      success: true,
+      postPath: path.relative(path.join(__dirname, '..'), postPath),
+      tistoryPath: tistoryPath ? path.relative(path.join(__dirname, '..'), tistoryPath) : null,
+      imagePath: path.relative(path.join(__dirname, '..'), screenshotPath),
+      dateInfo: dateInfo
+    };
+    
+    console.log('[블로그 생성] 응답 데이터:', responseData);
+    res.setHeader('Content-Type', 'application/json');
+    res.json(responseData);
+
+  } catch (error) {
+    console.error('[블로그 생성] 전체 오류:', error);
+    console.error('[블로그 생성] 스택 트레이스:', error.stack);
+    
+    const errorResponse = { 
+      error: '블로그 생성 중 오류가 발생했습니다.',
+      message: error.message
+    };
+    
+    if (process.env.NODE_ENV === 'development') {
+      errorResponse.stack = error.stack;
+    }
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.status(500).json(errorResponse);
+  } finally {
+    // 브라우저 정리
+    if (browser) {
+      try {
+        await browser.close();
+        console.log('[블로그 생성] 브라우저 종료 완료');
+      } catch (closeError) {
+        console.error('[블로그 생성] 브라우저 종료 실패:', closeError);
+      }
+    }
   }
 });
 
@@ -895,11 +1320,105 @@ app.put('/api/complaints/:id', async (req, res) => {
   }
 });
 
+// ==================== 식당 관리 API ====================
+
+// 식당 목록 조회
+app.get('/api/restaurants', (req, res) => {
+  try {
+    const { active_only } = req.query;
+    const restaurants = active_only === 'true' ? getActiveRestaurants() : getAllRestaurants();
+    res.json(restaurants);
+  } catch (error) {
+    console.error('식당 목록 조회 오류:', error);
+    res.status(500).json({ error: '식당 목록을 불러오는 중 오류가 발생했습니다.' });
+  }
+});
+
+// 식당 추가
+app.post('/api/restaurants', (req, res) => {
+  try {
+    const { name, price_lunch, price_dinner, has_dinner } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: '식당 이름은 필수입니다.' });
+    }
+    
+    const newRestaurant = addRestaurant({ name, price_lunch, price_dinner, has_dinner });
+    res.json(newRestaurant);
+  } catch (error) {
+    console.error('식당 추가 오류:', error);
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: '이미 존재하는 식당 이름입니다.' });
+    }
+    res.status(500).json({ error: '식당을 추가하는 중 오류가 발생했습니다.' });
+  }
+});
+
+// 식당 수정
+app.put('/api/restaurants/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const result = updateRestaurant(id, updateData);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: '해당 식당을 찾을 수 없거나 변경된 내용이 없습니다.' });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('식당 수정 오류:', error);
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: '이미 존재하는 식당 이름입니다.' });
+    }
+    res.status(500).json({ error: '식당 정보를 수정하는 중 오류가 발생했습니다.' });
+  }
+});
+
+// 식당 순서 변경
+app.put('/api/restaurants/reorder', (req, res) => {
+  try {
+    const { orders } = req.body; // [{ id: 1, sort_order: 1 }, ...]
+    if (!Array.isArray(orders)) {
+      return res.status(400).json({ error: '올바르지 않은 데이터 형식입니다.' });
+    }
+    
+    updateRestaurantOrders(orders);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('식당 순서 변경 오류:', error);
+    res.status(500).json({ error: '식당 순서를 변경하는 중 오류가 발생했습니다.' });
+  }
+});
+
+// 식당 삭제
+app.delete('/api/restaurants/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = deleteRestaurant(id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: '해당 식당을 찾을 수 없습니다.' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('식당 삭제 오류:', error);
+    res.status(500).json({ error: '식당을 삭제하는 중 오류가 발생했습니다.' });
+  }
+});
+
+// 서버 시작
 app.listen(PORT, () => {
+  console.log('='.repeat(50));
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
   console.log(`OpenAI API 키: ${process.env.OPENAI_API_KEY ? '설정됨' : '설정되지 않음'}`);
   console.log(`Supabase URL: ${supabaseUrl}`);
   console.log(`Supabase 키: ${supabaseKey ? '설정됨' : '설정되지 않음'}`);
   console.log(`데이터 저장 경로: ${menuDataPath}`);
+  console.log('='.repeat(50));
+}).on('error', (error) => {
+  console.error('서버 시작 실패:', error);
+  if (error.code === 'EADDRINUSE') {
+    console.error(`포트 ${PORT}가 이미 사용 중입니다. 다른 포트를 사용하거나 해당 포트를 사용하는 프로세스를 종료하세요.`);
+  }
+  process.exit(1);
 });
 

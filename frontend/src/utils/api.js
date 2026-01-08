@@ -187,3 +187,49 @@ export const updateComplaint = async (id, updateData) => {
   return await response.json();
 };
 
+// ==================== 블로그 생성 API ====================
+
+// 블로그 포스트 생성
+export const generateBlogPost = async (day, dateRange) => {
+  const response = await fetch('/api/blog/generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ day, dateRange }),
+  });
+
+  if (!response.ok) {
+    // 응답 본문 읽기 시도
+    let errorMessage = `블로그 생성 실패 (${response.status})`;
+    try {
+      const text = await response.text();
+      if (text) {
+        try {
+          const error = JSON.parse(text);
+          errorMessage = error.error || error.message || errorMessage;
+        } catch (parseError) {
+          // JSON이 아니면 원본 텍스트 사용
+          errorMessage = text || errorMessage;
+        }
+      }
+    } catch (readError) {
+      console.error('응답 읽기 실패:', readError);
+      errorMessage = `서버 오류 (${response.status}): 응답을 읽을 수 없습니다`;
+    }
+    throw new Error(errorMessage);
+  }
+
+  // 성공 응답 파싱
+  try {
+    const text = await response.text();
+    if (!text) {
+      throw new Error('서버에서 빈 응답을 받았습니다');
+    }
+    return JSON.parse(text);
+  } catch (parseError) {
+    console.error('응답 JSON 파싱 실패:', parseError);
+    throw new Error('서버 응답을 파싱할 수 없습니다');
+  }
+};
+

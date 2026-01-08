@@ -126,10 +126,19 @@ function App() {
   const todayDay = getTodayDay();
   const isWeekend = todayDay === "일" || todayDay === "토";
 
-  // 오늘 요일 자동 선택 (주말은 월요일)
+  // URL 쿼리 파라미터로 요일 선택 (블로그 생성용)
   useEffect(() => {
-    const currentDay = isWeekend ? "월" : todayDay;
-    setActiveDay(currentDay);
+    const urlParams = new URLSearchParams(window.location.search);
+    const dayParam = urlParams.get('day');
+    
+    if (dayParam && ['월', '화', '수', '목', '금'].includes(dayParam)) {
+      // URL 파라미터가 있으면 해당 요일로 설정
+      setActiveDay(dayParam);
+    } else {
+      // URL 파라미터가 없으면 오늘 요일 자동 선택 (주말은 월요일)
+      const currentDay = isWeekend ? "월" : todayDay;
+      setActiveDay(currentDay);
+    }
   }, [todayDay, isWeekend]);
 
   // 메뉴 데이터 추출 헬퍼 함수
