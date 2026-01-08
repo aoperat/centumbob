@@ -299,6 +299,12 @@ function App() {
                     const hasImage =
                       menuData[name]?.imageUrls &&
                       menuData[name].imageUrls.length > 0;
+
+                    // 해당 요일에 메뉴 데이터가 있는지 확인
+                    const { menu: lunchMenu } = getMenuData(name, activeDay, "점심");
+                    const { menu: dinnerMenu } = getMenuData(name, activeDay, "저녁");
+                    const hasDayData = (lunchMenu && lunchMenu.length > 0) || (dinnerMenu && dinnerMenu.length > 0);
+
                     const getImageUrl = (imageUrl) => {
                       // base64 이미지는 그대로 사용
                       if (imageUrl.startsWith("data:")) {
@@ -327,7 +333,7 @@ function App() {
                                 ? name.match(/\((.*?)\)/)?.[1] || ""
                                 : ""}
                             </span>
-                            {hasImage && (
+                            {hasImage && hasDayData && (
                               <button
                                 onClick={() =>
                                   setModalImage(
