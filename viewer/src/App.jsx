@@ -73,23 +73,30 @@ function App() {
   // 방문자수 조회 및 증가
   useEffect(() => {
     const trackPageView = async () => {
-      try {
-        // 프로덕션: BASE_URL 사용, 개발: "/" 사용
-        const pagePath = import.meta.env.PROD
-          ? import.meta.env.BASE_URL || "/centumbob/"
-          : "/centumbob/";
+      // 프로덕션: BASE_URL 사용, 개발: "/" 사용
+      const pagePath = import.meta.env.PROD
+        ? import.meta.env.BASE_URL || "/centumbob/"
+        : "/centumbob/";
+      
+      console.log("방문자수 추적 경로:", pagePath); // 디버깅용
 
-        // 중복 카운트 방지: sessionStorage 사용
-        const viewKey = `page_view_${pagePath}`;
-        const hasViewed = sessionStorage.getItem(viewKey);
+      // 중복 카운트 방지: sessionStorage 사용
+      const viewKey = `page_view_${pagePath}`;
+      const hasViewed = sessionStorage.getItem(viewKey);
 
-        if (!hasViewed) {
-          // 방문자수 증가
+      // 1. 방문자수 증가 (실패해도 조회는 시도)
+      if (!hasViewed) {
+        try {
           await incrementPageView(pagePath);
           sessionStorage.setItem(viewKey, "true");
+        } catch (err) {
+          console.warn("방문자수 증가 실패 (계속 진행):", err);
+          // 증가 실패는 무시하고 조회 진행
         }
+      }
 
-        // 방문자수 조회
+      // 2. 방문자수 조회
+      try {
         const result = await getPageViews(pagePath);
         console.log("방문자수 API 응답:", result); // 디버깅용
 
@@ -107,7 +114,7 @@ function App() {
           setPageViewCount(0); // 기본값 설정
         }
       } catch (error) {
-        console.error("방문자수 추적 실패:", error);
+        console.error("방문자수 조회 실패:", error);
         // 에러 발생 시에도 0으로 설정하여 "로딩 중..." 대신 표시
         setPageViewCount(0);
       }
