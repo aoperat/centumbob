@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { IconTrash, IconPlus, IconCheck, IconX, IconRefreshCw } from './Icons';
 
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = '/api';
 
 const ManagementTab = ({ 
   restaurants, // 상위 컴포넌트에서 전달받은 식당 목록 (문자열 배열) - 호환성 위해 유지하지만 내부적으로는 API 사용

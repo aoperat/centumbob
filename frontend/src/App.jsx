@@ -5,7 +5,7 @@ import ManagementTab from './components/ManagementTab';
 import ComplaintTab from './components/ComplaintTab';
 import ComplaintAdminTab from './components/ComplaintAdminTab';
 import BlogTab from './components/BlogTab';
-import { saveMenuData, publishMenuData } from './utils/api';
+import { saveMenuData, publishMenuData, getRestaurants } from './utils/api';
 
 function App() {
   const entryTabRef = useRef(null);
@@ -22,21 +22,55 @@ function App() {
   }, [currentTab]);
 
   // --- Management State ---
-  const [restaurants, setRestaurants] = useState([
-    "벽산E센텀 (만나)", 
-    "동서대 (파티박스)", 
-    "에이스하이테크21 (다와푸드)", 
-    "부산영상산업센터 (STX f&c)"
-  ]);
+  const [restaurants, setRestaurants] = useState([]);
+  const [restaurantsData, setRestaurantsData] = useState([]); // DB 원본 데이터 (id 포함)
   const [dateRanges, setDateRanges] = useState([
-    "1월 5일 ~ 1월 9일", 
-    "1월 12일 ~ 1월 16일", 
-    "1월 19일 ~ 1월 23일"
+    "1월 5일 ~ 1월 9일",
+    "1월 6일 ~ 1월 10일",
+    "1월 13일 ~ 1월 17일",
+    "1월 20일 ~ 1월 24일"
   ]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // --- Entry State ---
-  const [selectedCafeteria, setSelectedCafeteria] = useState(restaurants[0]);
-  const [selectedDateRange, setSelectedDateRange] = useState(dateRanges[1] || dateRanges[0]);
+  const [selectedCafeteria, setSelectedCafeteria] = useState("");
+  const [selectedDateRange, setSelectedDateRange] = useState("");
+
+  // 앱 시작 시 DB에서 식당 목록 로드
+  useEffect(() => {
+    const loadRestaurants = async () => {
+      try {
+        setIsLoading(true);
+        const data = await getRestaurants(true); // 활성 식당만
+        setRestaurantsData(data);
+        const names = data.map(r => r.name);
+        setRestaurants(names);
+
+        // 첫 번째 식당/날짜 선택
+        if (names.length > 0 && !selectedCafeteria) {
+          setSelectedCafeteria(names[0]);
+        }
+        if (dateRanges.length > 0 && !selectedDateRange) {
+          setSelectedDateRange(dateRanges[0]);
+        }
+      } catch (error) {
+        console.error('식당 목록 로드 실패:', error);
+        // 실패 시 기본값 사용
+        const defaultRestaurants = [
+          "벽산E센텀 (만나)",
+          "동서대 (파티박스)",
+          "에이스하이테크21 (다와푸드)",
+          "부산영상산업센터 (STX f&c)"
+        ];
+        setRestaurants(defaultRestaurants);
+        setSelectedCafeteria(defaultRestaurants[0]);
+        setSelectedDateRange(dateRanges[0]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadRestaurants();
+  }, []);
 
   // 식당 목록이 바뀌면 선택값 안전장치
   useEffect(() => {
@@ -171,16 +205,22 @@ function App() {
       <main className="flex-1 flex overflow-hidden">
         {/* ================= 탭 1: 데이터 입력 ================= */}
         {currentTab === 'entry' && (
-          <EntryTab
-            ref={entryTabRef}
-            restaurants={restaurants}
-            dateRanges={dateRanges}
-            selectedCafeteria={selectedCafeteria}
-            setSelectedCafeteria={setSelectedCafeteria}
-            selectedDateRange={selectedDateRange}
-            setSelectedDateRange={setSelectedDateRange}
-            onSave={handleSave}
-          />
+          isLoading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-slate-500">식당 목록 로딩 중...</div>
+            </div>
+          ) : (
+            <EntryTab
+              ref={entryTabRef}
+              restaurants={restaurants}
+              dateRanges={dateRanges}
+              selectedCafeteria={selectedCafeteria}
+              setSelectedCafeteria={setSelectedCafeteria}
+              selectedDateRange={selectedDateRange}
+              setSelectedDateRange={setSelectedDateRange}
+              onSave={handleSave}
+            />
+          )
         )}
 
         {/* ================= 탭 2: 기준 데이터 관리 ================= */}

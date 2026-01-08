@@ -187,6 +187,71 @@ export const updateComplaint = async (id, updateData) => {
   return await response.json();
 };
 
+// ==================== 식당 관리 API ====================
+
+// 식당 목록 조회
+export const getRestaurants = async (activeOnly = false) => {
+  const url = activeOnly ? '/api/restaurants?active_only=true' : '/api/restaurants';
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '식당 목록 조회 실패');
+  }
+
+  return await response.json();
+};
+
+// 식당 추가
+export const addRestaurant = async (restaurantData) => {
+  const response = await fetch('/api/restaurants', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(restaurantData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '식당 추가 실패');
+  }
+
+  return await response.json();
+};
+
+// 식당 수정
+export const updateRestaurant = async (id, updateData) => {
+  const response = await fetch(`/api/restaurants/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(updateData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '식당 수정 실패');
+  }
+
+  return await response.json();
+};
+
+// 식당 삭제
+export const deleteRestaurant = async (id) => {
+  const response = await fetch(`/api/restaurants/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '식당 삭제 실패');
+  }
+
+  return await response.json();
+};
+
 // ==================== 블로그 생성 API ====================
 
 // 블로그 포스트 생성

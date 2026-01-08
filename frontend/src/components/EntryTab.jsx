@@ -32,7 +32,7 @@ const EntryTab = forwardRef(({
   useEffect(() => {
     const fetchRestaurantDetails = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/restaurants');
+        const response = await fetch('/api/restaurants');
         if (response.ok) {
           const data = await response.json();
           // 식당 이름을 키로 하는 객체로 변환
