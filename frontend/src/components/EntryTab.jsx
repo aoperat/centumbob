@@ -28,6 +28,8 @@ const EntryTab = forwardRef(({
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingWebhook, setIsFetchingWebhook] = useState(false);
   const [restaurantDetails, setRestaurantDetails] = useState({}); // 식당 상세 정보 캐시
+  const [singleDayMode, setSingleDayMode] = useState(false); // 단일 요일 업데이트 모드
+  const [targetDay, setTargetDay] = useState("월"); // 업데이트할 대상 요일
 
   // 식당 목록 상세 정보 불러오기
   useEffect(() => {
@@ -171,8 +173,38 @@ const EntryTab = forwardRef(({
     setIsAnalyzing(true);
     try {
       const result = await analyzeImage(imageFile);
-      setPrices(result.price);
-      setMenuGrid(result.menus);
+
+      if (singleDayMode) {
+        // 단일 요일 모드: 선택된 요일만 업데이트
+        // GPT 결과에서 데이터가 있는 요일 찾기 (하루치만 있는 경우)
+        const daysWithData = Object.keys(result.menus).filter(day => {
+          const dayMenu = result.menus[day];
+          return (dayMenu.lunch && dayMenu.lunch.length > 0) ||
+                 (dayMenu.dinner && dayMenu.dinner.length > 0);
+        });
+
+        if (daysWithData.length === 1) {
+          // 추출된 데이터가 하루치만 있는 경우, 그 데이터를 선택된 요일에 적용
+          const sourceDay = daysWithData[0];
+          setMenuGrid(prev => ({
+            ...prev,
+            [targetDay]: result.menus[sourceDay]
+          }));
+        } else if (daysWithData.length > 1) {
+          // 여러 요일 데이터가 있는 경우, 선택된 요일의 데이터만 업데이트
+          if (result.menus[targetDay]) {
+            setMenuGrid(prev => ({
+              ...prev,
+              [targetDay]: result.menus[targetDay]
+            }));
+          }
+        }
+        // 가격은 업데이트하지 않음 (단일 요일 모드에서는 메뉴만 업데이트)
+      } else {
+        // 전체 업데이트 모드: 기존 동작
+        setPrices(result.price);
+        setMenuGrid(result.menus);
+      }
     } catch (error) {
       alert("분석 실패: " + error.message);
     } finally {
@@ -338,6 +370,30 @@ const EntryTab = forwardRef(({
               </div>
             )}
 
+            {/* 단일 요일 업데이트 옵션 */}
+            <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200">
+              <label className="flex items-center gap-2 cursor-pointer flex-1">
+                <input
+                  type="checkbox"
+                  checked={singleDayMode}
+                  onChange={(e) => setSingleDayMode(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                />
+                <span className="text-sm text-slate-700 font-medium">특정 요일만 업데이트</span>
+              </label>
+              {singleDayMode && (
+                <select
+                  value={targetDay}
+                  onChange={(e) => setTargetDay(e.target.value)}
+                  className="px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  {days.map(day => (
+                    <option key={day} value={day}>{day}요일</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
             <button
               onClick={handleAnalyze}
               disabled={!imageFile || isAnalyzing}
@@ -352,7 +408,7 @@ const EntryTab = forwardRef(({
               {isAnalyzing ? (
                 <><IconRefreshCw size={18} className="animate-spin" /> 분석 중...</>
               ) : (
-                <><IconWand2 size={18} /> 메뉴 추출하기</>
+                <><IconWand2 size={18} /> {singleDayMode ? `${targetDay}요일 메뉴 추출` : '메뉴 추출하기'}</>
               )}
             </button>
           </div>
