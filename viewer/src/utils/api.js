@@ -10,7 +10,7 @@ let API_BASE_URL = import.meta.env.VITE_API_URL;
 // 환경 변수로 다른 URL이 명시적으로 설정된 경우에만 사용
 if (
   !API_BASE_URL ||
-  API_BASE_URL === "http://localhost:3001" ||
+  API_BASE_URL === "http://localhost:9101" ||
   API_BASE_URL.includes("/api/complaints") ||
   !API_BASE_URL.includes("/functions/v1/")
 ) {

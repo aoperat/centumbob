@@ -37,20 +37,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 9101;
 
 // CORS 설정
 app.use(
   cors({
     origin: [
-      "http://localhost:3000", // 프론트엔드 (개발 서버)
-      "http://127.0.0.1:3000",
-      "http://localhost:3001", // 프론트엔드 (관리자 페이지)
-      "http://127.0.0.1:3001",
-      "http://localhost:9113", // 뷰어 페이지 (개발 서버)
-      "http://127.0.0.1:9113",
-      "http://localhost:9113", // 뷰어 페이지 (기존 포트, 호환성)
-      "http://127.0.0.1:9113",
+      "http://localhost:9102", // 프론트엔드 (개발 서버)
+      "http://127.0.0.1:9102",
+      "http://localhost:9103", // 뷰어 페이지 (개발 서버)
+      "http://127.0.0.1:9103",
+      "http://front.centum", // 프론트엔드 도메인
+      "http://back.centum", // 백엔드 도메인
+      "http://viewer.centum", // 뷰어 도메인
       "https://aoperat.github.io", // GitHub Pages (viewer)
       // 프로덕션 도메인은 환경 변수로 추가 가능
       ...(process.env.ALLOWED_ORIGINS
@@ -814,7 +813,7 @@ app.get("/api/blog/status", (req, res) => {
       "dist",
       "index.html"
     );
-    const viewerUrl = process.env.VIEWER_URL || "http://localhost:5174";
+    const viewerUrl = process.env.VIEWER_URL || "http://localhost:9103";
 
     res.json({
       status: "ok",
@@ -873,13 +872,13 @@ app.post("/api/blog/generate", async (req, res) => {
 
     // 뷰어 페이지 URL 생성
     // 1순위: 환경 변수
-    // 2순위: 개발 서버 (9113 포트) - 항상 개발 서버 우선 사용
+    // 2순위: 개발 서버 (9103 포트) - 항상 개발 서버 우선 사용
     // 3순위: 빌드된 뷰어 페이지 (정적 파일) - 개발 서버가 없을 때만
     let viewerUrl = process.env.VIEWER_URL;
 
     if (!viewerUrl) {
-      // 개발 서버 포트 (9113) 우선 사용
-      viewerUrl = "http://localhost:9113";
+      // 개발 서버 포트 (9103) 우선 사용
+      viewerUrl = "http://localhost:9103";
       console.log("[블로그 생성] 개발 서버 사용:", viewerUrl);
 
       // 개발 서버가 실행 중인지 확인 (선택적)

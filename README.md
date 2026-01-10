@@ -34,7 +34,7 @@ centumbob_v2/
 
 ```
 OPENAI_API_KEY=your_openai_api_key_here
-PORT=3001
+PORT=9101
 ```
 
 ### 2. 의존성 설치
@@ -65,7 +65,7 @@ npm run dev
 
 ### 4. 접속
 
-브라우저에서 `http://localhost:3000`으로 접속하세요.
+브라우저에서 `http://localhost:9102`으로 접속하세요.
 
 ## 주요 기능
 

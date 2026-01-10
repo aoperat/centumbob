@@ -1,0 +1,86 @@
+# 개발 환경용 docker-compose (Hot Reload 지원)
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: centumbob_backend
+    ports:
+      - "9101:9101"
+    environment:
+      - NODE_ENV=development
+      - PORT=9101
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - ALLOWED_ORIGINS=http://localhost:9102,http://localhost:9103
+      - VIEWER_URL=http://localhost:9103
+    volumes:
+      # 소스 코드 실시간 반영
+      - ./backend:/app
+      - /app/node_modules
+      # 데이터베이스 파일 영구 저장
+      - ./backend/db:/app/db
+      # 업로드된 이미지 영구 저장
+      - ./backend/uploads:/app/uploads
+      # 블로그 포스트 생성용 디렉토리
+      - ./_posts:/app/_posts
+      # 뷰어 빌드 결과물 공유
+      - ./viewer/dist:/app/../viewer/dist
+      # 데이터 파일 공유
+      - ./data:/app/../data
+    command: npm start
+    restart: unless-stopped
+    networks:
+      - centumbob_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: centumbob_frontend
+    ports:
+      - "9102:9102"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:9101
+    volumes:
+      # 개발 시 실시간 반영을 위한 소스 코드 마운트
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - centumbob_network
+
+  viewer:
+    build:
+      context: ./viewer
+      dockerfile: Dockerfile
+    container_name: centumbob_viewer
+    ports:
+      - "9103:9103"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:9101
+    volumes:
+      # 개발 시 실시간 반영을 위한 소스 코드 마운트
+      - ./viewer:/app
+      - /app/node_modules
+      # 빌드 결과물을 백엔드와 공유
+      - ./viewer/dist:/app/dist
+      # 데이터 파일
+      - ./viewer/public/data:/app/public/data
+      - ./data:/app/../data
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - centumbob_network
+
+networks:
+  centumbob_network:
+    driver: bridge

@@ -89,7 +89,7 @@ const SUPABASE_EDGE_FUNCTION_URL = import.meta.env.VITE_COMPLAINTS_API_URL ||
   'https://vaqfjjkwpzrolebvbnbl.supabase.co/functions/v1/complaints-api';
 
 // 로컬 백엔드 URL (개발 환경)
-const LOCAL_API_URL = 'http://localhost:3001';
+const LOCAL_API_URL = 'http://localhost:9101';
 
 // API URL 결정: 환경 변수가 있으면 사용, 없으면 Edge Function 또는 로컬
 const getComplaintsApiUrl = () => {

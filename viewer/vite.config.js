@@ -10,7 +10,15 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 9113,
+    port: 9103,
+    host: '0.0.0.0', // 도커 컨테이너에서 접근 가능하도록
+    allowedHosts: [
+      'front.centum',
+      'back.centum',
+      'viewer.centum',
+      'localhost',
+      '.local',
+    ],
   },
   // 개발 환경에서는 '/' 사용, 프로덕션에서는 base 경로 사용
   // GitHub Actions에서 자동으로 레포지토리 이름으로 설정됨
