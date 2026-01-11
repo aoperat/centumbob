@@ -582,6 +582,7 @@ app.post(
         menus: adminData.menus || {},
         image_path: imagePath,
         image_paths: imagePaths,
+        excluded_menu_items: adminData.excluded_menu_items || null,
       });
 
       res.json({

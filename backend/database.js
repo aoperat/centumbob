@@ -177,6 +177,23 @@ try {
     console.error("image_paths 마이그레이션 오류:", migrationError);
   }
 
+  // 마이그레이션: menu_data 테이블에 excluded_menu_items 컬럼 확인 및 추가
+  try {
+    const menuDataTableInfo = db.pragma("table_info(menu_data)");
+    const hasExcludedMenuItemsColumn = menuDataTableInfo.find(
+      (col) => col.name === "excluded_menu_items"
+    );
+    if (!hasExcludedMenuItemsColumn) {
+      console.log("menu_data 테이블에 excluded_menu_items 컬럼 추가 중...");
+      db.exec(
+        "ALTER TABLE menu_data ADD COLUMN excluded_menu_items TEXT DEFAULT NULL"
+      );
+      console.log("excluded_menu_items 컬럼 추가 완료");
+    }
+  } catch (migrationError) {
+    console.error("excluded_menu_items 마이그레이션 오류:", migrationError);
+  }
+
   console.log("데이터베이스 테이블 초기화 완료");
 } catch (tableError) {
   console.error("테이블 생성 실패:", tableError);
@@ -193,6 +210,7 @@ export const saveMenuData = (data) => {
     menus,
     image_path,
     image_paths,
+    excluded_menu_items,
   } = data;
 
   // image_paths를 JSON 문자열로 변환
@@ -205,9 +223,19 @@ export const saveMenuData = (data) => {
     }
   }
 
+  // excluded_menu_items를 JSON 문자열로 변환
+  let excludedMenuItemsJson = null;
+  if (excluded_menu_items) {
+    if (typeof excluded_menu_items === "string") {
+      excludedMenuItemsJson = excluded_menu_items;
+    } else if (Array.isArray(excluded_menu_items)) {
+      excludedMenuItemsJson = JSON.stringify(excluded_menu_items);
+    }
+  }
+
   const stmt = db.prepare(`
-    INSERT INTO menu_data (restaurant_name, date_range, price_lunch, price_dinner, menus, image_path, image_paths, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO menu_data (restaurant_name, date_range, price_lunch, price_dinner, menus, image_path, image_paths, excluded_menu_items, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(restaurant_name, date_range) 
     DO UPDATE SET
       price_lunch = excluded.price_lunch,
@@ -215,6 +243,7 @@ export const saveMenuData = (data) => {
       menus = excluded.menus,
       image_path = excluded.image_path,
       image_paths = excluded.image_paths,
+      excluded_menu_items = excluded.excluded_menu_items,
       updated_at = CURRENT_TIMESTAMP
   `);
 
@@ -225,7 +254,8 @@ export const saveMenuData = (data) => {
     price_dinner || null,
     JSON.stringify(menus),
     image_path || null,
-    imagePathsJson || null
+    imagePathsJson || null,
+    excludedMenuItemsJson || null
   );
 
   return result;
@@ -275,10 +305,28 @@ export const getMenuData = (restaurant_name, date_range) => {
       }
     }
 
+    // excluded_menu_items JSON 파싱 (에러 처리)
+    let excludedMenuItems = null;
+    if (row.excluded_menu_items) {
+      try {
+        excludedMenuItems = JSON.parse(row.excluded_menu_items);
+      } catch (parseError) {
+        console.error(
+          "excluded_menu_items JSON 파싱 오류:",
+          parseError,
+          "원본 데이터:",
+          row.excluded_menu_items
+        );
+        // 파싱 실패 시 null 유지
+        excludedMenuItems = null;
+      }
+    }
+
     return {
       ...row,
       menus: menus,
       image_paths: imagePaths,
+      excluded_menu_items: excludedMenuItems,
     };
   } catch (error) {
     console.error("데이터 조회 오류:", error);
@@ -328,10 +376,27 @@ export const getAllMenuData = () => {
         }
       }
 
+      // excluded_menu_items JSON 파싱 (에러 처리)
+      let excludedMenuItems = null;
+      if (row.excluded_menu_items) {
+        try {
+          excludedMenuItems = JSON.parse(row.excluded_menu_items);
+        } catch (parseError) {
+          console.error(
+            "excluded_menu_items JSON 파싱 오류:",
+            parseError,
+            "원본 데이터:",
+            row.excluded_menu_items
+          );
+          excludedMenuItems = null;
+        }
+      }
+
       return {
         ...row,
         menus: menus,
         image_paths: imagePaths,
+        excluded_menu_items: excludedMenuItems,
       };
     });
   } catch (error) {

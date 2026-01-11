@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { IconX, IconPlus } from './Icons';
 
-const MenuListEditor = ({ items, onChange }) => {
+const MenuListEditor = ({ items, onChange, excludedMenuItems = [], onExcludedToggle = null }) => {
   const [editingIndex, setEditingIndex] = useState(null);
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
@@ -139,7 +139,20 @@ const MenuListEditor = ({ items, onChange }) => {
                   <div className="text-slate-400 text-xs select-none cursor-grab active:cursor-grabbing">
                     ⋮⋮
                   </div>
-                  <span className="text-slate-600 truncate flex-1">{item}</span>
+                  {onExcludedToggle && (
+                    <input
+                      type="checkbox"
+                      checked={excludedMenuItems.includes(item)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        onExcludedToggle(item);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-3.5 h-3.5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 flex-shrink-0"
+                      title="GPT 제외 항목"
+                    />
+                  )}
+                  <span className={`text-slate-600 truncate flex-1 ${excludedMenuItems.includes(item) ? 'line-through opacity-50' : ''}`}>{item}</span>
                 </div>
                 <button
                   onClick={(e) => handleDelete(index, e)}

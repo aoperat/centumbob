@@ -58,6 +58,7 @@ const EntryTab = forwardRef(
     const [targetDay, setTargetDay] = useState("월"); // 업데이트할 대상 요일 (개별요일 모드용)
     const [modalImage, setModalImage] = useState(null); // 이미지 확대 모달용
     const [isDeleting, setIsDeleting] = useState(false); // 데이터 삭제 로딩 상태
+    const [excludedMenuItems, setExcludedMenuItems] = useState([]); // GPT 제외 항목 목록
 
     // 식당 목록 상세 정보 불러오기
     useEffect(() => {
@@ -95,6 +96,12 @@ const EntryTab = forwardRef(
             if (data.menus) {
               setMenuGrid(data.menus);
             }
+            // 제외 항목 목록 설정
+            if (data.excluded_menu_items) {
+              setExcludedMenuItems(data.excluded_menu_items);
+            } else {
+              setExcludedMenuItems([]);
+            }
 
             // 이미지 불러오기
             if (data.imageUrls) {
@@ -131,6 +138,7 @@ const EntryTab = forwardRef(
               목: { lunch: [], dinner: [] },
               금: { lunch: [], dinner: [] },
             });
+            setExcludedMenuItems([]);
             setImagePreview(null);
             setImageFile(null);
           }
@@ -433,7 +441,9 @@ const EntryTab = forwardRef(
 
       setIsFetchingJson(true);
       try {
-        const result = await fetchJsonFromWebhook(currentRestaurant.webhook_url);
+        const result = await fetchJsonFromWebhook(
+          currentRestaurant.webhook_url
+        );
 
         if (result.success && result.data) {
           console.log("[웹훅 JSON] 가져온 데이터:", result.data);
@@ -513,6 +523,7 @@ const EntryTab = forwardRef(
         date: selectedDateRange,
         menus: menuGrid,
         use_all_days: useAllDays,
+        excluded_menu_items: excludedMenuItems,
       };
 
       if (useAllDays) {
@@ -667,7 +678,8 @@ const EntryTab = forwardRef(
                   {/* 웹훅 이미지 버튼 - webhook_type이 'image'인 경우에만 표시 */}
                   {!displayImage &&
                     restaurantDetails[selectedCafeteria]?.webhook_url &&
-                    restaurantDetails[selectedCafeteria]?.webhook_type === 'image' && (
+                    restaurantDetails[selectedCafeteria]?.webhook_type ===
+                      "image" && (
                       <button
                         onClick={handleFetchFromWebhook}
                         disabled={isFetchingWebhook}
@@ -753,29 +765,30 @@ const EntryTab = forwardRef(
 
                   {/* 웹훅 JSON 가져오기 버튼 - webhook_type이 'json'인 경우에만 표시 */}
                   {restaurantDetails[selectedCafeteria]?.webhook_url &&
-                    restaurantDetails[selectedCafeteria]?.webhook_type === 'json' && (
-                    <button
-                      onClick={handleFetchJsonFromWebhook}
-                      disabled={isFetchingJson}
-                      className={`w-full py-2.5 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all text-sm
+                    restaurantDetails[selectedCafeteria]?.webhook_type ===
+                      "json" && (
+                      <button
+                        onClick={handleFetchJsonFromWebhook}
+                        disabled={isFetchingJson}
+                        className={`w-full py-2.5 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all text-sm
                       ${
                         isFetchingJson
                           ? "bg-slate-800 cursor-wait"
                           : "bg-gradient-to-r from-amber-600 to-orange-600 hover:shadow-lg hover:scale-[1.02]"
                       }`}
-                    >
-                      {isFetchingJson ? (
-                        <>
-                          <IconRefreshCw size={16} className="animate-spin" />{" "}
-                          JSON 가져오는 중...
-                        </>
-                      ) : (
-                        <>
-                          <IconDownload size={16} /> 웹훅에서 JSON 가져오기
-                        </>
-                      )}
-                    </button>
-                  )}
+                      >
+                        {isFetchingJson ? (
+                          <>
+                            <IconRefreshCw size={16} className="animate-spin" />{" "}
+                            JSON 가져오는 중...
+                          </>
+                        ) : (
+                          <>
+                            <IconDownload size={16} /> 웹훅에서 JSON 가져오기
+                          </>
+                        )}
+                      </button>
+                    )}
                 </div>
               );
             })()}
@@ -852,130 +865,146 @@ const EntryTab = forwardRef(
                 });
               };
 
+              const handleExcludedItemToggle = (item) => {
+                setExcludedMenuItems((prev) => {
+                  if (prev.includes(item)) {
+                    return prev.filter((i) => i !== item);
+                  } else {
+                    return [...prev, item];
+                  }
+                });
+              };
+
               return (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[800px] table-fixed">
-                      <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                          <th className="w-20 px-4 py-3 text-center text-xs font-bold text-slate-400 uppercase border-r border-slate-200">
-                            구분
-                          </th>
-                          {days.map((day) => (
-                            <th
-                              key={day}
-                              className="px-4 py-3 text-center text-sm font-bold text-slate-700 border-r border-slate-200 last:border-r-0"
-                            >
-                              <div className="flex flex-col items-center gap-2">
-                                <span>{day}요일</span>
-                                {!useAllDays && (
-                                  <div className="mt-1">
-                                    {imagePreviews[day] ||
-                                    savedImageUrls[day] ? (
-                                      <div className="relative group">
-                                        <img
-                                          src={
-                                            imagePreviews[day] ||
-                                            savedImageUrls[day]
-                                          }
-                                          alt={`${day}요일 이미지`}
-                                          className="w-16 h-16 object-cover rounded border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
-                                          onClick={() =>
-                                            setModalImage(
+                <>
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[800px] table-fixed">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            <th className="w-20 px-4 py-3 text-center text-xs font-bold text-slate-400 uppercase border-r border-slate-200">
+                              구분
+                            </th>
+                            {days.map((day) => (
+                              <th
+                                key={day}
+                                className="px-4 py-3 text-center text-sm font-bold text-slate-700 border-r border-slate-200 last:border-r-0"
+                              >
+                                <div className="flex flex-col items-center gap-2">
+                                  <span>{day}요일</span>
+                                  {!useAllDays && (
+                                    <div className="mt-1">
+                                      {imagePreviews[day] ||
+                                      savedImageUrls[day] ? (
+                                        <div className="relative group">
+                                          <img
+                                            src={
                                               imagePreviews[day] ||
-                                                savedImageUrls[day]
-                                            )
-                                          }
-                                        />
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDayImageRemove(day);
-                                          }}
-                                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 z-10 shadow-md"
-                                          title="이미지 삭제"
-                                        >
-                                          <IconX size={12} />
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <label className="cursor-pointer">
-                                        <div className="w-16 h-16 border-2 border-dashed border-slate-300 rounded flex items-center justify-center hover:border-blue-500 hover:bg-blue-50/50 transition-all">
-                                          <IconUpload
-                                            size={16}
-                                            className="text-slate-400"
+                                              savedImageUrls[day]
+                                            }
+                                            alt={`${day}요일 이미지`}
+                                            className="w-16 h-16 object-cover rounded border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                            onClick={() =>
+                                              setModalImage(
+                                                imagePreviews[day] ||
+                                                  savedImageUrls[day]
+                                              )
+                                            }
                                           />
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDayImageRemove(day);
+                                            }}
+                                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 z-10 shadow-md"
+                                            title="이미지 삭제"
+                                          >
+                                            <IconX size={12} />
+                                          </button>
                                         </div>
-                                        <input
-                                          type="file"
-                                          className="hidden"
-                                          accept="image/*"
-                                          onChange={(e) => {
-                                            const file = e.target.files[0];
-                                            if (file)
-                                              handleDayImageUpload(day, file);
-                                          }}
-                                        />
-                                      </label>
-                                    )}
-                                  </div>
-                                )}
+                                      ) : (
+                                        <label className="cursor-pointer">
+                                          <div className="w-16 h-16 border-2 border-dashed border-slate-300 rounded flex items-center justify-center hover:border-blue-500 hover:bg-blue-50/50 transition-all">
+                                            <IconUpload
+                                              size={16}
+                                              className="text-slate-400"
+                                            />
+                                          </div>
+                                          <input
+                                            type="file"
+                                            className="hidden"
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                              const file = e.target.files[0];
+                                              if (file)
+                                                handleDayImageUpload(day, file);
+                                            }}
+                                          />
+                                        </label>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {/* 점심 행 */}
+                          <tr>
+                            <th className="bg-slate-50/50 border-r border-slate-200 align-top py-6">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
+                                  점심
+                                </span>
                               </div>
                             </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200">
-                        {/* 점심 행 */}
-                        <tr>
-                          <th className="bg-slate-50/50 border-r border-slate-200 align-top py-6">
-                            <div className="flex flex-col items-center justify-center gap-1">
-                              <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
-                                점심
-                              </span>
-                            </div>
-                          </th>
-                          {days.map((day) => (
-                            <td
-                              key={day}
-                              className="border-r border-slate-200 last:border-r-0 p-0 align-top h-80 bg-white hover:bg-slate-50/30 transition-colors"
-                            >
-                              <MenuListEditor
-                                items={menuGrid[day].lunch}
-                                onChange={(newItems) =>
-                                  handleMenuChange(day, "lunch", newItems)
-                                }
-                              />
-                            </td>
-                          ))}
-                        </tr>
-                        {/* 저녁 행 */}
-                        <tr>
-                          <th className="bg-slate-50/50 border-r border-slate-200 align-top py-6">
-                            <div className="flex flex-col items-center justify-center gap-1">
-                              <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-                                저녁
-                              </span>
-                            </div>
-                          </th>
-                          {days.map((day) => (
-                            <td
-                              key={day}
-                              className="border-r border-slate-200 last:border-r-0 p-0 align-top h-80 bg-white hover:bg-slate-50/30 transition-colors"
-                            >
-                              <MenuListEditor
-                                items={menuGrid[day].dinner}
-                                onChange={(newItems) =>
-                                  handleMenuChange(day, "dinner", newItems)
-                                }
-                              />
-                            </td>
-                          ))}
-                        </tr>
-                      </tbody>
-                    </table>
+                            {days.map((day) => (
+                              <td
+                                key={day}
+                                className="border-r border-slate-200 last:border-r-0 p-0 align-top h-80 bg-white hover:bg-slate-50/30 transition-colors"
+                              >
+                                <MenuListEditor
+                                  items={menuGrid[day].lunch}
+                                  onChange={(newItems) =>
+                                    handleMenuChange(day, "lunch", newItems)
+                                  }
+                                  excludedMenuItems={excludedMenuItems}
+                                  onExcludedToggle={handleExcludedItemToggle}
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                          {/* 저녁 행 */}
+                          <tr>
+                            <th className="bg-slate-50/50 border-r border-slate-200 align-top py-6">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                                  저녁
+                                </span>
+                              </div>
+                            </th>
+                            {days.map((day) => (
+                              <td
+                                key={day}
+                                className="border-r border-slate-200 last:border-r-0 p-0 align-top h-80 bg-white hover:bg-slate-50/30 transition-colors"
+                              >
+                                <MenuListEditor
+                                  items={menuGrid[day].dinner}
+                                  onChange={(newItems) =>
+                                    handleMenuChange(day, "dinner", newItems)
+                                  }
+                                  excludedMenuItems={excludedMenuItems}
+                                  onExcludedToggle={handleExcludedItemToggle}
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
+                </>
               );
             })()}
           </div>

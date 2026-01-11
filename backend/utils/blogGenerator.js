@@ -215,16 +215,24 @@ export async function generateBlogContent({ menuDataList, day, koreanDate, apiKe
   try {
     const openai = new OpenAI({ apiKey });
 
-    // 해당 요일의 메뉴 추출 (식당별로 구분)
+    // 해당 요일의 메뉴 추출 (식당별로 구분, 제외 항목 필터링)
     const restaurantMenus = menuDataList.map(restaurant => {
       const dayMenu = restaurant.menus[day] || { lunch: [], dinner: [] };
       const lunchMenus = dayMenu.lunch || [];
       const dinnerMenus = dayMenu.dinner || [];
+      
+      // 제외 항목 목록 가져오기
+      const excludedItems = restaurant.excluded_menu_items || [];
+      
+      // 제외 항목 필터링
+      const filteredLunchMenus = lunchMenus.filter(item => !excludedItems.includes(item));
+      const filteredDinnerMenus = dinnerMenus.filter(item => !excludedItems.includes(item));
+      
       return {
         name: restaurant.restaurant_name,
-        lunch: lunchMenus,
-        dinner: dinnerMenus,
-        allMenus: [...lunchMenus, ...dinnerMenus]
+        lunch: filteredLunchMenus,
+        dinner: filteredDinnerMenus,
+        allMenus: [...filteredLunchMenus, ...filteredDinnerMenus]
       };
     }).filter(r => r.allMenus.length > 0);
 
