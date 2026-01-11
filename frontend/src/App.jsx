@@ -5,7 +5,7 @@ import ManagementTab from './components/ManagementTab';
 import ComplaintTab from './components/ComplaintTab';
 import ComplaintAdminTab from './components/ComplaintAdminTab';
 import BlogTab from './components/BlogTab';
-import { saveMenuData, publishMenuData, getRestaurants } from './utils/api';
+import { saveMenuData, publishMenuData, getRestaurants, getDateRanges } from './utils/api';
 
 function App() {
   const entryTabRef = useRef(null);
@@ -24,37 +24,39 @@ function App() {
   // --- Management State ---
   const [restaurants, setRestaurants] = useState([]);
   const [restaurantsData, setRestaurantsData] = useState([]); // DB 원본 데이터 (id 포함)
-  const [dateRanges, setDateRanges] = useState([
-    "1월 5일 ~ 1월 9일",
-    "1월 6일 ~ 1월 10일",
-    "1월 13일 ~ 1월 17일",
-    "1월 20일 ~ 1월 24일"
-  ]);
+  const [dateRanges, setDateRanges] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // --- Entry State ---
   const [selectedCafeteria, setSelectedCafeteria] = useState("");
   const [selectedDateRange, setSelectedDateRange] = useState("");
 
-  // 앱 시작 시 DB에서 식당 목록 로드
+  // 앱 시작 시 DB에서 식당 목록 및 날짜 범위 로드
   useEffect(() => {
-    const loadRestaurants = async () => {
+    const loadData = async () => {
       try {
         setIsLoading(true);
-        const data = await getRestaurants(true); // 활성 식당만
-        setRestaurantsData(data);
-        const names = data.map(r => r.name);
+        
+        // 식당 목록 로드
+        const restaurantData = await getRestaurants(true); // 활성 식당만
+        setRestaurantsData(restaurantData);
+        const names = restaurantData.map(r => r.name);
         setRestaurants(names);
+
+        // 날짜 범위 로드 (활성만)
+        const dateRangeData = await getDateRanges(true); // 활성 날짜 범위만
+        const activeRanges = dateRangeData.map(dr => dr.date_range);
+        setDateRanges(activeRanges);
 
         // 첫 번째 식당/날짜 선택
         if (names.length > 0 && !selectedCafeteria) {
           setSelectedCafeteria(names[0]);
         }
-        if (dateRanges.length > 0 && !selectedDateRange) {
-          setSelectedDateRange(dateRanges[0]);
+        if (activeRanges.length > 0 && !selectedDateRange) {
+          setSelectedDateRange(activeRanges[0]);
         }
       } catch (error) {
-        console.error('식당 목록 로드 실패:', error);
+        console.error('데이터 로드 실패:', error);
         // 실패 시 기본값 사용
         const defaultRestaurants = [
           "벽산E센텀 (만나)",
@@ -64,12 +66,12 @@ function App() {
         ];
         setRestaurants(defaultRestaurants);
         setSelectedCafeteria(defaultRestaurants[0]);
-        setSelectedDateRange(dateRanges[0]);
+        setDateRanges([]);
       } finally {
         setIsLoading(false);
       }
     };
-    loadRestaurants();
+    loadData();
   }, []);
 
   // 식당 목록이 바뀌면 선택값 안전장치
@@ -86,9 +88,9 @@ function App() {
     }
   }, [dateRanges, selectedDateRange]);
 
-  const handleSave = async (finalData, imageFile) => {
+  const handleSave = async (finalData, imageFile, imageFiles = {}) => {
     try {
-      const result = await saveMenuData(finalData, imageFile);
+      const result = await saveMenuData(finalData, imageFile, imageFiles);
       alert(`${finalData.name} (${finalData.date}) 데이터 저장 완료!`);
       console.log("저장된 데이터:", result);
     } catch (error) {

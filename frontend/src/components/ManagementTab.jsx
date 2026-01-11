@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { IconTrash, IconPlus, IconCheck, IconX, IconRefreshCw } from './Icons';
+import { getWeekDateRange, getTotalWeeks } from '../utils/dateUtils';
+import { getDateRanges, addDateRange as addDateRangeAPI, updateDateRange, deleteDateRange as deleteDateRangeAPI } from '../utils/api';
 
 const API_BASE_URL = '/api';
 
@@ -13,6 +15,8 @@ const ManagementTab = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [dbDateRanges, setDbDateRanges] = useState([]);
+  const [isLoadingDateRanges, setIsLoadingDateRanges] = useState(false);
   
   // 폼 상태
   const [formData, setFormData] = useState({
@@ -20,11 +24,14 @@ const ManagementTab = ({
     price_lunch: '',
     price_dinner: '',
     has_dinner: true,
-    webhook_url: ''
+    webhook_url: '',
+    use_all_days: true
   });
 
   // 날짜 관련 상태
-  const [newDateInput, setNewDateInput] = useState("");
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedWeek, setSelectedWeek] = useState(1);
 
   // 식당 목록 불러오기
   const fetchRestaurants = async () => {
@@ -48,7 +55,26 @@ const ManagementTab = ({
 
   useEffect(() => {
     fetchRestaurants();
+    fetchDateRanges();
   }, []);
+
+  // 날짜 범위 목록 불러오기
+  const fetchDateRanges = async () => {
+    setIsLoadingDateRanges(true);
+    try {
+      const data = await getDateRanges(false); // 모든 날짜 범위 조회
+      setDbDateRanges(data);
+      
+      // 상위 컴포넌트 상태도 업데이트 (활성 날짜 범위만)
+      const activeRanges = data.filter(dr => dr.is_active === 1).map(dr => dr.date_range);
+      setDateRanges(activeRanges);
+    } catch (error) {
+      console.error('Error fetching date ranges:', error);
+      alert('날짜 범위 목록을 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoadingDateRanges(false);
+    }
+  };
 
   // 모달 열기 (추가/수정)
   const openModal = (restaurant = null) => {
@@ -59,7 +85,8 @@ const ManagementTab = ({
         price_lunch: restaurant.price_lunch || '',
         price_dinner: restaurant.price_dinner || '',
         has_dinner: restaurant.has_dinner === 1,
-        webhook_url: restaurant.webhook_url || ''
+        webhook_url: restaurant.webhook_url || '',
+        use_all_days: restaurant.use_all_days === undefined ? true : restaurant.use_all_days === 1
       });
     } else {
       setEditingId(null);
@@ -68,7 +95,8 @@ const ManagementTab = ({
         price_lunch: '',
         price_dinner: '',
         has_dinner: true,
-        webhook_url: ''
+        webhook_url: '',
+        use_all_days: true
       });
     }
     setIsModalOpen(true);
@@ -127,16 +155,47 @@ const ManagementTab = ({
     }
   };
 
-  // 날짜 범위 관리 (기존 로직 유지)
-  const addDateRange = () => {
-    if (!newDateInput.trim()) return;
-    setDateRanges([...dateRanges, newDateInput.trim()]);
-    setNewDateInput("");
+  // 날짜 범위 관리 (년도+주차 기반, DB 연동)
+  const addDateRange = async () => {
+    try {
+      const weekInfo = getWeekDateRange(selectedYear, selectedWeek);
+      const newDateRange = weekInfo.dateRange;
+      
+      // 중복 체크
+      if (dbDateRanges.some(dr => dr.date_range === newDateRange)) {
+        alert('이미 등록된 날짜 범위입니다.');
+        return;
+      }
+      
+      await addDateRangeAPI(newDateRange, selectedYear, selectedWeek);
+      await fetchDateRanges(); // 목록 새로고침
+    } catch (error) {
+      alert(`날짜 범위 추가 실패: ${error.message}`);
+    }
   };
 
-  const deleteDateRange = (idx) => {
-    if (confirm("정말 삭제하시겠습니까?")) {
-      setDateRanges(dateRanges.filter((_, i) => i !== idx));
+  // 해당 년도의 총 주차 수
+  const totalWeeks = getTotalWeeks(selectedYear);
+
+  // 날짜 범위 삭제
+  const handleDeleteDateRange = async (id) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+    
+    try {
+      await deleteDateRangeAPI(id);
+      await fetchDateRanges(); // 목록 새로고침
+    } catch (error) {
+      alert(`날짜 범위 삭제 실패: ${error.message}`);
+    }
+  };
+
+  // 날짜 범위 사용 여부 토글
+  const handleToggleDateRangeActive = async (id, currentActive) => {
+    try {
+      await updateDateRange(id, { is_active: currentActive === 1 ? 0 : 1 });
+      await fetchDateRanges(); // 목록 새로고침
+    } catch (error) {
+      alert(`날짜 범위 상태 변경 실패: ${error.message}`);
     }
   };
 
@@ -168,6 +227,7 @@ const ManagementTab = ({
                   <th className="px-6 py-3 font-bold">점심 가격</th>
                   <th className="px-6 py-3 font-bold">저녁 가격</th>
                   <th className="px-6 py-3 font-bold text-center">저녁 제공</th>
+                  <th className="px-6 py-3 font-bold text-center">요일 모드</th>
                   <th className="px-6 py-3 font-bold text-center">웹훅</th>
                   <th className="px-6 py-3 font-bold text-center">상태</th>
                   <th className="px-6 py-3 font-bold text-right">관리</th>
@@ -176,7 +236,7 @@ const ManagementTab = ({
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-8 text-center text-slate-500">
+                    <td colSpan="8" className="px-6 py-8 text-center text-slate-500">
                       <div className="flex justify-center items-center gap-2">
                         <IconRefreshCw className="animate-spin" /> 로딩 중...
                       </div>
@@ -184,7 +244,7 @@ const ManagementTab = ({
                   </tr>
                 ) : dbRestaurants.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-8 text-center text-slate-500">등록된 식당이 없습니다.</td>
+                    <td colSpan="8" className="px-6 py-8 text-center text-slate-500">등록된 식당이 없습니다.</td>
                   </tr>
                 ) : (
                   dbRestaurants.map((res) => (
@@ -195,6 +255,11 @@ const ManagementTab = ({
                       <td className="px-6 py-4 text-center">
                         <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${res.has_dinner ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
                           {res.has_dinner ? '제공' : '미제공'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${(res.use_all_days === undefined || res.use_all_days === 1) ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                          {(res.use_all_days === undefined || res.use_all_days === 1) ? '전체 요일' : '개별 요일'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
@@ -238,34 +303,121 @@ const ManagementTab = ({
             </div>
           </div>
           <div className="p-6">
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                placeholder="새 날짜 범위 입력 (예: 1월 26일 ~ 1월 30일)"
-                value={newDateInput}
-                onChange={(e) => setNewDateInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addDateRange()}
-                className="flex-1 px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all"
-              />
-              <button
-                onClick={addDateRange}
-                className="bg-green-600 text-white px-5 py-2 rounded-lg font-bold hover:bg-green-700 transition-colors"
-              >
-                추가
-              </button>
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">년도</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => {
+                    const year = parseInt(e.target.value, 10);
+                    setSelectedYear(year);
+                    const maxWeek = getTotalWeeks(year);
+                    if (selectedWeek > maxWeek) {
+                      setSelectedWeek(1);
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all bg-white"
+                >
+                  {Array.from({ length: 5 }, (_, i) => currentYear - 1 + i).map((year) => (
+                    <option key={year} value={year}>
+                      {year}년
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">주차</label>
+                <select
+                  value={selectedWeek}
+                  onChange={(e) => setSelectedWeek(parseInt(e.target.value, 10))}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all bg-white"
+                >
+                  {Array.from({ length: totalWeeks }, (_, i) => i + 1).map((week) => (
+                    <option key={week} value={week}>
+                      {week}주차
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={addDateRange}
+                  className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-green-700 transition-colors whitespace-nowrap"
+                >
+                  추가
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {dateRanges.map((date, idx) => (
-                <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg hover:border-green-300 hover:bg-green-50/50 transition-all group">
-                  <span className="text-slate-700 text-sm font-medium">{date}</span>
-                  <button
-                    onClick={() => deleteDateRange(idx)}
-                    className="text-slate-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors"
-                  >
-                    <IconX size={14} />
-                  </button>
-                </div>
-              ))}
+            {(() => {
+              try {
+                const weekInfo = getWeekDateRange(selectedYear, selectedWeek);
+                return (
+                  <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-xs text-slate-500 mb-1">예상 날짜 범위:</p>
+                    <p className="text-sm font-bold text-slate-700">{weekInfo.dateRange}</p>
+                  </div>
+                );
+              } catch (error) {
+                return null;
+              }
+            })()}
+            
+            {/* 날짜 범위 테이블 */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-3 font-bold">날짜 범위</th>
+                    <th className="px-6 py-3 font-bold">년도</th>
+                    <th className="px-6 py-3 font-bold">주차</th>
+                    <th className="px-6 py-3 font-bold text-center">사용 여부</th>
+                    <th className="px-6 py-3 font-bold text-right">관리</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {isLoadingDateRanges ? (
+                    <tr>
+                      <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
+                        <div className="flex justify-center items-center gap-2">
+                          <IconRefreshCw className="animate-spin" /> 로딩 중...
+                        </div>
+                      </td>
+                    </tr>
+                  ) : dbDateRanges.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="px-6 py-8 text-center text-slate-500">등록된 날짜 범위가 없습니다.</td>
+                    </tr>
+                  ) : (
+                    dbDateRanges.map((dr) => (
+                      <tr key={dr.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-6 py-4 font-medium text-slate-900">{dr.date_range}</td>
+                        <td className="px-6 py-4 text-slate-600">{dr.year}년</td>
+                        <td className="px-6 py-4 text-slate-600">{dr.week}주차</td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            onClick={() => handleToggleDateRangeActive(dr.id, dr.is_active)}
+                            className={`inline-block px-3 py-1 rounded text-xs font-bold transition-colors ${
+                              dr.is_active === 1
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {dr.is_active === 1 ? '사용' : '미사용'}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={() => handleDeleteDateRange(dr.id)}
+                            className="text-red-500 hover:text-red-700 font-medium text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                          >
+                            삭제
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -333,6 +485,44 @@ const ManagementTab = ({
                   />
                   <span className="text-sm font-medium text-slate-700">저녁 식사 제공</span>
                 </label>
+              </div>
+
+              <div className="mt-4 pt-2 border-t border-slate-200">
+                <label className="block text-xs font-bold text-slate-500 mb-2">요일 입력 방식</label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData.use_all_days ? 'bg-purple-600 border-purple-600' : 'bg-white border-slate-300 group-hover:border-purple-400'}`}>
+                      {formData.use_all_days && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                    </div>
+                    <input
+                      type="radio"
+                      name="use_all_days"
+                      className="hidden"
+                      checked={formData.use_all_days === true}
+                      onChange={(e) => setFormData({ ...formData, use_all_days: true })}
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-slate-700">전체 요일 모드</span>
+                      <p className="text-xs text-slate-500 mt-0.5">일주일치 식단표를 한 번에 입력합니다</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${!formData.use_all_days ? 'bg-orange-600 border-orange-600' : 'bg-white border-slate-300 group-hover:border-orange-400'}`}>
+                      {!formData.use_all_days && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                    </div>
+                    <input
+                      type="radio"
+                      name="use_all_days"
+                      className="hidden"
+                      checked={formData.use_all_days === false}
+                      onChange={(e) => setFormData({ ...formData, use_all_days: false })}
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-slate-700">개별 요일 모드</span>
+                      <p className="text-xs text-slate-500 mt-0.5">요일별로 개별 입력합니다</p>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               <div className="mt-4">

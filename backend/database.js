@@ -1,13 +1,13 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
+import Database from "better-sqlite3";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbDir = path.join(__dirname, 'db');
-const dbPath = path.join(dbDir, 'menu.db');
+const dbDir = path.join(__dirname, "db");
+const dbPath = path.join(dbDir, "menu.db");
 
 // db 디렉토리가 없으면 생성
 if (!fs.existsSync(dbDir)) {
@@ -17,11 +17,11 @@ if (!fs.existsSync(dbDir)) {
 // 데이터베이스 연결
 let db;
 try {
-  console.log('데이터베이스 경로:', dbPath);
+  console.log("데이터베이스 경로:", dbPath);
   db = new Database(dbPath);
-  console.log('데이터베이스 연결 성공');
+  console.log("데이터베이스 연결 성공");
 } catch (dbError) {
-  console.error('데이터베이스 연결 실패:', dbError);
+  console.error("데이터베이스 연결 실패:", dbError);
   throw dbError;
 }
 
@@ -56,51 +56,149 @@ try {
     );
 
     CREATE INDEX IF NOT EXISTS idx_restaurants_active ON restaurants(is_active, sort_order);
+
+    CREATE TABLE IF NOT EXISTS date_ranges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date_range TEXT NOT NULL UNIQUE,
+      year INTEGER NOT NULL,
+      week INTEGER NOT NULL,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_date_ranges_active ON date_ranges(is_active, year, week);
   `);
 
   // 마이그레이션: has_dinner 컬럼 확인 및 추가
   try {
-    const tableInfo = db.pragma('table_info(restaurants)');
-    const hasDinnerColumn = tableInfo.find(col => col.name === 'has_dinner');
+    const tableInfo = db.pragma("table_info(restaurants)");
+    const hasDinnerColumn = tableInfo.find((col) => col.name === "has_dinner");
     if (!hasDinnerColumn) {
-      console.log('restaurants 테이블에 has_dinner 컬럼 추가 중...');
-      db.exec('ALTER TABLE restaurants ADD COLUMN has_dinner INTEGER DEFAULT 1');
+      console.log("restaurants 테이블에 has_dinner 컬럼 추가 중...");
+      db.exec(
+        "ALTER TABLE restaurants ADD COLUMN has_dinner INTEGER DEFAULT 1"
+      );
     }
   } catch (migrationError) {
-    console.error('마이그레이션 오류:', migrationError);
+    console.error("마이그레이션 오류:", migrationError);
   }
 
   // 마이그레이션: webhook_url 컬럼 확인 및 추가
   try {
-    const tableInfo = db.pragma('table_info(restaurants)');
-    const hasWebhookUrlColumn = tableInfo.find(col => col.name === 'webhook_url');
+    const tableInfo = db.pragma("table_info(restaurants)");
+    const hasWebhookUrlColumn = tableInfo.find(
+      (col) => col.name === "webhook_url"
+    );
     if (!hasWebhookUrlColumn) {
-      console.log('restaurants 테이블에 webhook_url 컬럼 추가 중...');
-      db.exec('ALTER TABLE restaurants ADD COLUMN webhook_url TEXT DEFAULT NULL');
+      console.log("restaurants 테이블에 webhook_url 컬럼 추가 중...");
+      db.exec(
+        "ALTER TABLE restaurants ADD COLUMN webhook_url TEXT DEFAULT NULL"
+      );
     }
   } catch (migrationError) {
-    console.error('webhook_url 마이그레이션 오류:', migrationError);
+    console.error("webhook_url 마이그레이션 오류:", migrationError);
   }
 
-  console.log('데이터베이스 테이블 초기화 완료');
+  // 마이그레이션: use_all_days 컬럼 확인 및 추가
+  try {
+    const tableInfo = db.pragma("table_info(restaurants)");
+    const hasUseAllDaysColumn = tableInfo.find(
+      (col) => col.name === "use_all_days"
+    );
+    if (!hasUseAllDaysColumn) {
+      console.log("restaurants 테이블에 use_all_days 컬럼 추가 중...");
+      db.exec(
+        "ALTER TABLE restaurants ADD COLUMN use_all_days INTEGER DEFAULT 1"
+      );
+    }
+  } catch (migrationError) {
+    console.error("use_all_days 마이그레이션 오류:", migrationError);
+  }
+
+  // 마이그레이션: menu_data 테이블에 image_paths 컬럼 확인 및 추가
+  try {
+    const menuDataTableInfo = db.pragma("table_info(menu_data)");
+    const hasImagePathsColumn = menuDataTableInfo.find(
+      (col) => col.name === "image_paths"
+    );
+    if (!hasImagePathsColumn) {
+      console.log("menu_data 테이블에 image_paths 컬럼 추가 중...");
+      db.exec("ALTER TABLE menu_data ADD COLUMN image_paths TEXT DEFAULT NULL");
+
+      // 기존 image_path가 있으면 image_paths로 변환 (모든 요일에 동일 이미지 적용)
+      try {
+        const existingData = db
+          .prepare(
+            "SELECT id, image_path FROM menu_data WHERE image_path IS NOT NULL AND image_path != ''"
+          )
+          .all();
+        if (existingData.length > 0) {
+          console.log(
+            `${existingData.length}개 레코드의 image_path를 image_paths로 변환 중...`
+          );
+          const updateStmt = db.prepare(
+            "UPDATE menu_data SET image_paths = ? WHERE id = ?"
+          );
+          existingData.forEach((row) => {
+            // 모든 요일에 동일 이미지 적용
+            const imagePaths = JSON.stringify({
+              월: row.image_path,
+              화: row.image_path,
+              수: row.image_path,
+              목: row.image_path,
+              금: row.image_path,
+            });
+            updateStmt.run(imagePaths, row.id);
+          });
+          console.log("image_path 변환 완료");
+        }
+      } catch (convertError) {
+        console.error("image_path 변환 오류:", convertError);
+      }
+    }
+  } catch (migrationError) {
+    console.error("image_paths 마이그레이션 오류:", migrationError);
+  }
+
+  console.log("데이터베이스 테이블 초기화 완료");
 } catch (tableError) {
-  console.error('테이블 생성 실패:', tableError);
+  console.error("테이블 생성 실패:", tableError);
   throw tableError;
 }
 
 // 데이터 삽입 또는 업데이트
 export const saveMenuData = (data) => {
-  const { restaurant_name, date_range, price_lunch, price_dinner, menus, image_path } = data;
-  
+  const {
+    restaurant_name,
+    date_range,
+    price_lunch,
+    price_dinner,
+    menus,
+    image_path,
+    image_paths,
+  } = data;
+
+  // image_paths를 JSON 문자열로 변환
+  let imagePathsJson = null;
+  if (image_paths) {
+    if (typeof image_paths === "string") {
+      imagePathsJson = image_paths;
+    } else {
+      imagePathsJson = JSON.stringify(image_paths);
+    }
+  }
+
   const stmt = db.prepare(`
-    INSERT INTO menu_data (restaurant_name, date_range, price_lunch, price_dinner, menus, image_path, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO menu_data (restaurant_name, date_range, price_lunch, price_dinner, menus, image_path, image_paths, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(restaurant_name, date_range) 
     DO UPDATE SET
       price_lunch = excluded.price_lunch,
       price_dinner = excluded.price_dinner,
       menus = excluded.menus,
       image_path = excluded.image_path,
+      image_paths = excluded.image_paths,
       updated_at = CURRENT_TIMESTAMP
   `);
 
@@ -110,7 +208,8 @@ export const saveMenuData = (data) => {
     price_lunch || null,
     price_dinner || null,
     JSON.stringify(menus),
-    image_path || null
+    image_path || null,
+    imagePathsJson || null
   );
 
   return result;
@@ -125,7 +224,7 @@ export const getMenuData = (restaurant_name, date_range) => {
     `);
 
     const row = stmt.get(restaurant_name, date_range);
-    
+
     if (!row) return null;
 
     // menus JSON 파싱 (에러 처리)
@@ -133,17 +232,40 @@ export const getMenuData = (restaurant_name, date_range) => {
     try {
       menus = JSON.parse(row.menus);
     } catch (parseError) {
-      console.error('메뉴 JSON 파싱 오류:', parseError, '원본 데이터:', row.menus);
+      console.error(
+        "메뉴 JSON 파싱 오류:",
+        parseError,
+        "원본 데이터:",
+        row.menus
+      );
       // 파싱 실패 시 빈 객체 반환
       menus = {};
     }
 
+    // image_paths JSON 파싱 (에러 처리)
+    let imagePaths = null;
+    if (row.image_paths) {
+      try {
+        imagePaths = JSON.parse(row.image_paths);
+      } catch (parseError) {
+        console.error(
+          "image_paths JSON 파싱 오류:",
+          parseError,
+          "원본 데이터:",
+          row.image_paths
+        );
+        // 파싱 실패 시 null 유지
+        imagePaths = null;
+      }
+    }
+
     return {
       ...row,
-      menus: menus
+      menus: menus,
+      image_paths: imagePaths,
     };
   } catch (error) {
-    console.error('데이터 조회 오류:', error);
+    console.error("데이터 조회 오류:", error);
     throw error;
   }
 };
@@ -157,25 +279,47 @@ export const getAllMenuData = () => {
     `);
 
     const rows = stmt.all();
-    
-    return rows.map(row => {
+
+    return rows.map((row) => {
       // menus JSON 파싱 (에러 처리)
       let menus;
       try {
         menus = JSON.parse(row.menus);
       } catch (parseError) {
-        console.error('메뉴 JSON 파싱 오류:', parseError, '원본 데이터:', row.menus);
+        console.error(
+          "메뉴 JSON 파싱 오류:",
+          parseError,
+          "원본 데이터:",
+          row.menus
+        );
         // 파싱 실패 시 빈 객체 반환
         menus = {};
       }
-      
+
+      // image_paths JSON 파싱 (에러 처리)
+      let imagePaths = null;
+      if (row.image_paths) {
+        try {
+          imagePaths = JSON.parse(row.image_paths);
+        } catch (parseError) {
+          console.error(
+            "image_paths JSON 파싱 오류:",
+            parseError,
+            "원본 데이터:",
+            row.image_paths
+          );
+          imagePaths = null;
+        }
+      }
+
       return {
         ...row,
-        menus: menus
+        menus: menus,
+        image_paths: imagePaths,
       };
     });
   } catch (error) {
-    console.error('모든 데이터 조회 오류:', error);
+    console.error("모든 데이터 조회 오류:", error);
     throw error;
   }
 };
@@ -205,87 +349,147 @@ export const deleteMenuData = (restaurant_name, date_range) => {
 
 // 모든 식당 조회
 export const getAllRestaurants = () => {
-  const stmt = db.prepare(`
-    SELECT * FROM restaurants
-    ORDER BY sort_order ASC, id ASC
-  `);
-  return stmt.all();
+  try {
+    const stmt = db.prepare(`
+      SELECT * FROM restaurants
+      ORDER BY sort_order ASC, id ASC
+    `);
+    const results = stmt.all();
+    // use_all_days 필드가 없으면 기본값 1로 설정 (하위 호환성)
+    return results.map((row) => ({
+      ...row,
+      use_all_days: row.use_all_days === undefined ? 1 : row.use_all_days,
+    }));
+  } catch (error) {
+    console.error("식당 목록 조회 오류:", error);
+    throw error;
+  }
 };
 
 // 활성 식당만 조회
 export const getActiveRestaurants = () => {
-  const stmt = db.prepare(`
-    SELECT * FROM restaurants
-    WHERE is_active = 1
-    ORDER BY sort_order ASC, id ASC
-  `);
-  return stmt.all();
+  try {
+    const stmt = db.prepare(`
+      SELECT * FROM restaurants
+      WHERE is_active = 1
+      ORDER BY sort_order ASC, id ASC
+    `);
+    const results = stmt.all();
+    // use_all_days 필드가 없으면 기본값 1로 설정 (하위 호환성)
+    return results.map((row) => ({
+      ...row,
+      use_all_days: row.use_all_days === undefined ? 1 : row.use_all_days,
+    }));
+  } catch (error) {
+    console.error("활성 식당 목록 조회 오류:", error);
+    throw error;
+  }
 };
 
 // 식당 추가
 export const addRestaurant = (data) => {
-  const { name, price_lunch, price_dinner, has_dinner, webhook_url } = data;
+  const {
+    name,
+    price_lunch,
+    price_dinner,
+    has_dinner,
+    webhook_url,
+    use_all_days,
+  } = data;
 
   // 현재 최대 sort_order 구하기
-  const maxOrder = db.prepare('SELECT MAX(sort_order) as max_order FROM restaurants').get();
+  const maxOrder = db
+    .prepare("SELECT MAX(sort_order) as max_order FROM restaurants")
+    .get();
   const newOrder = (maxOrder?.max_order || 0) + 1;
 
   const stmt = db.prepare(`
-    INSERT INTO restaurants (name, price_lunch, price_dinner, has_dinner, webhook_url, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO restaurants (name, price_lunch, price_dinner, has_dinner, webhook_url, use_all_days, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const hasDinnerVal = has_dinner === undefined ? 1 : (has_dinner ? 1 : 0);
-  const result = stmt.run(name, price_lunch || '', price_dinner || '', hasDinnerVal, webhook_url || null, newOrder);
-  return { id: result.lastInsertRowid, name, price_lunch, price_dinner, has_dinner: hasDinnerVal, webhook_url: webhook_url || null, sort_order: newOrder };
+  const hasDinnerVal = has_dinner === undefined ? 1 : has_dinner ? 1 : 0;
+  const useAllDaysVal = use_all_days === undefined ? 1 : use_all_days ? 1 : 0;
+  const result = stmt.run(
+    name,
+    price_lunch || "",
+    price_dinner || "",
+    hasDinnerVal,
+    webhook_url || null,
+    useAllDaysVal,
+    newOrder
+  );
+  return {
+    id: result.lastInsertRowid,
+    name,
+    price_lunch,
+    price_dinner,
+    has_dinner: hasDinnerVal,
+    webhook_url: webhook_url || null,
+    use_all_days: useAllDaysVal,
+    sort_order: newOrder,
+  };
 };
 
 // 식당 수정
 export const updateRestaurant = (id, data) => {
-  const { name, price_lunch, price_dinner, has_dinner, is_active, sort_order, webhook_url } = data;
+  const {
+    name,
+    price_lunch,
+    price_dinner,
+    has_dinner,
+    is_active,
+    sort_order,
+    webhook_url,
+    use_all_days,
+  } = data;
 
   const updates = [];
   const params = [];
 
   if (name !== undefined) {
-    updates.push('name = ?');
+    updates.push("name = ?");
     params.push(name);
   }
   if (price_lunch !== undefined) {
-    updates.push('price_lunch = ?');
+    updates.push("price_lunch = ?");
     params.push(price_lunch);
   }
   if (price_dinner !== undefined) {
-    updates.push('price_dinner = ?');
+    updates.push("price_dinner = ?");
     params.push(price_dinner);
   }
   if (has_dinner !== undefined) {
-    updates.push('has_dinner = ?');
+    updates.push("has_dinner = ?");
     params.push(has_dinner ? 1 : 0);
   }
   if (is_active !== undefined) {
-    updates.push('is_active = ?');
+    updates.push("is_active = ?");
     params.push(is_active ? 1 : 0);
   }
   if (sort_order !== undefined) {
-    updates.push('sort_order = ?');
+    updates.push("sort_order = ?");
     params.push(sort_order);
   }
   if (webhook_url !== undefined) {
-    updates.push('webhook_url = ?');
+    updates.push("webhook_url = ?");
     params.push(webhook_url || null);
+  }
+  if (use_all_days !== undefined) {
+    updates.push("use_all_days = ?");
+    params.push(use_all_days ? 1 : 0);
   }
 
   if (updates.length === 0) {
     return { changes: 0 };
   }
 
-  updates.push('updated_at = CURRENT_TIMESTAMP');
+  updates.push("updated_at = CURRENT_TIMESTAMP");
   params.push(id);
 
   const stmt = db.prepare(`
     UPDATE restaurants
-    SET ${updates.join(', ')}
+    SET ${updates.join(", ")}
     WHERE id = ?
   `);
 
@@ -294,19 +498,21 @@ export const updateRestaurant = (id, data) => {
 
 // 식당 삭제
 export const deleteRestaurant = (id) => {
-  const stmt = db.prepare('DELETE FROM restaurants WHERE id = ?');
+  const stmt = db.prepare("DELETE FROM restaurants WHERE id = ?");
   return stmt.run(id);
 };
 
 // 식당 단일 조회
 export const getRestaurantById = (id) => {
-  const stmt = db.prepare('SELECT * FROM restaurants WHERE id = ?');
+  const stmt = db.prepare("SELECT * FROM restaurants WHERE id = ?");
   return stmt.get(id);
 };
 
 // 식당 순서 일괄 업데이트
 export const updateRestaurantOrders = (orders) => {
-  const stmt = db.prepare('UPDATE restaurants SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  const stmt = db.prepare(
+    "UPDATE restaurants SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+  );
 
   const updateMany = db.transaction((items) => {
     for (const item of items) {
@@ -318,5 +524,106 @@ export const updateRestaurantOrders = (orders) => {
   return { success: true };
 };
 
-export default db;
+// ==================== 날짜 범위 관리 CRUD ====================
 
+// 모든 날짜 범위 조회
+export const getAllDateRanges = () => {
+  try {
+    const stmt = db.prepare(`
+      SELECT * FROM date_ranges
+      ORDER BY year DESC, week DESC
+    `);
+    return stmt.all();
+  } catch (error) {
+    console.error("날짜 범위 목록 조회 오류:", error);
+    throw error;
+  }
+};
+
+// 활성 날짜 범위만 조회
+export const getActiveDateRanges = () => {
+  try {
+    const stmt = db.prepare(`
+      SELECT * FROM date_ranges
+      WHERE is_active = 1
+      ORDER BY year DESC, week DESC
+    `);
+    return stmt.all();
+  } catch (error) {
+    console.error("활성 날짜 범위 목록 조회 오류:", error);
+    throw error;
+  }
+};
+
+// 날짜 범위 추가
+export const addDateRange = (data) => {
+  const { date_range, year, week } = data;
+
+  const stmt = db.prepare(`
+    INSERT INTO date_ranges (date_range, year, week, is_active)
+    VALUES (?, ?, ?, 1)
+  `);
+
+  const result = stmt.run(date_range, year, week);
+  return {
+    id: result.lastInsertRowid,
+    date_range,
+    year,
+    week,
+    is_active: 1,
+  };
+};
+
+// 날짜 범위 수정
+export const updateDateRange = (id, data) => {
+  const { date_range, year, week, is_active } = data;
+
+  const updates = [];
+  const params = [];
+
+  if (date_range !== undefined) {
+    updates.push("date_range = ?");
+    params.push(date_range);
+  }
+  if (year !== undefined) {
+    updates.push("year = ?");
+    params.push(year);
+  }
+  if (week !== undefined) {
+    updates.push("week = ?");
+    params.push(week);
+  }
+  if (is_active !== undefined) {
+    updates.push("is_active = ?");
+    params.push(is_active ? 1 : 0);
+  }
+
+  if (updates.length === 0) {
+    return { changes: 0 };
+  }
+
+  updates.push("updated_at = CURRENT_TIMESTAMP");
+  params.push(id);
+
+  const stmt = db.prepare(`
+    UPDATE date_ranges
+    SET ${updates.join(", ")}
+    WHERE id = ?
+  `);
+
+  return stmt.run(...params);
+};
+
+// 날짜 범위 삭제
+export const deleteDateRange = (id) => {
+  const stmt = db.prepare("DELETE FROM date_ranges WHERE id = ?");
+  return stmt.run(id);
+};
+
+// 날짜 범위 단일 조회
+export const getDateRangeById = (id) => {
+  const stmt = db.prepare("SELECT * FROM date_ranges WHERE id = ?");
+  return stmt.get(id);
+};
+
+export default db;

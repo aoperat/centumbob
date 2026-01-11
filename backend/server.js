@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import axios from "axios";
 import {
   saveMenuData,
   getMenuData,
@@ -18,6 +19,11 @@ import {
   updateRestaurant,
   deleteRestaurant,
   updateRestaurantOrders,
+  getAllDateRanges,
+  getActiveDateRanges,
+  addDateRange,
+  updateDateRange,
+  deleteDateRange,
 } from "./database.js";
 import { transformDbDataForViewer } from "./utils/transform.js";
 import {
@@ -95,39 +101,17 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// 임시 업로드 폴더
+const tempUploadsDir = path.join(__dirname, "uploads", "temp");
+if (!fs.existsSync(tempUploadsDir)) {
+  fs.mkdirSync(tempUploadsDir, { recursive: true });
+}
+
 // Multer 설정 (디스크 스토리지 - 이미지 저장용)
+// 임시 폴더에 먼저 저장 후 요청 처리에서 이동
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    try {
-      // req.body.data에서 식당명과 날짜 추출 (JSON 문자열)
-      let restaurant = "default";
-      let dateRange = "default";
-
-      if (req.body.data) {
-        try {
-          const adminData = JSON.parse(req.body.data);
-          restaurant = adminData.name || "default";
-          dateRange = adminData.date || "default";
-        } catch (e) {
-          console.error("데이터 파싱 오류:", e);
-        }
-      }
-
-      // 파일명에서 특수문자 제거
-      const safeRestaurant = restaurant.replace(/[^a-zA-Z0-9가-힣]/g, "_");
-      const safeDateRange = dateRange.replace(/[^a-zA-Z0-9가-힣]/g, "_");
-      const uploadPath = path.join(uploadsDir, safeRestaurant, safeDateRange);
-
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      console.log("이미지 저장 경로:", uploadPath);
-      cb(null, uploadPath);
-    } catch (error) {
-      console.error("이미지 저장 경로 설정 오류:", error);
-      cb(error, null);
-    }
+    cb(null, tempUploadsDir);
   },
   filename: (req, file, cb) => {
     // 타임스탬프 기반 파일명
@@ -495,63 +479,125 @@ const loadMenuData = () => {
   return {};
 };
 
-// 데이터 저장 엔드포인트 (이미지 포함, DB 저장)
-app.post("/api/save", uploadImage.single("image"), async (req, res) => {
-  try {
-    const adminData = JSON.parse(req.body.data || "{}");
-    const imageFile = req.file;
+// 파일을 임시 폴더에서 목적지로 이동하는 헬퍼 함수
+const moveFileToDestination = (tempPath, restaurant, dateRange, filename) => {
+  const safeRestaurant = restaurant.replace(/[^a-zA-Z0-9가-힣]/g, "_");
+  const safeDateRange = dateRange.replace(/[^a-zA-Z0-9가-힣]/g, "_");
+  const destDir = path.join(uploadsDir, safeRestaurant, safeDateRange);
 
-    // 필수 필드 검증
-    if (!adminData.name || !adminData.date) {
-      return res.status(400).json({
-        error: "필수 필드가 누락되었습니다. (name, date)",
-      });
-    }
-
-    // 이미지 경로 설정
-    let imagePath = null;
-    if (imageFile) {
-      // multer가 저장한 실제 경로 사용 (상대 경로로 변환)
-      const absolutePath = imageFile.path;
-      const relativePath = path.relative(__dirname, absolutePath);
-      // Windows 경로 구분자를 슬래시로 변환
-      imagePath = relativePath.split(path.sep).join("/");
-      console.log("이미지 저장 완료:", {
-        absolutePath,
-        relativePath,
-        imagePath,
-      });
-    } else {
-      // 기존 데이터에서 이미지 경로 가져오기
-      const existing = getMenuData(adminData.name, adminData.date);
-      if (existing && existing.image_path) {
-        imagePath = existing.image_path;
-      }
-    }
-
-    // DB에 저장
-    const result = saveMenuData({
-      restaurant_name: adminData.name,
-      date_range: adminData.date,
-      price_lunch: adminData.price?.lunch || "",
-      price_dinner: adminData.price?.dinner || "",
-      menus: adminData.menus || {},
-      image_path: imagePath,
-    });
-
-    res.json({
-      success: true,
-      message: "데이터가 성공적으로 저장되었습니다.",
-      imagePath: imagePath,
-    });
-  } catch (error) {
-    console.error("데이터 저장 오류:", error);
-    res.status(500).json({
-      error: "데이터 저장 중 오류가 발생했습니다.",
-      message: error.message,
-    });
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
   }
-});
+
+  const destPath = path.join(destDir, filename);
+  fs.renameSync(tempPath, destPath);
+
+  const relativePath = path.relative(__dirname, destPath);
+  return relativePath.split(path.sep).join("/");
+};
+
+// 데이터 저장 엔드포인트 (이미지 포함, DB 저장)
+// 요일별 이미지를 받기 위해 fields 방식 사용
+app.post(
+  "/api/save",
+  uploadImage.fields([
+    { name: "image", maxCount: 1 }, // 전체 요일 모드용
+    { name: "image_월", maxCount: 1 },
+    { name: "image_화", maxCount: 1 },
+    { name: "image_수", maxCount: 1 },
+    { name: "image_목", maxCount: 1 },
+    { name: "image_금", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const adminData = JSON.parse(req.body.data || "{}");
+      const files = req.files;
+      const useAllDays = adminData.use_all_days !== false; // 기본값 true
+
+      // 필수 필드 검증
+      if (!adminData.name || !adminData.date) {
+        return res.status(400).json({
+          error: "필수 필드가 누락되었습니다. (name, date)",
+        });
+      }
+
+      // 기존 데이터 조회 (이미지 경로 유지용)
+      const existing = getMenuData(adminData.name, adminData.date);
+      let imagePath = null;
+      let imagePaths = existing?.image_paths || null;
+
+      if (useAllDays) {
+        // 전체 요일 모드: 하나의 이미지
+        const imageFile = files?.image?.[0];
+        if (imageFile) {
+          // 임시 폴더에서 목적지로 이동
+          imagePath = moveFileToDestination(
+            imageFile.path,
+            adminData.name,
+            adminData.date,
+            imageFile.filename
+          );
+          console.log("전체 요일 이미지 저장 완료:", imagePath);
+        } else if (existing?.image_path) {
+          imagePath = existing.image_path;
+        }
+        // 전체 요일 모드에서는 image_paths를 null로 설정
+        imagePaths = null;
+      } else {
+        // 개별 요일 모드: 요일별 이미지
+        const days = ["월", "화", "수", "목", "금"];
+        if (!imagePaths) {
+          imagePaths = {};
+        }
+
+        days.forEach((day) => {
+          const dayFile = files?.[`image_${day}`]?.[0];
+          if (dayFile) {
+            // 임시 폴더에서 목적지로 이동
+            const dayImagePath = moveFileToDestination(
+              dayFile.path,
+              adminData.name,
+              adminData.date,
+              dayFile.filename
+            );
+            imagePaths[day] = dayImagePath;
+            console.log(`${day}요일 이미지 저장 완료:`, dayImagePath);
+          } else if (existing?.image_paths?.[day]) {
+            // 기존 이미지 유지
+            imagePaths[day] = existing.image_paths[day];
+          }
+        });
+
+        // image_path는 첫 번째 이미지 또는 null
+        imagePath = imagePaths["월"] || existing?.image_path || null;
+      }
+
+      // DB에 저장
+      const result = saveMenuData({
+        restaurant_name: adminData.name,
+        date_range: adminData.date,
+        price_lunch: adminData.price?.lunch || "",
+        price_dinner: adminData.price?.dinner || "",
+        menus: adminData.menus || {},
+        image_path: imagePath,
+        image_paths: imagePaths,
+      });
+
+      res.json({
+        success: true,
+        message: "데이터가 성공적으로 저장되었습니다.",
+        imagePath: imagePath,
+        imagePaths: imagePaths,
+      });
+    } catch (error) {
+      console.error("데이터 저장 오류:", error);
+      res.status(500).json({
+        error: "데이터 저장 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+  }
+);
 
 // 이미지 파일 제공 엔드포인트 (경로 직접 사용) - 더 구체적인 라우트를 먼저 등록
 // Express의 와일드카드 라우팅 문제를 해결하기 위해 정규식 사용
@@ -619,6 +665,85 @@ app.get(/^\/api\/images\/path\/(.+)$/, (req, res) => {
   }
 });
 
+// OCR GET 테스트 프록시 API
+app.get("/api/ocr/test", async (req, res) => {
+  try {
+    const response = await fetch("http://ocr.home", {
+      method: "GET",
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: `OCR GET 요청 실패: ${response.status} ${response.statusText}`,
+      });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error("OCR GET 테스트 오류:", error);
+    res.status(500).json({
+      error: "OCR GET 테스트 실패",
+      message: error.message,
+    });
+  }
+});
+
+// OCR POST 테스트 프록시 API
+app.post("/api/ocr/test-post", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        error: "이미지 파일이 필요합니다.",
+      });
+    }
+
+    // FormData 생성하여 ocr.home/ocr로 전달 (axios 사용)
+    const FormDataLib = (await import("form-data")).default;
+    const formData = new FormDataLib();
+
+    // 필드명을 'file' 또는 'image'로 시도 (FastAPI는 보통 'file'을 사용)
+    const fieldName = "file"; // FastAPI의 File() 파라미터는 보통 'file' 이름 사용
+    formData.append(fieldName, req.file.buffer, {
+      filename: req.file.originalname || "image.jpg",
+      contentType: req.file.mimetype || "image/jpeg",
+    });
+
+    console.log(
+      "[OCR POST] 전송 중 - 파일 크기:",
+      req.file.buffer.length,
+      "bytes, 타입:",
+      req.file.mimetype,
+      "필드명:",
+      fieldName
+    );
+
+    const response = await axios.post("http://ocr.home/ocr", formData, {
+      headers: {
+        ...formData.getHeaders(),
+      },
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      timeout: 30000, // 30초 타임아웃
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("OCR POST 테스트 오류:", error);
+    if (error.response) {
+      console.error("OCR POST 응답 오류:", error.response.data);
+      return res.status(error.response.status).json({
+        error: `OCR POST 요청 실패: ${error.response.status} ${error.response.statusText}`,
+        details: error.response.data,
+      });
+    }
+    res.status(500).json({
+      error: "OCR POST 테스트 실패",
+      message: error.message,
+    });
+  }
+});
+
 // 데이터 불러오기 API
 app.get("/api/load", (req, res) => {
   try {
@@ -638,16 +763,34 @@ app.get("/api/load", (req, res) => {
 
         // 이미지 URL 생성 - 이미지 경로를 직접 사용 (URL 인코딩 문제 방지)
         let imageUrl = null;
+        let imageUrls = null;
+
+        // 요일별 이미지가 있으면 imageUrls 객체 생성
+        if (menuData.image_paths) {
+          imageUrls = {};
+          const days = ["월", "화", "수", "목", "금"];
+          days.forEach((day) => {
+            if (menuData.image_paths[day]) {
+              imageUrls[day] = `/api/images/path/${encodeURIComponent(
+                menuData.image_paths[day]
+              )}`;
+            }
+          });
+        }
+
+        // 하위 호환성을 위해 imageUrl도 유지
         if (menuData.image_path) {
-          // 이미지 경로를 직접 사용하여 URL 파라미터 인코딩 문제 방지
           imageUrl = `/api/images/path/${encodeURIComponent(
             menuData.image_path
           )}`;
+        } else if (imageUrls?.["월"]) {
+          imageUrl = imageUrls["월"];
         }
 
         res.json({
           ...menuData,
           imageUrl: imageUrl,
+          imageUrls: imageUrls,
         });
       } catch (dbError) {
         console.error("[/api/load] 데이터베이스 조회 오류:", dbError);
@@ -723,8 +866,61 @@ app.post("/api/publish", async (req, res) => {
     allData.forEach((dbData) => {
       let imageBase64 = null;
 
-      // 이미지 파일이 있으면 base64로 인코딩
-      if (dbData.image_path) {
+      // 요일별 이미지가 있으면 요일별로 처리
+      const imagePathsByDay = dbData.image_paths || {};
+      const days = ["월", "화", "수", "목", "금"];
+
+      // 요일별 이미지 파일 복사
+      if (Object.keys(imagePathsByDay).length > 0) {
+        days.forEach((day) => {
+          if (imagePathsByDay[day]) {
+            try {
+              const imageAbsolutePath = path.join(
+                __dirname,
+                imagePathsByDay[day]
+              );
+              if (fs.existsSync(imageAbsolutePath)) {
+                const imageFileName = path.basename(imageAbsolutePath);
+                const viewerImagePath = path.join(
+                  viewerImagesDir,
+                  imageFileName
+                );
+                // 같은 파일명이 아니면 복사
+                if (
+                  !fs.existsSync(viewerImagePath) ||
+                  fs.statSync(imageAbsolutePath).mtime >
+                    fs.statSync(viewerImagePath).mtime
+                ) {
+                  fs.copyFileSync(imageAbsolutePath, viewerImagePath);
+                  console.log(
+                    `[${day}요일] 이미지 복사 완료:`,
+                    viewerImagePath
+                  );
+                }
+                // 첫 번째 이미지를 base64로도 변환 (하위 호환성)
+                if (!imageBase64 && day === "월") {
+                  const imageBuffer = fs.readFileSync(imageAbsolutePath);
+                  const imageExt = path
+                    .extname(imageAbsolutePath)
+                    .toLowerCase();
+                  let mimeType = "image/jpeg";
+                  if (imageExt === ".png") mimeType = "image/png";
+                  else if (imageExt === ".gif") mimeType = "image/gif";
+                  else if (imageExt === ".webp") mimeType = "image/webp";
+                  imageBase64 = `data:${mimeType};base64,${imageBuffer.toString(
+                    "base64"
+                  )}`;
+                }
+              }
+            } catch (imageError) {
+              console.error(`[${day}요일] 이미지 처리 오류:`, imageError);
+            }
+          }
+        });
+      }
+
+      // 전체 요일 모드: 단일 이미지 처리
+      if (!imageBase64 && dbData.image_path) {
         try {
           const imageAbsolutePath = path.join(__dirname, dbData.image_path);
           if (fs.existsSync(imageAbsolutePath)) {
@@ -743,8 +939,14 @@ app.post("/api/publish", async (req, res) => {
             // 이미지 파일을 viewer/public/images/로도 복사 (상대 경로 참조용)
             const imageFileName = path.basename(imageAbsolutePath);
             const viewerImagePath = path.join(viewerImagesDir, imageFileName);
-            fs.copyFileSync(imageAbsolutePath, viewerImagePath);
-            console.log("이미지 복사 완료:", viewerImagePath);
+            if (
+              !fs.existsSync(viewerImagePath) ||
+              fs.statSync(imageAbsolutePath).mtime >
+                fs.statSync(viewerImagePath).mtime
+            ) {
+              fs.copyFileSync(imageAbsolutePath, viewerImagePath);
+              console.log("이미지 복사 완료:", viewerImagePath);
+            }
           }
         } catch (imageError) {
           console.error("이미지 처리 오류:", imageError);
@@ -1205,6 +1407,93 @@ app.get("/api/data", (req, res) => {
   }
 });
 
+// ==================== 날짜 범위 관리 API ====================
+
+// 날짜 범위 목록 조회
+app.get("/api/date-ranges", (req, res) => {
+  try {
+    const { active_only } = req.query;
+    const dateRanges =
+      active_only === "true" ? getActiveDateRanges() : getAllDateRanges();
+    res.json(dateRanges);
+  } catch (error) {
+    console.error("날짜 범위 목록 조회 오류:", error);
+    res.status(500).json({
+      error: "날짜 범위 목록을 불러오는 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 날짜 범위 추가
+app.post("/api/date-ranges", (req, res) => {
+  try {
+    const { date_range, year, week } = req.body;
+    if (!date_range || year === undefined || week === undefined) {
+      return res.status(400).json({
+        error: "date_range, year, week는 필수입니다.",
+      });
+    }
+
+    const newDateRange = addDateRange({
+      date_range,
+      year,
+      week,
+    });
+    res.json(newDateRange);
+  } catch (error) {
+    console.error("날짜 범위 추가 오류:", error);
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res.status(409).json({ error: "이미 존재하는 날짜 범위입니다." });
+    }
+    res
+      .status(500)
+      .json({ error: "날짜 범위를 추가하는 중 오류가 발생했습니다." });
+  }
+});
+
+// 날짜 범위 수정
+app.put("/api/date-ranges/:id", (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "유효하지 않은 ID입니다." });
+    }
+
+    const result = updateDateRange(id, req.body);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "날짜 범위를 찾을 수 없습니다." });
+    }
+    res.json({ success: true, changes: result.changes });
+  } catch (error) {
+    console.error("날짜 범위 수정 오류:", error);
+    res
+      .status(500)
+      .json({ error: "날짜 범위를 수정하는 중 오류가 발생했습니다." });
+  }
+});
+
+// 날짜 범위 삭제
+app.delete("/api/date-ranges/:id", (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "유효하지 않은 ID입니다." });
+    }
+
+    const result = deleteDateRange(id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "날짜 범위를 찾을 수 없습니다." });
+    }
+    res.json({ success: true, changes: result.changes });
+  } catch (error) {
+    console.error("날짜 범위 삭제 오류:", error);
+    res
+      .status(500)
+      .json({ error: "날짜 범위를 삭제하는 중 오류가 발생했습니다." });
+  }
+});
+
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
@@ -1567,17 +1856,26 @@ app.get("/api/restaurants", (req, res) => {
     res.json(restaurants);
   } catch (error) {
     console.error("식당 목록 조회 오류:", error);
-    res
-      .status(500)
-      .json({ error: "식당 목록을 불러오는 중 오류가 발생했습니다." });
+    console.error("오류 스택:", error.stack);
+    res.status(500).json({
+      error: "식당 목록을 불러오는 중 오류가 발생했습니다.",
+      message: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
   }
 });
 
 // 식당 추가
 app.post("/api/restaurants", (req, res) => {
   try {
-    const { name, price_lunch, price_dinner, has_dinner, webhook_url } =
-      req.body;
+    const {
+      name,
+      price_lunch,
+      price_dinner,
+      has_dinner,
+      webhook_url,
+      use_all_days,
+    } = req.body;
     if (!name) {
       return res.status(400).json({ error: "식당 이름은 필수입니다." });
     }
@@ -1588,6 +1886,7 @@ app.post("/api/restaurants", (req, res) => {
       price_dinner,
       has_dinner,
       webhook_url,
+      use_all_days,
     });
     res.json(newRestaurant);
   } catch (error) {
@@ -1656,6 +1955,93 @@ app.delete("/api/restaurants/:id", (req, res) => {
   } catch (error) {
     console.error("식당 삭제 오류:", error);
     res.status(500).json({ error: "식당을 삭제하는 중 오류가 발생했습니다." });
+  }
+});
+
+// ==================== 날짜 범위 관리 API ====================
+
+// 날짜 범위 목록 조회
+app.get("/api/date-ranges", (req, res) => {
+  try {
+    const { active_only } = req.query;
+    const dateRanges =
+      active_only === "true" ? getActiveDateRanges() : getAllDateRanges();
+    res.json(dateRanges);
+  } catch (error) {
+    console.error("날짜 범위 목록 조회 오류:", error);
+    res.status(500).json({
+      error: "날짜 범위 목록을 불러오는 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 날짜 범위 추가
+app.post("/api/date-ranges", (req, res) => {
+  try {
+    const { date_range, year, week } = req.body;
+    if (!date_range || year === undefined || week === undefined) {
+      return res.status(400).json({
+        error: "date_range, year, week는 필수입니다.",
+      });
+    }
+
+    const newDateRange = addDateRange({
+      date_range,
+      year,
+      week,
+    });
+    res.json(newDateRange);
+  } catch (error) {
+    console.error("날짜 범위 추가 오류:", error);
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res.status(409).json({ error: "이미 존재하는 날짜 범위입니다." });
+    }
+    res
+      .status(500)
+      .json({ error: "날짜 범위를 추가하는 중 오류가 발생했습니다." });
+  }
+});
+
+// 날짜 범위 수정
+app.put("/api/date-ranges/:id", (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "유효하지 않은 ID입니다." });
+    }
+
+    const result = updateDateRange(id, req.body);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "날짜 범위를 찾을 수 없습니다." });
+    }
+    res.json({ success: true, changes: result.changes });
+  } catch (error) {
+    console.error("날짜 범위 수정 오류:", error);
+    res
+      .status(500)
+      .json({ error: "날짜 범위를 수정하는 중 오류가 발생했습니다." });
+  }
+});
+
+// 날짜 범위 삭제
+app.delete("/api/date-ranges/:id", (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "유효하지 않은 ID입니다." });
+    }
+
+    const result = deleteDateRange(id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "날짜 범위를 찾을 수 없습니다." });
+    }
+    res.json({ success: true, changes: result.changes });
+  } catch (error) {
+    console.error("날짜 범위 삭제 오류:", error);
+    res
+      .status(500)
+      .json({ error: "날짜 범위를 삭제하는 중 오류가 발생했습니다." });
   }
 });
 

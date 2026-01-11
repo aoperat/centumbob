@@ -48,12 +48,22 @@ export const loadMenuData = async (restaurant, date) => {
   }
 };
 
-export const saveMenuData = async (menuData, imageFile) => {
+export const saveMenuData = async (menuData, imageFile, imageFiles = {}) => {
   const formData = new FormData();
   formData.append('data', JSON.stringify(menuData));
+  
+  // 전체 요일 모드: 하나의 이미지
   if (imageFile) {
     formData.append('image', imageFile);
   }
+  
+  // 개별 요일 모드: 요일별 이미지
+  const days = ["월", "화", "수", "목", "금"];
+  days.forEach(day => {
+    if (imageFiles[day]) {
+      formData.append(`image_${day}`, imageFiles[day]);
+    }
+  });
 
   const response = await fetch('/api/save', {
     method: 'POST',
@@ -247,6 +257,68 @@ export const deleteRestaurant = async (id) => {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || '식당 삭제 실패');
+  }
+
+  return await response.json();
+};
+
+// ==================== 날짜 범위 관리 API ====================
+
+// 날짜 범위 목록 조회
+export const getDateRanges = async (activeOnly = false) => {
+  const response = await fetch(`/api/date-ranges?active_only=${activeOnly}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '날짜 범위 목록 조회 실패');
+  }
+  return await response.json();
+};
+
+// 날짜 범위 추가
+export const addDateRange = async (dateRange, year, week) => {
+  const response = await fetch('/api/date-ranges', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ date_range: dateRange, year, week }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '날짜 범위 추가 실패');
+  }
+
+  return await response.json();
+};
+
+// 날짜 범위 수정
+export const updateDateRange = async (id, updateData) => {
+  const response = await fetch(`/api/date-ranges/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(updateData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '날짜 범위 수정 실패');
+  }
+
+  return await response.json();
+};
+
+// 날짜 범위 삭제
+export const deleteDateRange = async (id) => {
+  const response = await fetch(`/api/date-ranges/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '날짜 범위 삭제 실패');
   }
 
   return await response.json();
