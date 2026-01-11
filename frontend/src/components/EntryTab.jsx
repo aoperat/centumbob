@@ -12,12 +12,15 @@ import {
   IconWand2,
   IconDownload,
   IconX,
+  IconTrash,
 } from "./Icons";
 import MenuListEditor from "./MenuListEditor";
 import {
   analyzeImage,
   loadMenuData,
   fetchImageFromWebhook,
+  fetchJsonFromWebhook,
+  deleteAllMenuDataByRestaurant,
 } from "../utils/api";
 
 const EntryTab = forwardRef(
@@ -40,7 +43,6 @@ const EntryTab = forwardRef(
     const [imagePreviews, setImagePreviews] = useState({}); // 요일별 이미지 미리보기
     const [savedImageUrls, setSavedImageUrls] = useState({}); // 요일별 저장된 이미지 URL
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [prices, setPrices] = useState({ lunch: "", dinner: "" });
     const [menuGrid, setMenuGrid] = useState({
       월: { lunch: [], dinner: [] },
       화: { lunch: [], dinner: [] },
@@ -51,11 +53,11 @@ const EntryTab = forwardRef(
     const containerRef = useRef(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingWebhook, setIsFetchingWebhook] = useState(false);
+    const [isFetchingJson, setIsFetchingJson] = useState(false);
     const [restaurantDetails, setRestaurantDetails] = useState({}); // 식당 상세 정보 캐시
     const [targetDay, setTargetDay] = useState("월"); // 업데이트할 대상 요일 (개별요일 모드용)
     const [modalImage, setModalImage] = useState(null); // 이미지 확대 모달용
-    const [isOcrTesting, setIsOcrTesting] = useState(false); // OCR 테스트 로딩 상태
-    const [isOcrGetTesting, setIsOcrGetTesting] = useState(false); // OCR GET 테스트 로딩 상태
+    const [isDeleting, setIsDeleting] = useState(false); // 데이터 삭제 로딩 상태
 
     // 식당 목록 상세 정보 불러오기
     useEffect(() => {
@@ -89,11 +91,6 @@ const EntryTab = forwardRef(
 
           if (data) {
             // 데이터가 있으면 저장된 데이터 사용
-            setPrices({
-              lunch: data.price_lunch || "",
-              dinner: data.price_dinner || "",
-            });
-
             // 메뉴 정보 설정
             if (data.menus) {
               setMenuGrid(data.menus);
@@ -126,14 +123,7 @@ const EntryTab = forwardRef(
               setSavedImageUrls({});
             }
           } else {
-            // 데이터가 없으면 초기화하되, 식당 기본 정보가 있으면 채워넣기
-            const detail = restaurantDetails[selectedCafeteria];
-
-            setPrices({
-              lunch: detail?.price_lunch || "",
-              dinner: detail?.price_dinner || "",
-            });
-
+            // 데이터가 없으면 초기화
             setMenuGrid({
               월: { lunch: [], dinner: [] },
               화: { lunch: [], dinner: [] },
@@ -338,134 +328,12 @@ const EntryTab = forwardRef(
           }
         } else {
           // 전체 요일 모드: 기존 동작
-          setPrices(result.price);
           setMenuGrid(result.menus);
         }
       } catch (error) {
         alert("분석 실패: " + error.message);
       } finally {
         setIsAnalyzing(false);
-      }
-    };
-
-    // OCR 테스트 함수
-    const handleOcrTest = async () => {
-      const currentRestaurant = restaurantDetails[selectedCafeteria];
-      const useAllDays =
-        currentRestaurant?.use_all_days === undefined
-          ? true
-          : currentRestaurant.use_all_days === 1;
-
-      // 테스트할 이미지 결정: 새로 업로드한 파일 또는 저장된 이미지
-      let fileToTest = null;
-
-      // 개별 요일 모드일 때 해당 요일 이미지 확인
-      if (!useAllDays && targetDay) {
-        if (imageFiles[targetDay]) {
-          fileToTest = imageFiles[targetDay];
-        } else if (imagePreviews[targetDay] || savedImageUrls[targetDay]) {
-          const imageUrl =
-            imagePreviews[targetDay] || savedImageUrls[targetDay];
-          try {
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
-            fileToTest = new File([blob], `test_image_${targetDay}.jpg`, {
-              type: blob.type,
-            });
-          } catch (e) {
-            console.error("이미지 로드 실패:", e);
-          }
-        }
-      } else {
-        // 전체 요일 모드
-        fileToTest = imageFile;
-        if (!fileToTest && (imagePreview || savedImageUrl)) {
-          const imageUrl = imagePreview || savedImageUrl;
-          if (imageUrl.startsWith("data:")) {
-            // data URL을 Blob으로 변환
-            try {
-              const response = await fetch(imageUrl);
-              const blob = await response.blob();
-              fileToTest = new File([blob], "test_image.jpg", {
-                type: blob.type,
-              });
-            } catch (e) {
-              console.error("이미지 로드 실패:", e);
-            }
-          } else {
-            try {
-              const response = await fetch(imageUrl);
-              const blob = await response.blob();
-              fileToTest = new File([blob], "test_image.jpg", {
-                type: blob.type,
-              });
-            } catch (e) {
-              console.error("이미지 로드 실패:", e);
-            }
-          }
-        }
-      }
-
-      if (!fileToTest) {
-        alert("이미지를 먼저 업로드해주세요.");
-        return;
-      }
-
-      setIsOcrTesting(true);
-      try {
-        const formData = new FormData();
-        formData.append("image", fileToTest);
-
-        const response = await fetch("/api/ocr/test-post", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error ||
-              errorData.message ||
-              `OCR POST 요청 실패: ${response.status}`
-          );
-        }
-
-        const data = await response.json();
-        console.log("OCR POST 테스트 결과:", data);
-        alert(`OCR POST 테스트 성공!\n결과: ${JSON.stringify(data, null, 2)}`);
-      } catch (error) {
-        console.error("OCR POST 테스트 오류:", error);
-        alert(`OCR POST 테스트 실패: ${error.message}`);
-      } finally {
-        setIsOcrTesting(false);
-      }
-    };
-
-    // OCR GET 테스트 함수
-    const handleOcrGetTest = async () => {
-      setIsOcrGetTesting(true);
-      try {
-        const response = await fetch("/api/ocr/test", {
-          method: "GET",
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error ||
-              errorData.message ||
-              `OCR GET 요청 실패: ${response.status}`
-          );
-        }
-
-        const data = await response.json();
-        console.log("OCR GET 테스트 결과:", data);
-        alert(`OCR GET 테스트 성공!\n결과: ${JSON.stringify(data, null, 2)}`);
-      } catch (error) {
-        console.error("OCR GET 테스트 오류:", error);
-        alert(`OCR GET 테스트 실패: ${error.message}`);
-      } finally {
-        setIsOcrGetTesting(false);
       }
     };
 
@@ -511,11 +379,126 @@ const EntryTab = forwardRef(
       }
     };
 
+    // JSON 데이터를 메뉴 그리드 형식으로 변환
+    const parseJsonToMenuGrid = (jsonData) => {
+      try {
+        // 배열인 경우 첫 번째 요소 사용
+        const data = Array.isArray(jsonData) ? jsonData[0] : jsonData;
+
+        if (!data || !data.weeklyMenu) {
+          throw new Error("JSON 데이터에 weeklyMenu가 없습니다.");
+        }
+
+        const weeklyMenu = data.weeklyMenu;
+        const days = ["월", "화", "수", "목", "금"];
+        const newMenuGrid = {
+          월: { lunch: [], dinner: [] },
+          화: { lunch: [], dinner: [] },
+          수: { lunch: [], dinner: [] },
+          목: { lunch: [], dinner: [] },
+          금: { lunch: [], dinner: [] },
+        };
+
+        // 각 요일별로 메뉴 항목 변환
+        days.forEach((day) => {
+          const dayData = weeklyMenu[day];
+          if (
+            dayData &&
+            dayData.menuItems &&
+            Array.isArray(dayData.menuItems)
+          ) {
+            // menuItems를 점심 메뉴로 설정 (점심/저녁 구분이 없으므로 점심에만 입력)
+            newMenuGrid[day].lunch = dayData.menuItems;
+          }
+        });
+
+        return newMenuGrid;
+      } catch (error) {
+        console.error("[JSON 파싱] 오류:", error);
+        throw new Error(`JSON 데이터 파싱 실패: ${error.message}`);
+      }
+    };
+
+    // 웹훅에서 JSON 가져오기
+    const handleFetchJsonFromWebhook = async () => {
+      // 현재 선택된 식당의 웹훅 URL 사용
+      const currentRestaurant = restaurantDetails[selectedCafeteria];
+
+      if (!currentRestaurant?.webhook_url) {
+        alert(
+          "선택한 식당에 웹훅 URL이 설정되어 있지 않습니다.\n기준 정보 관리에서 웹훅 URL을 설정해주세요."
+        );
+        return;
+      }
+
+      setIsFetchingJson(true);
+      try {
+        const result = await fetchJsonFromWebhook(currentRestaurant.webhook_url);
+
+        if (result.success && result.data) {
+          console.log("[웹훅 JSON] 가져온 데이터:", result.data);
+
+          // JSON 데이터를 메뉴 그리드 형식으로 변환
+          const parsedMenuGrid = parseJsonToMenuGrid(result.data);
+
+          // 메뉴 그리드에 적용
+          setMenuGrid(parsedMenuGrid);
+
+          alert("웹훅에서 JSON 데이터를 가져와 메뉴에 입력했습니다.");
+        }
+      } catch (error) {
+        console.error("[웹훅 JSON] 가져오기 실패:", error);
+        alert(
+          "웹훅에서 JSON 데이터를 가져오는데 실패했습니다.\n" + error.message
+        );
+      } finally {
+        setIsFetchingJson(false);
+      }
+    };
+
     const handleMenuChange = (day, type, newItems) => {
       setMenuGrid((prev) => ({
         ...prev,
         [day]: { ...prev[day], [type]: newItems },
       }));
+    };
+
+    // 식당의 모든 데이터 삭제
+    const handleDeleteAllData = async () => {
+      if (!selectedCafeteria) return;
+
+      const confirmed = confirm(
+        `정말 '${selectedCafeteria}' 식당의 모든 메뉴 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`
+      );
+
+      if (!confirmed) return;
+
+      setIsDeleting(true);
+      try {
+        await deleteAllMenuDataByRestaurant(selectedCafeteria);
+
+        // 데이터 초기화
+        setMenuGrid({
+          월: { lunch: [], dinner: [] },
+          화: { lunch: [], dinner: [] },
+          수: { lunch: [], dinner: [] },
+          목: { lunch: [], dinner: [] },
+          금: { lunch: [], dinner: [] },
+        });
+        setImagePreview(null);
+        setImageFile(null);
+        setSavedImageUrl(null);
+        setImagePreviews({});
+        setSavedImageUrls({});
+        setImageFiles({});
+
+        alert("식당의 모든 메뉴 데이터가 삭제되었습니다.");
+      } catch (error) {
+        console.error("데이터 삭제 오류:", error);
+        alert("데이터 삭제 실패: " + error.message);
+      } finally {
+        setIsDeleting(false);
+      }
     };
 
     const handleSave = async () => {
@@ -528,7 +511,6 @@ const EntryTab = forwardRef(
       const finalData = {
         name: selectedCafeteria,
         date: selectedDateRange,
-        price: prices,
         menus: menuGrid,
         use_all_days: useAllDays,
       };
@@ -682,9 +664,10 @@ const EntryTab = forwardRef(
                     </div>
                   )}
 
-                  {/* 웹훅 버튼 - 이미지가 없고 웹훅 URL이 설정된 경우에만 표시 */}
+                  {/* 웹훅 이미지 버튼 - webhook_type이 'image'인 경우에만 표시 */}
                   {!displayImage &&
-                    restaurantDetails[selectedCafeteria]?.webhook_url && (
+                    restaurantDetails[selectedCafeteria]?.webhook_url &&
+                    restaurantDetails[selectedCafeteria]?.webhook_type === 'image' && (
                       <button
                         onClick={handleFetchFromWebhook}
                         disabled={isFetchingWebhook}
@@ -692,7 +675,7 @@ const EntryTab = forwardRef(
                       ${
                         isFetchingWebhook
                           ? "bg-slate-400 cursor-wait"
-                          : "bg-gradient-to-r from-green-600 to-emerald-600 hover:shadow-lg hover:scale-[1.02]"
+                          : "bg-gradient-to-r from-cyan-600 to-teal-600 hover:shadow-lg hover:scale-[1.02]"
                       }`}
                       >
                         {isFetchingWebhook ? (
@@ -768,49 +751,31 @@ const EntryTab = forwardRef(
                     )}
                   </button>
 
-                  {/* OCR GET 테스트 버튼 */}
-                  <button
-                    onClick={handleOcrGetTest}
-                    disabled={isOcrGetTesting}
-                    className={`w-full py-2.5 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all text-sm
-                    ${
-                      isOcrGetTesting
-                        ? "bg-slate-800 cursor-wait"
-                        : "bg-gradient-to-r from-teal-600 to-cyan-600 hover:shadow-lg hover:scale-[1.02]"
-                    }`}
-                  >
-                    {isOcrGetTesting ? (
-                      <>
-                        <IconRefreshCw size={16} className="animate-spin" /> OCR
-                        GET 테스트 중...
-                      </>
-                    ) : (
-                      <>OCR GET 테스트 (ocr.home)</>
-                    )}
-                  </button>
-
-                  {/* OCR POST 테스트 버튼 */}
-                  <button
-                    onClick={handleOcrTest}
-                    disabled={!hasAnalyzableImage || isOcrTesting}
-                    className={`w-full py-2.5 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all text-sm
-                    ${
-                      !hasAnalyzableImage
-                        ? "bg-slate-300 cursor-not-allowed"
-                        : isOcrTesting
-                        ? "bg-slate-800 cursor-wait"
-                        : "bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-lg hover:scale-[1.02]"
-                    }`}
-                  >
-                    {isOcrTesting ? (
-                      <>
-                        <IconRefreshCw size={16} className="animate-spin" /> OCR
-                        POST 테스트 중...
-                      </>
-                    ) : (
-                      <>OCR POST 테스트 (ocr.home/ocr)</>
-                    )}
-                  </button>
+                  {/* 웹훅 JSON 가져오기 버튼 - webhook_type이 'json'인 경우에만 표시 */}
+                  {restaurantDetails[selectedCafeteria]?.webhook_url &&
+                    restaurantDetails[selectedCafeteria]?.webhook_type === 'json' && (
+                    <button
+                      onClick={handleFetchJsonFromWebhook}
+                      disabled={isFetchingJson}
+                      className={`w-full py-2.5 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all text-sm
+                      ${
+                        isFetchingJson
+                          ? "bg-slate-800 cursor-wait"
+                          : "bg-gradient-to-r from-amber-600 to-orange-600 hover:shadow-lg hover:scale-[1.02]"
+                      }`}
+                    >
+                      {isFetchingJson ? (
+                        <>
+                          <IconRefreshCw size={16} className="animate-spin" />{" "}
+                          JSON 가져오는 중...
+                        </>
+                      ) : (
+                        <>
+                          <IconDownload size={16} /> 웹훅에서 JSON 가져오기
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               );
             })()}
@@ -830,48 +795,20 @@ const EntryTab = forwardRef(
                   있습니다.
                 </p>
               </div>
-            </div>
-
-            {/* 가격 정보 */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
-                  L
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs font-bold text-slate-400 block mb-1">
-                    점심 가격
-                  </label>
-                  <input
-                    type="text"
-                    value={prices.lunch}
-                    onChange={(e) =>
-                      setPrices({ ...prices, lunch: e.target.value })
-                    }
-                    className="w-full font-bold text-slate-800 outline-none border-b border-transparent focus:border-blue-500 transition-colors placeholder-slate-300"
-                    placeholder="가격 입력"
-                  />
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
-                  D
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs font-bold text-slate-400 block mb-1">
-                    저녁 가격
-                  </label>
-                  <input
-                    type="text"
-                    value={prices.dinner}
-                    onChange={(e) =>
-                      setPrices({ ...prices, dinner: e.target.value })
-                    }
-                    className="w-full font-bold text-slate-800 outline-none border-b border-transparent focus:border-blue-500 transition-colors placeholder-slate-300"
-                    placeholder="가격 입력"
-                  />
-                </div>
-              </div>
+              {selectedCafeteria && (
+                <button
+                  onClick={handleDeleteAllData}
+                  disabled={isDeleting}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm ${
+                    isDeleting
+                      ? "bg-slate-300 text-slate-500 cursor-wait"
+                      : "bg-red-600 text-white hover:bg-red-700 hover:shadow-md"
+                  }`}
+                >
+                  <IconTrash size={16} />
+                  {isDeleting ? "삭제 중..." : "식당 데이터 모두 삭제"}
+                </button>
+              )}
             </div>
 
             {/* 요일별 메뉴 테이블 (리스트 에디터 적용) - 항상 월~금 전체 표시 */}

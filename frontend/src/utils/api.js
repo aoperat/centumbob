@@ -91,6 +91,40 @@ export const publishMenuData = async () => {
   return await response.json();
 };
 
+// 식당의 모든 메뉴 데이터 삭제
+export const deleteAllMenuDataByRestaurant = async (restaurantName) => {
+  const response = await fetch(`/api/menu-data/restaurant/${encodeURIComponent(restaurantName)}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '식당 데이터 삭제 실패');
+  }
+
+  return await response.json();
+};
+
+// 웹훅으로 JSON 데이터 가져오기
+export const fetchJsonFromWebhook = async (webhookUrl) => {
+  const response = await fetch('/api/webhook/fetch-json', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      webhook_url: webhookUrl
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '웹훅 JSON 가져오기 실패');
+  }
+
+  return await response.json();
+};
+
 // ==================== 민원 관련 API ====================
 // Supabase Edge Function 사용 (서버리스) 또는 로컬 백엔드
 

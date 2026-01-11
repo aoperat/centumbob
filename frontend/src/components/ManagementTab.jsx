@@ -25,6 +25,7 @@ const ManagementTab = ({
     price_dinner: '',
     has_dinner: true,
     webhook_url: '',
+    webhook_type: '', // 'image' | 'json' | ''
     use_all_days: true
   });
 
@@ -86,6 +87,7 @@ const ManagementTab = ({
         price_dinner: restaurant.price_dinner || '',
         has_dinner: restaurant.has_dinner === 1,
         webhook_url: restaurant.webhook_url || '',
+        webhook_type: restaurant.webhook_type || '',
         use_all_days: restaurant.use_all_days === undefined ? true : restaurant.use_all_days === 1
       });
     } else {
@@ -96,6 +98,7 @@ const ManagementTab = ({
         price_dinner: '',
         has_dinner: true,
         webhook_url: '',
+        webhook_type: '',
         use_all_days: true
       });
     }
@@ -264,7 +267,15 @@ const ManagementTab = ({
                       </td>
                       <td className="px-6 py-4 text-center">
                         {res.webhook_url ? (
-                          <span className="inline-block px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700">설정됨</span>
+                          <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
+                            res.webhook_type === 'image'
+                              ? 'bg-cyan-100 text-cyan-700'
+                              : res.webhook_type === 'json'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {res.webhook_type === 'image' ? '이미지' : res.webhook_type === 'json' ? 'JSON' : '설정됨'}
+                          </span>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
@@ -452,20 +463,22 @@ const ManagementTab = ({
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1.5">점심 기본 가격</label>
                   <input
-                    type="text"
+                    type="number"
+                    min="0"
                     value={formData.price_lunch}
                     onChange={(e) => setFormData({ ...formData, price_lunch: e.target.value })}
-                    placeholder="예: 7,000원"
+                    placeholder="예: 7000"
                     className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1.5">저녁 기본 가격</label>
                   <input
-                    type="text"
+                    type="number"
+                    min="0"
                     value={formData.price_dinner}
                     onChange={(e) => setFormData({ ...formData, price_dinner: e.target.value })}
-                    placeholder="예: 7,000원"
+                    placeholder="예: 7000"
                     disabled={!formData.has_dinner}
                     className={`w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all ${!formData.has_dinner ? 'bg-slate-100 text-slate-400' : ''}`}
                   />
@@ -527,7 +540,7 @@ const ManagementTab = ({
 
               <div className="mt-4">
                 <label className="block text-xs font-bold text-slate-500 mb-1.5">
-                  이미지 웹훅 URL
+                  웹훅 URL
                   <span className="text-slate-400 font-normal ml-1">(선택)</span>
                 </label>
                 <input
@@ -538,9 +551,51 @@ const ManagementTab = ({
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
                 />
                 <p className="text-xs text-slate-400 mt-1">
-                  n8n 등의 웹훅 URL을 입력하면 자동으로 이미지를 가져올 수 있습니다.
+                  n8n 등의 웹훅 URL을 입력하면 자동으로 데이터를 가져올 수 있습니다.
                 </p>
               </div>
+
+              {/* 웹훅 URL 입력 시에만 타입 선택 표시 */}
+              {formData.webhook_url && (
+                <div className="mt-4">
+                  <label className="block text-xs font-bold text-slate-500 mb-2">웹훅 데이터 타입</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData.webhook_type === 'image' ? 'bg-cyan-600 border-cyan-600' : 'bg-white border-slate-300 group-hover:border-cyan-400'}`}>
+                        {formData.webhook_type === 'image' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                      </div>
+                      <input
+                        type="radio"
+                        name="webhook_type"
+                        className="hidden"
+                        checked={formData.webhook_type === 'image'}
+                        onChange={() => setFormData({ ...formData, webhook_type: 'image' })}
+                      />
+                      <span className="text-sm font-medium text-slate-700">이미지</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData.webhook_type === 'json' ? 'bg-amber-600 border-amber-600' : 'bg-white border-slate-300 group-hover:border-amber-400'}`}>
+                        {formData.webhook_type === 'json' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                      </div>
+                      <input
+                        type="radio"
+                        name="webhook_type"
+                        className="hidden"
+                        checked={formData.webhook_type === 'json'}
+                        onChange={() => setFormData({ ...formData, webhook_type: 'json' })}
+                      />
+                      <span className="text-sm font-medium text-slate-700">JSON</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {formData.webhook_type === 'image'
+                      ? '웹훅에서 이미지를 가져와 GPT로 분석합니다.'
+                      : formData.webhook_type === 'json'
+                        ? '웹훅에서 JSON 데이터를 직접 가져옵니다.'
+                        : '웹훅에서 가져올 데이터 타입을 선택해주세요.'}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">

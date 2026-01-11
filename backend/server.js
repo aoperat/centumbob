@@ -13,6 +13,7 @@ import {
   getMenuData,
   getAllMenuData,
   getMenuDataList,
+  deleteAllMenuDataByRestaurant,
   getAllRestaurants,
   getActiveRestaurants,
   addRestaurant,
@@ -576,8 +577,8 @@ app.post(
       const result = saveMenuData({
         restaurant_name: adminData.name,
         date_range: adminData.date,
-        price_lunch: adminData.price?.lunch || "",
-        price_dinner: adminData.price?.dinner || "",
+        price_lunch: "",
+        price_dinner: "",
         menus: adminData.menus || {},
         image_path: imagePath,
         image_paths: imagePaths,
@@ -830,15 +831,57 @@ app.get("/api/load", (req, res) => {
   }
 });
 
+// 식당의 모든 메뉴 데이터 삭제 API
+app.delete("/api/menu-data/restaurant/:restaurantName", (req, res) => {
+  try {
+    const { restaurantName } = req.params;
+
+    if (!restaurantName) {
+      return res.status(400).json({
+        error: "식당 이름이 필요합니다.",
+      });
+    }
+
+    const result = deleteAllMenuDataByRestaurant(restaurantName);
+
+    res.json({
+      success: true,
+      message: `'${restaurantName}' 식당의 모든 메뉴 데이터가 삭제되었습니다.`,
+      changes: result.changes,
+    });
+  } catch (error) {
+    console.error("식당 메뉴 데이터 삭제 오류:", error);
+    res.status(500).json({
+      error: "식당 메뉴 데이터를 삭제하는 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
 // 게시 API: DB 데이터를 뷰어용 JSON 파일로 생성
 app.post("/api/publish", async (req, res) => {
   try {
-    // DB에서 모든 데이터 조회
-    const allData = getAllMenuData();
+    // 활성화된 날짜 범위 조회
+    const activeDateRanges = getActiveDateRanges();
+    if (activeDateRanges.length === 0) {
+      return res.status(400).json({
+        error:
+          "활성화된 날짜 범위가 없습니다. 기준 정보 관리에서 날짜 범위를 활성화해주세요.",
+      });
+    }
+
+    const activeDateRange = activeDateRanges[0].date_range;
+    console.log("[게시] 활성 날짜 범위:", activeDateRange);
+
+    // DB에서 활성 날짜 범위의 데이터만 조회
+    const allMenuData = getAllMenuData();
+    const allData = allMenuData.filter(
+      (data) => data.date_range === activeDateRange
+    );
 
     if (allData.length === 0) {
       return res.status(400).json({
-        error: "게시할 데이터가 없습니다. 먼저 데이터를 저장해주세요.",
+        error: `활성화된 날짜 범위(${activeDateRange})에 게시할 데이터가 없습니다. 먼저 데이터를 저장해주세요.`,
       });
     }
 
@@ -1845,6 +1888,97 @@ app.post("/api/webhook/fetch-image", async (req, res) => {
   }
 });
 
+// ==================== 웹훅 JSON 가져오기 API ====================
+
+app.post("/api/webhook/fetch-json", async (req, res) => {
+  try {
+    const { webhook_url } = req.body;
+
+    // 필수 파라미터 검증
+    if (!webhook_url) {
+      return res.status(400).json({
+        error: "웹훅 URL이 필요합니다.",
+      });
+    }
+
+    // URL 형식 검증
+    try {
+      new URL(webhook_url);
+    } catch (urlError) {
+      return res.status(400).json({
+        error: "잘못된 URL 형식입니다.",
+      });
+    }
+
+    console.log(`[웹훅 JSON] 데이터 가져오기 시작: ${webhook_url}`);
+
+    // 웹훅 호출 (타임아웃 30초)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let response;
+    try {
+      response = await fetch(webhook_url, {
+        method: "GET",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+        },
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === "AbortError") {
+        return res.status(504).json({
+          error: "웹훅 요청 시간 초과 (30초)",
+        });
+      }
+      console.error("[웹훅 JSON] 요청 실패:", fetchError);
+      return res.status(502).json({
+        error: "웹훅 서버에 연결할 수 없습니다.",
+        message: fetchError.message,
+      });
+    }
+
+    // 응답 상태 확인
+    if (!response.ok) {
+      console.error(
+        "[웹훅 JSON] 응답 오류:",
+        response.status,
+        response.statusText
+      );
+      return res.status(502).json({
+        error: `웹훅 서버 오류: ${response.status} ${response.statusText}`,
+      });
+    }
+
+    // JSON 데이터 파싱
+    let jsonData;
+    try {
+      jsonData = await response.json();
+    } catch (parseError) {
+      console.error("[웹훅 JSON] JSON 파싱 오류:", parseError);
+      return res.status(502).json({
+        error: "웹훅 응답을 JSON으로 파싱할 수 없습니다.",
+        message: parseError.message,
+      });
+    }
+
+    console.log(`[웹훅 JSON] 데이터 가져오기 성공`);
+
+    res.json({
+      success: true,
+      data: jsonData,
+    });
+  } catch (error) {
+    console.error("[웹훅 JSON] 전체 오류:", error);
+    res.status(500).json({
+      error: "웹훅 JSON 가져오기 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
 // ==================== 식당 관리 API ====================
 
 // 식당 목록 조회
@@ -1874,6 +2008,7 @@ app.post("/api/restaurants", (req, res) => {
       price_dinner,
       has_dinner,
       webhook_url,
+      webhook_type,
       use_all_days,
     } = req.body;
     if (!name) {
@@ -1886,6 +2021,7 @@ app.post("/api/restaurants", (req, res) => {
       price_dinner,
       has_dinner,
       webhook_url,
+      webhook_type,
       use_all_days,
     });
     res.json(newRestaurant);

@@ -116,6 +116,22 @@ try {
     console.error("use_all_days 마이그레이션 오류:", migrationError);
   }
 
+  // 마이그레이션: webhook_type 컬럼 확인 및 추가 (image, json, null)
+  try {
+    const tableInfo2 = db.pragma("table_info(restaurants)");
+    const hasWebhookTypeColumn = tableInfo2.find(
+      (col) => col.name === "webhook_type"
+    );
+    if (!hasWebhookTypeColumn) {
+      console.log("restaurants 테이블에 webhook_type 컬럼 추가 중...");
+      db.exec(
+        "ALTER TABLE restaurants ADD COLUMN webhook_type TEXT DEFAULT NULL"
+      );
+    }
+  } catch (migrationError) {
+    console.error("webhook_type 마이그레이션 오류:", migrationError);
+  }
+
   // 마이그레이션: menu_data 테이블에 image_paths 컬럼 확인 및 추가
   try {
     const menuDataTableInfo = db.pragma("table_info(menu_data)");
@@ -345,6 +361,16 @@ export const deleteMenuData = (restaurant_name, date_range) => {
   return stmt.run(restaurant_name, date_range);
 };
 
+// 식당의 모든 데이터 삭제
+export const deleteAllMenuDataByRestaurant = (restaurant_name) => {
+  const stmt = db.prepare(`
+    DELETE FROM menu_data 
+    WHERE restaurant_name = ?
+  `);
+
+  return stmt.run(restaurant_name);
+};
+
 // ==================== 식당 관리 CRUD ====================
 
 // 모든 식당 조회
@@ -394,6 +420,7 @@ export const addRestaurant = (data) => {
     price_dinner,
     has_dinner,
     webhook_url,
+    webhook_type,
     use_all_days,
   } = data;
 
@@ -404,8 +431,8 @@ export const addRestaurant = (data) => {
   const newOrder = (maxOrder?.max_order || 0) + 1;
 
   const stmt = db.prepare(`
-    INSERT INTO restaurants (name, price_lunch, price_dinner, has_dinner, webhook_url, use_all_days, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO restaurants (name, price_lunch, price_dinner, has_dinner, webhook_url, webhook_type, use_all_days, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const hasDinnerVal = has_dinner === undefined ? 1 : has_dinner ? 1 : 0;
@@ -416,6 +443,7 @@ export const addRestaurant = (data) => {
     price_dinner || "",
     hasDinnerVal,
     webhook_url || null,
+    webhook_type || null,
     useAllDaysVal,
     newOrder
   );
@@ -441,6 +469,7 @@ export const updateRestaurant = (id, data) => {
     is_active,
     sort_order,
     webhook_url,
+    webhook_type,
     use_all_days,
   } = data;
 
@@ -474,6 +503,10 @@ export const updateRestaurant = (id, data) => {
   if (webhook_url !== undefined) {
     updates.push("webhook_url = ?");
     params.push(webhook_url || null);
+  }
+  if (webhook_type !== undefined) {
+    updates.push("webhook_type = ?");
+    params.push(webhook_type || null);
   }
   if (use_all_days !== undefined) {
     updates.push("use_all_days = ?");
@@ -577,6 +610,14 @@ export const addDateRange = (data) => {
 // 날짜 범위 수정
 export const updateDateRange = (id, data) => {
   const { date_range, year, week, is_active } = data;
+
+  // is_active를 1로 설정하는 경우, 다른 모든 날짜 범위를 비활성화 (단일 활성화 정책)
+  if (is_active !== undefined && (is_active === 1 || is_active === true)) {
+    const disableStmt = db.prepare(
+      "UPDATE date_ranges SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id != ?"
+    );
+    disableStmt.run(id);
+  }
 
   const updates = [];
   const params = [];
