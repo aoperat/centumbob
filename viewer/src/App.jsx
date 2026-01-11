@@ -296,9 +296,14 @@ function App() {
                   </th>
                   {/* 상단 헤더: 회사명 */}
                   {cafeteriaKeys.map((name, idx) => {
+                    // 요일별 이미지가 있으면 해당 요일 이미지 사용, 없으면 전체 이미지 사용
+                    const imageUrlsByDay = menuData[name]?.imageUrlsByDay;
+                    const dayImageUrl = imageUrlsByDay?.[activeDay];
+                    const hasImageByDay = !!dayImageUrl;
                     const hasImage =
-                      menuData[name]?.imageUrls &&
-                      menuData[name].imageUrls.length > 0;
+                      hasImageByDay ||
+                      (menuData[name]?.imageUrls &&
+                       menuData[name].imageUrls.length > 0);
 
                     // 해당 요일에 메뉴 데이터가 있는지 확인
                     const { menu: lunchMenu } = getMenuData(name, activeDay, "점심");
@@ -314,6 +319,11 @@ function App() {
                       const basePath = import.meta.env.BASE_URL;
                       return `${basePath}${imageUrl}`.replace(/\/\//g, "/");
                     };
+
+                    // 표시할 이미지 URL 결정: 요일별 이미지 우선, 없으면 전체 이미지
+                    const displayImageUrl = dayImageUrl 
+                      ? getImageUrl(dayImageUrl)
+                      : (menuData[name]?.imageUrls?.[0] ? getImageUrl(menuData[name].imageUrls[0]) : null);
 
                     return (
                       <th
@@ -333,12 +343,10 @@ function App() {
                                 ? name.match(/\((.*?)\)/)?.[1] || ""
                                 : ""}
                             </span>
-                            {hasImage && hasDayData && (
+                            {hasImage && hasDayData && displayImageUrl && (
                               <button
                                 onClick={() =>
-                                  setModalImage(
-                                    getImageUrl(menuData[name].imageUrls[0])
-                                  )
+                                  setModalImage(displayImageUrl)
                                 }
                                 className="ml-auto p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                 title="원본 이미지 보기"

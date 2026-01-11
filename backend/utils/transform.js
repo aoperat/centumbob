@@ -61,7 +61,7 @@ export const transformDataForViewer = (adminData) => {
 // DB 데이터를 뷰어 형식으로 변환
 // restaurantInfo: 기준데이터(restaurants 테이블)의 가격 정보
 export const transformDbDataForViewer = (dbData, imageBase64 = null, restaurantInfo = null) => {
-  const { restaurant_name, date_range, price_lunch, price_dinner, menus, image_path } = dbData;
+  const { restaurant_name, date_range, price_lunch, price_dinner, menus, image_path, image_paths } = dbData;
 
   // 메뉴 데이터 변환: lunch/dinner → 점심/저녁
   const transformedMenus = {};
@@ -76,15 +76,35 @@ export const transformDbDataForViewer = (dbData, imageBase64 = null, restaurantI
   });
 
   // 이미지 URL 생성
-  // GitHub Pages에서 접근 가능하도록 base64 인코딩 또는 상대 경로 사용
+  // 요일별 이미지가 있으면 요일별로 처리, 없으면 전체 요일 모드로 처리
   const imageUrls = [];
-  if (imageBase64) {
-    // base64 인코딩된 이미지 사용
-    imageUrls.push(imageBase64);
-  } else if (image_path) {
-    // 상대 경로로 이미지 참조 (viewer/public/images/ 폴더에 복사됨)
-    const imageFileName = image_path.split(/[/\\]/).pop();
-    imageUrls.push(`images/${imageFileName}`);
+  const imageUrlsByDay = {}; // 요일별 이미지 URL
+  
+  // 요일별 이미지 처리
+  if (image_paths) {
+    days.forEach(day => {
+      if (image_paths[day]) {
+        const imageFileName = image_paths[day].split(/[/\\]/).pop();
+        const dayImageUrl = `images/${imageFileName}`;
+        imageUrlsByDay[day] = dayImageUrl;
+        // 하위 호환성: 첫 번째 이미지를 imageUrls에 추가
+        if (imageUrls.length === 0) {
+          imageUrls.push(dayImageUrl);
+        }
+      }
+    });
+  }
+  
+  // 전체 요일 모드: 하나의 이미지
+  if (imageUrls.length === 0) {
+    if (imageBase64) {
+      // base64 인코딩된 이미지 사용
+      imageUrls.push(imageBase64);
+    } else if (image_path) {
+      // 상대 경로로 이미지 참조 (viewer/public/images/ 폴더에 복사됨)
+      const imageFileName = image_path.split(/[/\\]/).pop();
+      imageUrls.push(`images/${imageFileName}`);
+    }
   }
 
   // 가격 결정: 기준데이터(restaurantInfo) 우선, 없으면 menu_data의 가격 사용
@@ -103,7 +123,8 @@ export const transformDbDataForViewer = (dbData, imageBase64 = null, restaurantI
       menus: transformedMenus,
       text: ""
     },
-    imageUrls: imageUrls
+    imageUrls: imageUrls, // 하위 호환성: 전체 요일 모드용
+    imageUrlsByDay: Object.keys(imageUrlsByDay).length > 0 ? imageUrlsByDay : undefined // 요일별 이미지
   };
 };
 
