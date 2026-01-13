@@ -16,6 +16,7 @@ import {
   deleteAllMenuDataByRestaurant,
   getAllRestaurants,
   getActiveRestaurants,
+  getRestaurantById,
   addRestaurant,
   updateRestaurant,
   deleteRestaurant,
@@ -453,6 +454,378 @@ ${ocrText}
     console.error("이미지 분석 오류:", error);
     res.status(500).json({
       error: "이미지 분석 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 외부 API: 메뉴 업로드 엔드포인트 (이미지 + OCR + GPT + 저장)
+app.post("/api/menu/upload", uploadImage.single("image"), async (req, res) => {
+  try {
+    // 필수 필드 검증
+    const restaurant_id = req.body.restaurant_id
+      ? parseInt(req.body.restaurant_id, 10)
+      : null;
+    const type = req.body.type; // "전체요일" 또는 "개별요일"
+    const day_id = req.body.day_id; // 개별요일일 때만: "월", "화", "수", "목", "금"
+
+    if (!req.file) {
+      return res.status(400).json({ error: "이미지 파일이 필요합니다." });
+    }
+
+    if (!restaurant_id || isNaN(restaurant_id)) {
+      return res.status(400).json({ error: "유효한 식당 ID가 필요합니다." });
+    }
+
+    if (!type || !["전체요일", "개별요일"].includes(type)) {
+      return res
+        .status(400)
+        .json({ error: '타입 구분이 필요합니다. ("전체요일" 또는 "개별요일")' });
+    }
+
+    if (type === "개별요일") {
+      const validDays = ["월", "화", "수", "목", "금"];
+      if (!day_id || !validDays.includes(day_id)) {
+        return res.status(400).json({
+          error: `개별요일 모드에서는 유효한 요일 ID가 필요합니다. (${validDays.join(", ")})`,
+        });
+      }
+    }
+
+    // 활성 날짜 범위 조회
+    const activeDateRanges = getActiveDateRanges();
+    if (activeDateRanges.length === 0) {
+      return res.status(400).json({
+        error: "활성화된 날짜 범위가 없습니다.",
+      });
+    }
+    const activeDateRange = activeDateRanges[0].date_range;
+
+    // 식당 정보 조회 및 검증
+    const restaurant = getRestaurantById(restaurant_id);
+    if (!restaurant) {
+      return res.status(404).json({
+        error: "식당을 찾을 수 없습니다.",
+      });
+    }
+
+    console.log(
+      `[외부 API] 메뉴 업로드 시작: restaurant_id=${restaurant_id}, type=${type}, day_id=${day_id || "N/A"}`
+    );
+
+    // OpenAI API 키 확인
+    if (!process.env.OPENAI_API_KEY) {
+      return res
+        .status(500)
+        .json({ error: "OpenAI API 키가 설정되지 않았습니다." });
+    }
+
+    // 이미지를 base64로 변환
+    const imageBase64 = req.file.buffer.toString("base64");
+    const imageDataUrl = `data:${req.file.mimetype};base64,${imageBase64}`;
+
+    // 1. Tesseract OCR로 텍스트 1차 추출
+    console.log("[외부 API] OCR 분석 시작...");
+    let ocrText = "";
+    try {
+      const worker = await createWorker("kor+eng");
+      const ret = await worker.recognize(req.file.buffer);
+      ocrText = ret.data.text;
+      await worker.terminate();
+      console.log("[외부 API] OCR 분석 완료 (텍스트 길이):", ocrText.length);
+    } catch (ocrError) {
+      console.warn("[외부 API] OCR 분석 실패 (GPT Vision만 사용):", ocrError);
+      // OCR 실패해도 계속 진행
+    }
+
+    // GPT API 호출 함수 (재시도 로직 포함)
+    const callGPTAPI = async (retryCount = 0) => {
+      try {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-2024-11-20",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `이 식단표 이미지를 정확하게 분석하여 다음 정보를 JSON 형식으로 추출해주세요.
+
+[참고 정보]
+다음은 이미지에서 OCR(광학 문자 인식)로 추출한 원본 텍스트입니다. 
+이미지가 흐릿하거나 글자가 잘 안 보일 때 이 텍스트를 참고하여 정확도를 높이세요. 
+단, OCR 텍스트는 구조가 깨져있을 수 있으므로 메뉴의 배치나 요일 확인은 반드시 이미지를 기준으로 하세요.
+
+--- OCR 추출 텍스트 시작 ---
+${ocrText}
+--- OCR 추출 텍스트 끝 ---
+
+중요 지침:
+1. 이미지의 텍스트를 정확히 읽어야 합니다. 추측하지 마세요.
+2. 메뉴명은 이미지에 표시된 그대로 정확히 추출하세요.
+3. 가격 정보가 보이지 않으면 빈 문자열("")로 표시하세요.
+4. 메뉴가 없는 요일/시간대는 빈 배열([])로 표시하세요.
+5. 불확실한 정보는 포함하지 마세요.
+
+추출할 정보:
+1. 가격 정보:
+   - lunch: 점심 가격 (예: "7,000원", "7000원", 가격이 없으면 "")
+   - dinner: 저녁 가격 (예: "7,000원", "7000원", 가격이 없으면 "")
+
+2. 메뉴 정보 (월요일부터 금요일까지):
+   - 각 요일별로 점심(lunch)과 저녁(dinner) 메뉴를 배열로 추출
+   - 메뉴명은 이미지에 표시된 정확한 텍스트를 사용
+   - 각 메뉴는 별도의 배열 요소로 분리
+   - 메뉴가 없는 경우 빈 배열([])로 표시
+
+응답 형식 (반드시 이 형식을 정확히 따르세요):
+{
+  "price": {
+    "lunch": "가격 또는 빈 문자열",
+    "dinner": "가격 또는 빈 문자열"
+  },
+  "menus": {
+    "월": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "화": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "수": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "목": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "금": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    }
+  }
+}
+
+주의사항:
+- 반드시 유효한 JSON 형식으로만 응답하세요
+- 다른 설명이나 텍스트는 포함하지 마세요
+- 모든 메뉴명은 실제 이미지에서 읽은 정확한 텍스트여야 합니다
+- 추측하거나 예시를 사용하지 마세요`,
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: imageDataUrl,
+                    detail: "high",
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 2000,
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+        });
+        return response;
+      } catch (error) {
+        if (retryCount < 1) {
+          console.log(
+            `[외부 API] GPT API 호출 실패, 재시도 중... (${retryCount + 1}/1)`
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          return callGPTAPI(retryCount + 1);
+        }
+        throw error;
+      }
+    };
+
+    // GPT-4o Vision API 호출
+    const response = await callGPTAPI();
+
+    // 응답 파싱
+    const content = response.choices[0].message.content;
+    let parsedData;
+
+    try {
+      parsedData = JSON.parse(content);
+    } catch (parseError) {
+      console.error("[외부 API] JSON 파싱 오류:", parseError);
+      parsedData = {
+        price: { lunch: "", dinner: "" },
+        menus: {
+          월: { lunch: [], dinner: [] },
+          화: { lunch: [], dinner: [] },
+          수: { lunch: [], dinner: [] },
+          목: { lunch: [], dinner: [] },
+          금: { lunch: [], dinner: [] },
+        },
+      };
+    }
+
+    // 데이터 검증 및 정제 함수 (기존 /api/analyze와 동일)
+    const validateAndCleanMenu = (menuArray) => {
+      if (!Array.isArray(menuArray)) return [];
+
+      return menuArray
+        .map((item) => {
+          let cleaned = String(item).trim();
+          if (!cleaned) return null;
+          if (cleaned.length < 2 && !/^[0-9가-힣]$/.test(cleaned)) return null;
+          if (/^(메뉴|menu|item|항목|새\s*메뉴)\d*$/i.test(cleaned))
+            return null;
+          if (/^\d+[,\d]*원?$/.test(cleaned)) return null;
+          if (/^[^\w가-힣\s]+$/.test(cleaned)) return null;
+          if (cleaned.length > 200) return null;
+          cleaned = cleaned.replace(/\s+/g, " ");
+          cleaned = cleaned.trim();
+          return cleaned;
+        })
+        .filter((item) => item !== null && item.length > 0)
+        .filter((item, index, self) => self.indexOf(item) === index);
+    };
+
+    const validateAndCleanPrice = (price) => {
+      if (!price) return "";
+      let cleaned = String(price).trim();
+      if (!cleaned) return "";
+      cleaned = cleaned.replace(/[^\d,원]/g, "");
+      if (!/\d/.test(cleaned)) return "";
+      const numbersOnly = cleaned.replace(/[^\d]/g, "");
+      if (parseInt(numbersOnly) > 100000000) return "";
+      if (parseInt(numbersOnly) < 100) return "";
+      if (!cleaned.includes("원")) {
+        cleaned = numbersOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
+      }
+      return cleaned;
+    };
+
+    // 응답 구조 검증 및 정규화
+    const analyzedData = {
+      price: {
+        lunch: validateAndCleanPrice(parsedData.price?.lunch),
+        dinner: validateAndCleanPrice(parsedData.price?.dinner),
+      },
+      menus: {
+        월: {
+          lunch: validateAndCleanMenu(parsedData.menus?.월?.lunch),
+          dinner: validateAndCleanMenu(parsedData.menus?.월?.dinner),
+        },
+        화: {
+          lunch: validateAndCleanMenu(parsedData.menus?.화?.lunch),
+          dinner: validateAndCleanMenu(parsedData.menus?.화?.dinner),
+        },
+        수: {
+          lunch: validateAndCleanMenu(parsedData.menus?.수?.lunch),
+          dinner: validateAndCleanMenu(parsedData.menus?.수?.dinner),
+        },
+        목: {
+          lunch: validateAndCleanMenu(parsedData.menus?.목?.lunch),
+          dinner: validateAndCleanMenu(parsedData.menus?.목?.dinner),
+        },
+        금: {
+          lunch: validateAndCleanMenu(parsedData.menus?.금?.lunch),
+          dinner: validateAndCleanMenu(parsedData.menus?.금?.dinner),
+        },
+      },
+    };
+
+    // 기존 데이터 조회
+    const existing = getMenuData(restaurant_id, activeDateRange);
+    let finalMenus = existing?.menus || {
+      월: { lunch: [], dinner: [] },
+      화: { lunch: [], dinner: [] },
+      수: { lunch: [], dinner: [] },
+      목: { lunch: [], dinner: [] },
+      금: { lunch: [], dinner: [] },
+    };
+
+    // 메뉴 데이터 병합
+    if (type === "전체요일") {
+      // 전체 요일: 모든 요일에 동일한 메뉴 적용
+      const days = ["월", "화", "수", "목", "금"];
+      days.forEach((day) => {
+        finalMenus[day] = {
+          lunch: analyzedData.menus.월.lunch,
+          dinner: analyzedData.menus.월.dinner,
+        };
+      });
+    } else {
+      // 개별 요일: 지정된 요일에만 메뉴 적용
+      finalMenus[day_id] = {
+        lunch: analyzedData.menus[day_id].lunch,
+        dinner: analyzedData.menus[day_id].dinner,
+      };
+    }
+
+    // 이미지 업로드 처리
+    let imagePath = null;
+    let imagePaths = existing?.image_paths || null;
+
+    if (type === "전체요일") {
+      // 전체 요일 모드: 하나의 이미지
+      imagePath = moveFileToDestination(
+        req.file.path,
+        restaurant.name,
+        activeDateRange,
+        req.file.filename
+      );
+      imagePaths = null;
+      console.log("[외부 API] 전체 요일 이미지 저장 완료:", imagePath);
+    } else {
+      // 개별 요일 모드: 요일별 이미지
+      if (!imagePaths) {
+        imagePaths = {};
+      }
+      const dayImagePath = moveFileToDestination(
+        req.file.path,
+        restaurant.name,
+        activeDateRange,
+        req.file.filename
+      );
+      imagePaths[day_id] = dayImagePath;
+      imagePath = imagePaths["월"] || existing?.image_path || dayImagePath;
+      console.log(
+        `[외부 API] ${day_id}요일 이미지 저장 완료:`,
+        dayImagePath
+      );
+    }
+
+    // DB에 저장
+    const saveResult = saveMenuData({
+      restaurant_id: restaurant_id,
+      restaurant_name: restaurant.name,
+      date_range: activeDateRange,
+      price_lunch: analyzedData.price.lunch,
+      price_dinner: analyzedData.price.dinner,
+      menus: finalMenus,
+      image_path: imagePath,
+      image_paths: imagePaths,
+      excluded_menu_items: null,
+    });
+
+    console.log("[외부 API] 메뉴 데이터 저장 완료");
+
+    res.json({
+      success: true,
+      message: "메뉴 데이터가 성공적으로 저장되었습니다.",
+      data: {
+        restaurant_id: restaurant_id,
+        restaurant_name: restaurant.name,
+        date_range: activeDateRange,
+        type: type,
+        day_id: type === "개별요일" ? day_id : null,
+        image_path: imagePath,
+        image_paths: imagePaths,
+        menus: finalMenus,
+        price: analyzedData.price,
+      },
+    });
+  } catch (error) {
+    console.error("[외부 API] 메뉴 업로드 오류:", error);
+    res.status(500).json({
+      error: "메뉴 업로드 중 오류가 발생했습니다.",
       message: error.message,
     });
   }

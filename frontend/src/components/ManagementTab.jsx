@@ -226,6 +226,7 @@ const ManagementTab = ({
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
                 <tr>
+                  <th className="px-6 py-3 font-bold">ID</th>
                   <th className="px-6 py-3 font-bold">식당 이름</th>
                   <th className="px-6 py-3 font-bold">점심 가격</th>
                   <th className="px-6 py-3 font-bold">저녁 가격</th>
@@ -239,7 +240,7 @@ const ManagementTab = ({
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-slate-500">
+                    <td colSpan="9" className="px-6 py-8 text-center text-slate-500">
                       <div className="flex justify-center items-center gap-2">
                         <IconRefreshCw className="animate-spin" /> 로딩 중...
                       </div>
@@ -247,11 +248,12 @@ const ManagementTab = ({
                   </tr>
                 ) : dbRestaurants.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-slate-500">등록된 식당이 없습니다.</td>
+                    <td colSpan="9" className="px-6 py-8 text-center text-slate-500">등록된 식당이 없습니다.</td>
                   </tr>
                 ) : (
                   dbRestaurants.map((res) => (
                     <tr key={res.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-6 py-4 text-slate-500 font-mono text-xs">{res.id}</td>
                       <td className="px-6 py-4 font-medium text-slate-900">{res.name}</td>
                       <td className="px-6 py-4 text-slate-600">{res.price_lunch || '-'}</td>
                       <td className="px-6 py-4 text-slate-600">{res.price_dinner || '-'}</td>

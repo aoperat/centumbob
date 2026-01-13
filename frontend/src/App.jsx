@@ -5,6 +5,7 @@ import ManagementTab from './components/ManagementTab';
 import ComplaintTab from './components/ComplaintTab';
 import ComplaintAdminTab from './components/ComplaintAdminTab';
 import BlogTab from './components/BlogTab';
+import ApiGuideTab from './components/ApiGuideTab';
 import { saveMenuData, publishMenuData, getRestaurants, getDateRanges } from './utils/api';
 
 function App() {
@@ -174,6 +175,16 @@ function App() {
               >
                 <IconFileText size={14} /> 블로그 생성
               </button>
+              <button
+                onClick={() => setCurrentTab("api-guide")}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${
+                  currentTab === 'api-guide' 
+                    ? 'bg-white text-green-600 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                API 안내
+              </button>
             </div>
           </div>
 
@@ -255,6 +266,11 @@ function App() {
           <BlogTab
             dateRanges={dateRanges}
           />
+        )}
+
+        {/* ================= 탭 6: API 안내 ================= */}
+        {currentTab === 'api-guide' && (
+          <ApiGuideTab />
         )}
       </main>
     </div>

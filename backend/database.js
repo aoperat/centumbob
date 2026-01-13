@@ -194,6 +194,70 @@ try {
     console.error("excluded_menu_items 마이그레이션 오류:", migrationError);
   }
 
+  // 마이그레이션: menu_data 테이블에 restaurant_id 컬럼 확인 및 추가
+  try {
+    const menuDataTableInfo = db.pragma("table_info(menu_data)");
+    const hasRestaurantIdColumn = menuDataTableInfo.find(
+      (col) => col.name === "restaurant_id"
+    );
+    if (!hasRestaurantIdColumn) {
+      console.log("menu_data 테이블에 restaurant_id 컬럼 추가 중...");
+      db.exec(
+        "ALTER TABLE menu_data ADD COLUMN restaurant_id INTEGER DEFAULT NULL"
+      );
+
+      // 기존 데이터 마이그레이션: restaurant_name으로 restaurant_id 찾아서 설정
+      try {
+        const existingData = db
+          .prepare(
+            "SELECT id, restaurant_name FROM menu_data WHERE restaurant_id IS NULL"
+          )
+          .all();
+        if (existingData.length > 0) {
+          console.log(
+            `${existingData.length}개 레코드의 restaurant_id 마이그레이션 중...`
+          );
+          const updateStmt = db.prepare(
+            "UPDATE menu_data SET restaurant_id = ? WHERE id = ?"
+          );
+          const getRestaurantIdStmt = db.prepare(
+            "SELECT id FROM restaurants WHERE name = ?"
+          );
+
+          let migratedCount = 0;
+          existingData.forEach((row) => {
+            const restaurant = getRestaurantIdStmt.get(row.restaurant_name);
+            if (restaurant) {
+              updateStmt.run(restaurant.id, row.id);
+              migratedCount++;
+            } else {
+              console.warn(
+                `식당을 찾을 수 없음: ${row.restaurant_name} (menu_data id: ${row.id})`
+              );
+            }
+          });
+          console.log(
+            `restaurant_id 마이그레이션 완료: ${migratedCount}개 레코드 업데이트됨`
+          );
+        }
+      } catch (migrateError) {
+        console.error("restaurant_id 마이그레이션 오류:", migrateError);
+      }
+
+      // 인덱스 추가
+      try {
+        db.exec(
+          "CREATE INDEX IF NOT EXISTS idx_menu_data_restaurant_id ON menu_data(restaurant_id)"
+        );
+        console.log("restaurant_id 인덱스 추가 완료");
+      } catch (indexError) {
+        console.error("restaurant_id 인덱스 추가 오류:", indexError);
+      }
+    }
+  } catch (migrationError) {
+    console.error("restaurant_id 마이그레이션 오류:", migrationError);
+  }
+
   console.log("데이터베이스 테이블 초기화 완료");
 } catch (tableError) {
   console.error("테이블 생성 실패:", tableError);
@@ -204,6 +268,7 @@ try {
 export const saveMenuData = (data) => {
   const {
     restaurant_name,
+    restaurant_id,
     date_range,
     price_lunch,
     price_dinner,
@@ -212,6 +277,28 @@ export const saveMenuData = (data) => {
     image_paths,
     excluded_menu_items,
   } = data;
+
+  // restaurant_id가 없고 restaurant_name이 있으면 restaurant_id 찾기
+  let finalRestaurantId = restaurant_id;
+  let finalRestaurantName = restaurant_name;
+
+  if (!finalRestaurantId && restaurant_name) {
+    const restaurant = db
+      .prepare("SELECT id, name FROM restaurants WHERE name = ?")
+      .get(restaurant_name);
+    if (restaurant) {
+      finalRestaurantId = restaurant.id;
+      finalRestaurantName = restaurant.name;
+    }
+  } else if (finalRestaurantId && !restaurant_name) {
+    // restaurant_id만 있으면 restaurant_name 찾기
+    const restaurant = db
+      .prepare("SELECT id, name FROM restaurants WHERE id = ?")
+      .get(finalRestaurantId);
+    if (restaurant) {
+      finalRestaurantName = restaurant.name;
+    }
+  }
 
   // image_paths를 JSON 문자열로 변환
   let imagePathsJson = null;
@@ -234,10 +321,11 @@ export const saveMenuData = (data) => {
   }
 
   const stmt = db.prepare(`
-    INSERT INTO menu_data (restaurant_name, date_range, price_lunch, price_dinner, menus, image_path, image_paths, excluded_menu_items, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO menu_data (restaurant_name, restaurant_id, date_range, price_lunch, price_dinner, menus, image_path, image_paths, excluded_menu_items, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(restaurant_name, date_range) 
     DO UPDATE SET
+      restaurant_id = excluded.restaurant_id,
       price_lunch = excluded.price_lunch,
       price_dinner = excluded.price_dinner,
       menus = excluded.menus,
@@ -248,7 +336,8 @@ export const saveMenuData = (data) => {
   `);
 
   const result = stmt.run(
-    restaurant_name,
+    finalRestaurantName,
+    finalRestaurantId || null,
     date_range,
     price_lunch || null,
     price_dinner || null,
@@ -261,15 +350,30 @@ export const saveMenuData = (data) => {
   return result;
 };
 
-// 특정 식당/날짜 데이터 조회
-export const getMenuData = (restaurant_name, date_range) => {
+// 특정 식당/날짜 데이터 조회 (restaurant_name 또는 restaurant_id로 조회 가능)
+export const getMenuData = (restaurant_identifier, date_range) => {
   try {
-    const stmt = db.prepare(`
-      SELECT * FROM menu_data 
-      WHERE restaurant_name = ? AND date_range = ?
-    `);
+    let stmt;
+    let params;
 
-    const row = stmt.get(restaurant_name, date_range);
+    // restaurant_id인지 restaurant_name인지 판단
+    if (typeof restaurant_identifier === "number" || /^\d+$/.test(String(restaurant_identifier))) {
+      // 숫자면 restaurant_id로 조회
+      stmt = db.prepare(`
+        SELECT * FROM menu_data 
+        WHERE restaurant_id = ? AND date_range = ?
+      `);
+      params = [parseInt(restaurant_identifier, 10), date_range];
+    } else {
+      // 문자열이면 restaurant_name으로 조회
+      stmt = db.prepare(`
+        SELECT * FROM menu_data 
+        WHERE restaurant_name = ? AND date_range = ?
+      `);
+      params = [restaurant_identifier, date_range];
+    }
+
+    const row = stmt.get(...params);
 
     if (!row) return null;
 
@@ -332,6 +436,11 @@ export const getMenuData = (restaurant_name, date_range) => {
     console.error("데이터 조회 오류:", error);
     throw error;
   }
+};
+
+// 식당 ID로 메뉴 데이터 조회
+export const getMenuDataByRestaurantId = (restaurant_id, date_range) => {
+  return getMenuData(restaurant_id, date_range);
 };
 
 // 모든 데이터 조회
