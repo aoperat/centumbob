@@ -498,22 +498,26 @@ const moveFileToDestination = (tempPath, restaurant, dateRange, filename) => {
 };
 
 // 데이터 저장 엔드포인트 (이미지 포함, DB 저장)
-// 요일별 이미지를 받기 위해 fields 방식 사용
+// any()를 사용하여 한글 필드명 인코딩 문제 방지
 app.post(
   "/api/save",
-  uploadImage.fields([
-    { name: "image", maxCount: 1 }, // 전체 요일 모드용
-    { name: "image_월", maxCount: 1 },
-    { name: "image_화", maxCount: 1 },
-    { name: "image_수", maxCount: 1 },
-    { name: "image_목", maxCount: 1 },
-    { name: "image_금", maxCount: 1 },
-  ]),
+  uploadImage.any(),
   async (req, res) => {
     try {
       const adminData = JSON.parse(req.body.data || "{}");
-      const files = req.files;
+      const uploadedFiles = req.files || [];
       const useAllDays = adminData.use_all_days !== false; // 기본값 true
+
+      // 업로드된 파일들을 필드명 기준으로 정리
+      const files = {};
+      uploadedFiles.forEach((file) => {
+        if (!files[file.fieldname]) {
+          files[file.fieldname] = [];
+        }
+        files[file.fieldname].push(file);
+      });
+
+      console.log("[저장] 업로드된 파일 필드:", Object.keys(files));
 
       // 필수 필드 검증
       if (!adminData.name || !adminData.date) {
