@@ -117,6 +117,14 @@ jobs:
         with:
           enablement: true # Pages가 비활성화되어 있으면 자동으로 활성화
 
+          # 👇 [추가할 코드] 빌드 결과물의 용량과 파일 목록을 확인하는 단계
+      - name: Check dist size and content
+        run: |
+          echo "=== Disk Usage ==="
+          du -sh ./viewer/dist
+          echo "=== File List ==="
+          ls -R -lh ./viewer/dist
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
