@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
+import { fileTypeFromBuffer } from "file-type";
 import {
   saveMenuData,
   getMenuData,
@@ -43,6 +44,96 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// ==================== 유틸리티 함수 ====================
+
+// 로깅 레벨 제어 (프로덕션에서는 에러만 출력)
+const isDevelopment = process.env.NODE_ENV !== "production";
+const log = {
+  info: (...args) => isDevelopment && console.log("[INFO]", ...args),
+  debug: (...args) => isDevelopment && console.log("[DEBUG]", ...args),
+  error: (...args) => console.error("[ERROR]", ...args),
+  warn: (...args) => console.warn("[WARN]", ...args),
+};
+
+// 허용된 이미지 타입
+const ALLOWED_IMAGE_TYPES = {
+  extensions: [".jpg", ".jpeg", ".png", ".gif", ".webp"],
+  mimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+};
+
+/**
+ * 이미지 파일 검증 (매직 바이트 확인)
+ * @param {Buffer} buffer - 파일 버퍼
+ * @param {string} originalMimeType - 클라이언트가 제공한 MIME 타입
+ * @returns {Promise<{valid: boolean, error?: string}>}
+ */
+const validateImageBuffer = async (buffer, originalMimeType) => {
+  try {
+    const fileType = await fileTypeFromBuffer(buffer);
+
+    if (!fileType) {
+      return { valid: false, error: "파일 형식을 확인할 수 없습니다." };
+    }
+
+    if (!ALLOWED_IMAGE_TYPES.mimeTypes.includes(fileType.mime)) {
+      return {
+        valid: false,
+        error: `허용되지 않은 파일 형식입니다: ${fileType.mime}`,
+      };
+    }
+
+    return { valid: true };
+  } catch (error) {
+    log.error("파일 타입 검증 실패:", error.message);
+    return { valid: false, error: "파일 형식 검증 중 오류가 발생했습니다." };
+  }
+};
+
+/**
+ * 메뉴 배열 검증 및 정제
+ * @param {Array} menuArray - 검증할 메뉴 배열
+ * @returns {Array} - 정제된 메뉴 배열
+ */
+const validateAndCleanMenu = (menuArray) => {
+  if (!Array.isArray(menuArray)) return [];
+
+  return menuArray
+    .map((item) => {
+      let cleaned = String(item).trim();
+      if (!cleaned) return null;
+      if (cleaned.length < 2 && !/^[0-9가-힣]$/.test(cleaned)) return null;
+      if (/^(메뉴|menu|item|항목|새\s*메뉴)\d*$/i.test(cleaned)) return null;
+      if (/^\d+[,\d]*원?$/.test(cleaned)) return null;
+      if (/^[^\w가-힣\s]+$/.test(cleaned)) return null;
+      if (cleaned.length > 200) return null;
+      cleaned = cleaned.replace(/\s+/g, " ");
+      cleaned = cleaned.trim();
+      return cleaned;
+    })
+    .filter((item) => item !== null && item.length > 0)
+    .filter((item, index, self) => self.indexOf(item) === index);
+};
+
+/**
+ * 가격 검증 및 정규화
+ * @param {string} price - 검증할 가격
+ * @returns {string} - 정규화된 가격
+ */
+const validateAndCleanPrice = (price) => {
+  if (!price) return "";
+  let cleaned = String(price).trim();
+  if (!cleaned) return "";
+  cleaned = cleaned.replace(/[^\d,원]/g, "");
+  if (!/\d/.test(cleaned)) return "";
+  const numbersOnly = cleaned.replace(/[^\d]/g, "");
+  if (parseInt(numbersOnly) > 100000000) return "";
+  if (parseInt(numbersOnly) < 100) return "";
+  if (!cleaned.includes("원")) {
+    cleaned = numbersOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
+  }
+  return cleaned;
+};
 
 const app = express();
 const PORT = process.env.PORT || 9101;
@@ -173,6 +264,15 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
       return res.status(400).json({ error: "이미지 파일이 필요합니다." });
     }
 
+    // 파일 형식 검증 (매직 바이트 확인)
+    const validation = await validateImageBuffer(
+      req.file.buffer,
+      req.file.mimetype
+    );
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error });
+    }
+
     if (!process.env.OPENAI_API_KEY) {
       return res
         .status(500)
@@ -184,16 +284,16 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
     const imageDataUrl = `data:${req.file.mimetype};base64,${imageBase64}`;
 
     // 1. Tesseract OCR로 텍스트 1차 추출
-    console.log("OCR 분석 시작...");
+    log.debug("OCR 분석 시작...");
     let ocrText = "";
     try {
       const worker = await createWorker("kor+eng");
       const ret = await worker.recognize(req.file.buffer);
       ocrText = ret.data.text;
       await worker.terminate();
-      console.log("OCR 분석 완료 (텍스트 길이):", ocrText.length);
+      log.debug("OCR 분석 완료 (텍스트 길이):", ocrText.length);
     } catch (ocrError) {
-      console.warn("OCR 분석 실패 (GPT Vision만 사용):", ocrError);
+      log.warn("OCR 분석 실패 (GPT Vision만 사용):", ocrError.message);
       // OCR 실패해도 계속 진행
     }
 
@@ -322,78 +422,6 @@ ${ocrText}
         },
       };
     }
-
-    // 데이터 검증 및 정제 함수
-    const validateAndCleanMenu = (menuArray) => {
-      if (!Array.isArray(menuArray)) return [];
-
-      return menuArray
-        .map((item) => {
-          // 문자열로 변환
-          let cleaned = String(item).trim();
-
-          // 빈 문자열 제거
-          if (!cleaned) return null;
-
-          // 너무 짧은 항목 제거 (1글자 이하, 단, 숫자나 특수문자만 있는 경우)
-          if (cleaned.length < 2 && !/^[0-9가-힣]$/.test(cleaned)) return null;
-
-          // 이상한 패턴 필터링 (예: "메뉴1", "메뉴2" 같은 플레이스홀더)
-          if (/^(메뉴|menu|item|항목|새\s*메뉴)\d*$/i.test(cleaned))
-            return null;
-
-          // 숫자만 있는 경우 제거 (가격이 아닌 메뉴명)
-          if (/^\d+[,\d]*원?$/.test(cleaned)) return null;
-
-          // 특수 문자만 있는 경우 제거
-          if (/^[^\w가-힣\s]+$/.test(cleaned)) return null;
-
-          // 너무 긴 항목 제거 (200자 이상, 오인식 가능성)
-          if (cleaned.length > 200) return null;
-
-          // 공백 정규화 (연속된 공백을 하나로)
-          cleaned = cleaned.replace(/\s+/g, " ");
-
-          // 앞뒤 공백 제거
-          cleaned = cleaned.trim();
-
-          return cleaned;
-        })
-        .filter((item) => item !== null && item.length > 0) // null과 빈 문자열 제거
-        .filter((item, index, self) => self.indexOf(item) === index); // 중복 제거
-    };
-
-    // 가격 검증 및 정규화 함수
-    const validateAndCleanPrice = (price) => {
-      if (!price) return "";
-
-      let cleaned = String(price).trim();
-
-      // 빈 문자열 체크
-      if (!cleaned) return "";
-
-      // 숫자와 원, 콤마만 남기고 나머지 제거
-      cleaned = cleaned.replace(/[^\d,원]/g, "");
-
-      // 숫자가 없는 경우 빈 문자열 반환
-      if (!/\d/.test(cleaned)) return "";
-
-      // 숫자만 추출 (콤마와 원 제거)
-      const numbersOnly = cleaned.replace(/[^\d]/g, "");
-
-      // 너무 큰 숫자 제거 (1억 이상, 오인식 가능성)
-      if (parseInt(numbersOnly) > 100000000) return "";
-
-      // 너무 작은 숫자 제거 (100원 미만, 오인식 가능성)
-      if (parseInt(numbersOnly) < 100) return "";
-
-      // 원 표시 추가 (숫자만 있는 경우)
-      if (!cleaned.includes("원")) {
-        cleaned = numbersOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
-      }
-
-      return cleaned;
-    };
 
     // 응답 구조 검증 및 정규화
     const result = {
@@ -664,43 +692,6 @@ ${ocrText}
       };
     }
 
-    // 데이터 검증 및 정제 함수 (기존 /api/analyze와 동일)
-    const validateAndCleanMenu = (menuArray) => {
-      if (!Array.isArray(menuArray)) return [];
-
-      return menuArray
-        .map((item) => {
-          let cleaned = String(item).trim();
-          if (!cleaned) return null;
-          if (cleaned.length < 2 && !/^[0-9가-힣]$/.test(cleaned)) return null;
-          if (/^(메뉴|menu|item|항목|새\s*메뉴)\d*$/i.test(cleaned))
-            return null;
-          if (/^\d+[,\d]*원?$/.test(cleaned)) return null;
-          if (/^[^\w가-힣\s]+$/.test(cleaned)) return null;
-          if (cleaned.length > 200) return null;
-          cleaned = cleaned.replace(/\s+/g, " ");
-          cleaned = cleaned.trim();
-          return cleaned;
-        })
-        .filter((item) => item !== null && item.length > 0)
-        .filter((item, index, self) => self.indexOf(item) === index);
-    };
-
-    const validateAndCleanPrice = (price) => {
-      if (!price) return "";
-      let cleaned = String(price).trim();
-      if (!cleaned) return "";
-      cleaned = cleaned.replace(/[^\d,원]/g, "");
-      if (!/\d/.test(cleaned)) return "";
-      const numbersOnly = cleaned.replace(/[^\d]/g, "");
-      if (parseInt(numbersOnly) > 100000000) return "";
-      if (parseInt(numbersOnly) < 100) return "";
-      if (!cleaned.includes("원")) {
-        cleaned = numbersOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
-      }
-      return cleaned;
-    };
-
     // 응답 구조 검증 및 정규화
     const analyzedData = {
       price: {
@@ -859,12 +850,34 @@ const moveFileToDestination = (tempPath, restaurant, dateRange, filename) => {
   const safeDateRange = dateRange.replace(/[^a-zA-Z0-9가-힣]/g, "_");
   const destDir = path.join(uploadsDir, safeRestaurant, safeDateRange);
 
-  if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(destDir, { recursive: true });
+  try {
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+  } catch (mkdirError) {
+    console.error(`디렉토리 생성 실패 (${destDir}):`, mkdirError.message);
+    throw new Error(`파일 저장 디렉토리를 생성할 수 없습니다: ${mkdirError.message}`);
   }
 
   const destPath = path.join(destDir, filename);
-  fs.renameSync(tempPath, destPath);
+
+  try {
+    fs.renameSync(tempPath, destPath);
+  } catch (renameError) {
+    // EXDEV: 다른 파티션 간 이동 시 rename 실패
+    if (renameError.code === "EXDEV") {
+      try {
+        fs.copyFileSync(tempPath, destPath);
+        fs.unlinkSync(tempPath);
+      } catch (copyError) {
+        console.error(`파일 복사 실패:`, copyError.message);
+        throw new Error(`파일을 이동할 수 없습니다: ${copyError.message}`);
+      }
+    } else {
+      console.error(`파일 이동 실패 (${tempPath} -> ${destPath}):`, renameError.message);
+      throw new Error(`파일을 이동할 수 없습니다: ${renameError.message}`);
+    }
+  }
 
   const relativePath = path.relative(__dirname, destPath);
   return relativePath.split(path.sep).join("/");
@@ -1257,7 +1270,31 @@ app.post("/api/publish", async (req, res) => {
       (data) => data.date_range === activeDateRange
     );
 
-    if (allData.length === 0) {
+    console.log("[게시] DB에서 조회된 데이터 수:", allData.length);
+    console.log("[게시] 조회된 식당명 목록:", allData.map(d => d.restaurant_name));
+
+    // 빈 메뉴 데이터 확인 함수
+    const hasMenuData = (menus) => {
+      const days = ["월", "화", "수", "목", "금"];
+      return days.some(day => {
+        const dayMenu = menus[day] || { lunch: [], dinner: [] };
+        return (dayMenu.lunch && dayMenu.lunch.length > 0) || 
+               (dayMenu.dinner && dayMenu.dinner.length > 0);
+      });
+    };
+
+    // 게시 전 필터링: 빈 메뉴 데이터 제외
+    const dataToPublish = allData.filter(dbData => {
+      const hasData = hasMenuData(dbData.menus);
+      if (!hasData) {
+        console.warn(`[게시] ${dbData.restaurant_name}는 메뉴 데이터가 비어있어 게시에서 제외됩니다.`);
+      }
+      return hasData;
+    });
+
+    console.log("[게시] 필터링 후 게시할 데이터 수:", dataToPublish.length);
+
+    if (dataToPublish.length === 0) {
       return res.status(400).json({
         error: `활성화된 날짜 범위(${activeDateRange})에 게시할 데이터가 없습니다. 먼저 데이터를 저장해주세요.`,
       });
@@ -1284,8 +1321,9 @@ app.post("/api/publish", async (req, res) => {
 
     // 뷰어 형식으로 변환 (식당명을 키로 하는 객체)
     const viewerData = {};
-    allData.forEach((dbData) => {
-      let imageBase64 = null;
+    dataToPublish.forEach((dbData) => {
+      try {
+        let imageBase64 = null;
 
       // 요일별 이미지가 있으면 요일별로 처리
       const imagePathsByDay = dbData.image_paths || {};
@@ -1376,18 +1414,75 @@ app.post("/api/publish", async (req, res) => {
 
       // 기준데이터에서 해당 식당 정보 가져오기
       const restaurantInfo = restaurantMap[dbData.restaurant_name] || null;
+      if (!restaurantInfo) {
+        console.warn(`[게시] 경고: ${dbData.restaurant_name}에 대한 기준데이터를 찾을 수 없습니다.`);
+      }
       const transformed = transformDbDataForViewer(
         dbData,
         imageBase64,
         restaurantInfo
       );
       viewerData[transformed.name] = transformed;
+      } catch (error) {
+        console.error(`[게시] ${dbData.restaurant_name} 변환 실패:`, error);
+        // 에러가 발생해도 계속 진행
+      }
     });
+
+    console.log("[게시] 변환 후 식당명 목록:", Object.keys(viewerData));
+
+    // 중복 식당명 감지 및 병합
+    const mergedViewerData = {};
+    const processedNames = new Set();
+
+    Object.keys(viewerData).forEach(name => {
+      if (processedNames.has(name)) return;
+      
+      // 다른 식당명 중 이 이름을 포함하는 것 찾기
+      const similarNames = Object.keys(viewerData).filter(otherName => {
+        if (otherName === name || processedNames.has(otherName)) return false;
+        return otherName.includes(name) || name.includes(otherName);
+      });
+      
+      if (similarNames.length > 0) {
+        // 더 긴 이름(상세한 이름)을 우선 사용
+        const allNames = [name, ...similarNames];
+        const primaryName = allNames.reduce((longest, current) => 
+          current.length > longest.length ? current : longest
+        );
+        
+        // 메뉴 데이터가 있는 것을 우선 사용
+        const namesWithData = allNames.filter(n => {
+          const data = viewerData[n];
+          return hasMenuData(data.data.menus);
+        });
+        
+        const finalName = namesWithData.length > 0 ? namesWithData[0] : primaryName;
+        
+        console.warn(`[게시] 중복 식당명 감지: ${allNames.join(', ')} -> ${finalName}로 병합`);
+        mergedViewerData[finalName] = viewerData[finalName];
+        
+        allNames.forEach(n => processedNames.add(n));
+      } else {
+        mergedViewerData[name] = viewerData[name];
+        processedNames.add(name);
+      }
+    });
+
+    console.log("[게시] 최종 저장되는 식당명 목록:", Object.keys(mergedViewerData));
+
+    // 기준데이터에 있지만 게시되지 않은 식당 확인
+    const publishedNames = Object.keys(mergedViewerData);
+    const allRestaurantNames = allRestaurants.map(r => r.name);
+    const missingRestaurants = allRestaurantNames.filter(name => !publishedNames.includes(name));
+    if (missingRestaurants.length > 0) {
+      console.warn("[게시] 경고: 다음 식당들이 게시되지 않았습니다:", missingRestaurants);
+    }
 
     // JSON 파일로 저장
     fs.writeFileSync(
       menuDataPath,
-      JSON.stringify(viewerData, null, 2),
+      JSON.stringify(mergedViewerData, null, 2),
       "utf-8"
     );
 
@@ -1406,14 +1501,16 @@ app.post("/api/publish", async (req, res) => {
     }
     fs.writeFileSync(
       viewerDataPath,
-      JSON.stringify(viewerData, null, 2),
+      JSON.stringify(mergedViewerData, null, 2),
       "utf-8"
     );
 
     res.json({
       success: true,
       message: "데이터가 성공적으로 게시되었습니다.",
-      count: allData.length,
+      count: dataToPublish.length,
+      published: Object.keys(mergedViewerData),
+      missing: missingRestaurants || []
     });
   } catch (error) {
     console.error("데이터 게시 오류:", error);

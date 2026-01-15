@@ -6,7 +6,7 @@ const MenuList = ({ items }) => {
   return (
     <ul className="space-y-1 mt-2">
       {items.map((item, idx) => (
-        <li key={idx} className="text-sm text-slate-700 leading-snug break-keep">
+        <li key={`${item}-${idx}`} className="text-sm text-slate-700 leading-snug break-keep">
           · {item}
         </li>
       ))}

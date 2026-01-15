@@ -4,6 +4,7 @@ import {
   forwardRef,
   useEffect,
   useRef,
+  useCallback,
 } from "react";
 import {
   IconCheck,
@@ -154,7 +155,7 @@ const EntryTab = forwardRef(
     }, [selectedCafeteria, selectedDateRange, restaurantDetails]);
 
     // 이미지 파일 처리 공통 함수
-    const processImageFile = (file) => {
+    const processImageFile = useCallback((file) => {
       if (file && file.type.startsWith("image/")) {
         const currentRestaurant = restaurantDetails[selectedCafeteria];
         const useAllDays =
@@ -182,7 +183,7 @@ const EntryTab = forwardRef(
         reader.onloadend = () => setImagePreview(reader.result);
         reader.readAsDataURL(file);
       }
-    };
+    }, [restaurantDetails, selectedCafeteria, targetDay]);
 
     const handleImageUpload = (e) => {
       const file = e.target.files[0];
@@ -229,7 +230,7 @@ const EntryTab = forwardRef(
       return () => {
         window.removeEventListener("paste", handlePaste);
       };
-    }, [restaurantDetails, selectedCafeteria, targetDay]);
+    }, [processImageFile]);
 
     const handleAnalyze = async () => {
       const currentRestaurant = restaurantDetails[selectedCafeteria];

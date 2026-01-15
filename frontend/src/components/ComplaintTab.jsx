@@ -33,6 +33,9 @@ const ComplaintTab = ({ restaurants, dateRanges }) => {
       return;
     }
 
+    // 제출 전에 이메일 저장 (폼 초기화 전에 참조하기 위함)
+    const userEmail = formData.user_email;
+
     setIsLoading(true);
     try {
       await submitComplaint(formData);
@@ -47,11 +50,11 @@ const ComplaintTab = ({ restaurants, dateRanges }) => {
         user_name: '',
         user_email: ''
       });
-      // 목록 새로고침
-      if (formData.user_email) {
-        setUserEmailFilter(formData.user_email);
+      // 저장해둔 이메일로 목록 새로고침
+      if (userEmail) {
+        setUserEmailFilter(userEmail);
         setView('list');
-        loadComplaints(formData.user_email);
+        loadComplaints(userEmail);
       }
     } catch (error) {
       alert(`민원 제출 실패: ${error.message}`);
@@ -175,8 +178,8 @@ const ComplaintTab = ({ restaurants, dateRanges }) => {
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     required
                   >
-                    {restaurants.map((restaurant, idx) => (
-                      <option key={idx} value={restaurant}>{restaurant}</option>
+                    {restaurants.map((restaurant) => (
+                      <option key={restaurant} value={restaurant}>{restaurant}</option>
                     ))}
                   </select>
                 </div>
@@ -190,8 +193,8 @@ const ComplaintTab = ({ restaurants, dateRanges }) => {
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">선택 안함</option>
-                    {dateRanges.map((date, idx) => (
-                      <option key={idx} value={date}>{date}</option>
+                    {dateRanges.map((date) => (
+                      <option key={date} value={date}>{date}</option>
                     ))}
                   </select>
                 </div>

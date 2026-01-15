@@ -1,3 +1,35 @@
+// ==================== 헬퍼 함수 ====================
+
+/**
+ * 안전한 JSON 파싱 헬퍼 함수
+ * @param {Response} response - fetch 응답 객체
+ * @returns {Promise<Object|null>} - 파싱된 JSON 또는 null
+ */
+const safeJsonParse = async (response) => {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.warn('JSON 파싱 실패:', text.substring(0, 100));
+    return null;
+  }
+};
+
+/**
+ * 응답 에러 처리 헬퍼 함수
+ * @param {Response} response - fetch 응답 객체
+ * @param {string} defaultError - 기본 에러 메시지
+ */
+const handleErrorResponse = async (response, defaultError = '요청 실패') => {
+  const errorData = await safeJsonParse(response);
+  throw new Error(errorData?.error || errorData?.message || `${defaultError} (${response.status})`);
+};
+
+// ==================== 이미지 분석 API ====================
+
 export const analyzeImage = async (imageFile) => {
   const formData = new FormData();
   formData.append('image', imageFile);
@@ -8,10 +40,14 @@ export const analyzeImage = async (imageFile) => {
   });
 
   if (!response.ok) {
-    throw new Error('이미지 분석 실패');
+    await handleErrorResponse(response, '이미지 분석 실패');
   }
 
-  return await response.json();
+  const data = await safeJsonParse(response);
+  if (!data) {
+    throw new Error('서버 응답을 파싱할 수 없습니다');
+  }
+  return data;
 };
 
 export const loadMenuData = async (restaurant, date) => {
@@ -51,12 +87,12 @@ export const loadMenuData = async (restaurant, date) => {
 export const saveMenuData = async (menuData, imageFile, imageFiles = {}) => {
   const formData = new FormData();
   formData.append('data', JSON.stringify(menuData));
-  
+
   // 전체 요일 모드: 하나의 이미지
   if (imageFile) {
     formData.append('image', imageFile);
   }
-  
+
   // 개별 요일 모드: 요일별 이미지
   const days = ["월", "화", "수", "목", "금"];
   days.forEach(day => {
@@ -71,11 +107,14 @@ export const saveMenuData = async (menuData, imageFile, imageFiles = {}) => {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '데이터 저장 실패');
+    await handleErrorResponse(response, '데이터 저장 실패');
   }
 
-  return await response.json();
+  const data = await safeJsonParse(response);
+  if (!data) {
+    throw new Error('서버 응답을 파싱할 수 없습니다');
+  }
+  return data;
 };
 
 export const publishMenuData = async () => {
@@ -84,11 +123,14 @@ export const publishMenuData = async () => {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '데이터 게시 실패');
+    await handleErrorResponse(response, '데이터 게시 실패');
   }
 
-  return await response.json();
+  const data = await safeJsonParse(response);
+  if (!data) {
+    throw new Error('서버 응답을 파싱할 수 없습니다');
+  }
+  return data;
 };
 
 // 식당의 모든 메뉴 데이터 삭제
@@ -170,11 +212,14 @@ export const submitComplaint = async (complaintData) => {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || '민원 제출 실패');
+    await handleErrorResponse(response, '민원 제출 실패');
   }
 
-  return await response.json();
+  const data = await safeJsonParse(response);
+  if (!data) {
+    throw new Error('서버 응답을 파싱할 수 없습니다');
+  }
+  return data;
 };
 
 // 민원 목록 조회
