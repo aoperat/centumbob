@@ -101,4 +101,3 @@ export const IconCopy = ({ size = 20, className = "" }) => (
     <path d="M4 16c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2h8c1.1 0 2 .9 2 2" />
   </svg>
 );
-
