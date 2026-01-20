@@ -250,12 +250,19 @@ const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_ANON_KEY ||
   process.env.SUPABASE_JWT_TOKEN;
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+
+// Supabase 키가 없으면 null로 설정 (민원 기능 비활성화)
+let supabase = null;
+if (supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+} else {
+  console.warn("[WARN] Supabase 키가 설정되지 않았습니다. 민원 기능이 비활성화됩니다.");
+}
 
 // 이미지 분석 엔드포인트
 app.post("/api/analyze", upload.single("image"), async (req, res) => {
