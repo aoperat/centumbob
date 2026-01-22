@@ -13,7 +13,10 @@
       "Bash(findstr:*)",
       "Bash(netstat:*)",
       "Bash(taskkill /F /PID 20864)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(del backendnul nul)",
+      "Bash(git commit:*)"
     ]
   }
 }
