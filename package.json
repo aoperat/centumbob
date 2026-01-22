@@ -1,0 +1,13 @@
+{
+  "name": "centumbob",
+  "version": "1.0.0",
+  "description": "Centum Bob - Cafeteria menu management system",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"backend,frontend,viewer\" -c \"blue,magenta,cyan\" \"cd backend && npm start\" \"cd frontend && npm run dev\" \"cd viewer && npm run dev\"",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install && cd ../viewer && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

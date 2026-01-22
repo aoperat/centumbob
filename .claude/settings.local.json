@@ -7,7 +7,13 @@
       "Bash(timeout 5 npm start)",
       "Bash(curl:*)",
       "Bash(npx sqlite3:*)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "mcp__supabase__execute_sql",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill /F /PID 20864)",
+      "Bash(git add:*)"
     ]
   }
 }

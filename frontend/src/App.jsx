@@ -58,16 +58,11 @@ function App() {
         }
       } catch (error) {
         console.error('데이터 로드 실패:', error);
-        // 실패 시 기본값 사용
-        const defaultRestaurants = [
-          "벽산E센텀 (만나)",
-          "동서대 (파티박스)",
-          "에이스하이테크21 (다와푸드)",
-          "부산영상산업센터 (STX f&c)"
-        ];
-        setRestaurants(defaultRestaurants);
-        setSelectedCafeteria(defaultRestaurants[0]);
+        // 실패 시 빈 배열로 초기화
+        setRestaurantsData([]);
+        setRestaurants([]);
         setDateRanges([]);
+        alert('식당 목록을 불러오는데 실패했습니다. 백엔드 서버를 확인해주세요.');
       } finally {
         setIsLoading(false);
       }
@@ -226,6 +221,7 @@ function App() {
             <EntryTab
               ref={entryTabRef}
               restaurants={restaurants}
+              restaurantsData={restaurantsData}
               dateRanges={dateRanges}
               selectedCafeteria={selectedCafeteria}
               setSelectedCafeteria={setSelectedCafeteria}

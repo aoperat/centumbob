@@ -12,7 +12,7 @@ import { getPageViews, incrementPageView } from "./utils/api";
 function App() {
   const [activeDay, setActiveDay] = useState("월");
   const [modalImage, setModalImage] = useState(null);
-  const [menuData, setMenuData] = useState({});
+  const [menuData, setMenuData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentDate, setCurrentDate] = useState("");
@@ -20,13 +20,16 @@ function App() {
   const [pageViewCount, setPageViewCount] = useState(null);
 
   const days = ["월", "화", "수", "목", "금"];
-  const cafeteriaKeys = Object.keys(menuData);
+
+  // 빠른 접근을 위한 name 기반 맵 생성
+  const menuMap = Object.fromEntries(menuData.map(d => [d.name, d]));
+  const cafeteriaKeys = menuData.map(d => d.name);
 
   // 식당 목록 및 날짜 범위 추출 (민원 모달용)
   const restaurants = cafeteriaKeys;
   const dateRanges = [];
   // menuData에서 날짜 범위 추출
-  Object.values(menuData).forEach((data) => {
+  menuData.forEach((data) => {
     if (data.data?.date && !dateRanges.includes(data.data.date)) {
       dateRanges.push(data.data.date);
     }
@@ -52,10 +55,16 @@ function App() {
         }
 
         const data = await response.json();
+
+        // 배열로 받아야 하며, 만약 객체라면 에러 처리
+        if (!Array.isArray(data)) {
+          throw new Error("데이터 형식이 올바르지 않습니다. 배열이어야 합니다.");
+        }
+
         setMenuData(data);
 
         // 첫 번째 식당의 날짜 정보 가져오기
-        const firstCafeteria = Object.values(data)[0];
+        const firstCafeteria = data[0];
         if (firstCafeteria && firstCafeteria.data) {
           setCurrentDate(firstCafeteria.data.date || "");
         }
@@ -158,7 +167,7 @@ function App() {
 
   // 메뉴 데이터 추출 헬퍼 함수
   const getMenuData = (cafeteriaName, day, type) => {
-    const data = menuData[cafeteriaName];
+    const data = menuMap[cafeteriaName];
     if (!data) return { menu: null, price: "" };
 
     const menus = data.data?.menus;
@@ -297,13 +306,13 @@ function App() {
                   {/* 상단 헤더: 회사명 */}
                   {cafeteriaKeys.map((name, idx) => {
                     // 요일별 이미지가 있으면 해당 요일 이미지 사용, 없으면 전체 이미지 사용
-                    const imageUrlsByDay = menuData[name]?.imageUrlsByDay;
+                    const imageUrlsByDay = menuMap[name]?.imageUrlsByDay;
                     const dayImageUrl = imageUrlsByDay?.[activeDay];
                     const hasImageByDay = !!dayImageUrl;
                     const hasImage =
                       hasImageByDay ||
-                      (menuData[name]?.imageUrls &&
-                       menuData[name].imageUrls.length > 0);
+                      (menuMap[name]?.imageUrls &&
+                       menuMap[name].imageUrls.length > 0);
 
                     // 해당 요일에 메뉴 데이터가 있는지 확인
                     const { menu: lunchMenu } = getMenuData(name, activeDay, "점심");
@@ -321,38 +330,42 @@ function App() {
                     };
 
                     // 표시할 이미지 URL 결정: 요일별 이미지 우선, 없으면 전체 이미지
-                    const displayImageUrl = dayImageUrl 
+                    const displayImageUrl = dayImageUrl
                       ? getImageUrl(dayImageUrl)
-                      : (menuData[name]?.imageUrls?.[0] ? getImageUrl(menuData[name].imageUrls[0]) : null);
+                      : (menuMap[name]?.imageUrls?.[0] ? getImageUrl(menuMap[name].imageUrls[0]) : null);
 
                     return (
                       <th
                         key={idx}
                         className="p-4 bg-slate-50 border-b border-slate-200 text-left min-w-[200px]"
                       >
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-2 min-h-[88px]">
+                          {/* 첫 번째 줄: 식당명 (고정 높이) */}
                           <span
-                            className="text-slate-800 font-bold text-sm block truncate w-full"
+                            className="text-slate-800 font-bold text-base block truncate w-full h-6"
                             title={name}
                           >
-                            {name.split("(")[0].trim()}
+                            {name}
                           </span>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-slate-400 font-normal truncate">
-                              {name.includes("(")
-                                ? name.match(/\((.*?)\)/)?.[1] || ""
-                                : ""}
-                            </span>
-                            {hasImage && hasDayData && displayImageUrl && (
+                          {/* 두 번째 줄: 건물명 (항상 공간 차지) */}
+                          <span className="text-slate-500 font-medium text-sm block truncate w-full h-5">
+                            {menuMap[name]?.building_name || '\u00A0'}
+                          </span>
+                          {/* 세 번째 줄: 이미지 버튼 (항상 공간 차지) */}
+                          <div className="h-7 flex items-center">
+                            {hasImage && hasDayData && displayImageUrl ? (
                               <button
                                 onClick={() =>
                                   setModalImage(displayImageUrl)
                                 }
-                                className="ml-auto p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                className="px-2 py-1 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors flex items-center gap-1"
                                 title="원본 이미지 보기"
                               >
-                                <IconImage />
+                                <IconImage className="w-3 h-3" />
+                                <span>이미지 보기</span>
                               </button>
+                            ) : (
+                              <span className="invisible">placeholder</span>
                             )}
                           </div>
                         </div>

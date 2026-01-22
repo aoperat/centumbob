@@ -50,9 +50,25 @@ export const analyzeImage = async (imageFile) => {
   return data;
 };
 
-export const loadMenuData = async (restaurant, date) => {
+export const loadMenuData = async (restaurantObj, date) => {
   try {
-    const response = await fetch(`/api/load?restaurant=${encodeURIComponent(restaurant)}&date=${encodeURIComponent(date)}`);
+    // restaurantObj는 { id, name } 구조 또는 문자열 (하위 호환성)
+    const params = new URLSearchParams({ date });
+
+    if (typeof restaurantObj === 'object' && restaurantObj !== null) {
+      // 객체인 경우 - restaurantId 우선 사용
+      if (restaurantObj.id) {
+        params.append('restaurantId', restaurantObj.id);
+      }
+      if (restaurantObj.name) {
+        params.append('restaurant', restaurantObj.name); // 하위 호환성
+      }
+    } else {
+      // 문자열인 경우 - 하위 호환성 (restaurant name)
+      params.append('restaurant', restaurantObj);
+    }
+
+    const response = await fetch(`/api/load?${params}`);
 
     // 404는 데이터가 없는 정상적인 경우이므로 조용히 처리
     if (response.status === 404) {
@@ -88,9 +104,14 @@ export const saveMenuData = async (menuData, imageFile, imageFiles = {}) => {
   const formData = new FormData();
   formData.append('data', JSON.stringify(menuData));
 
+  console.log('[saveMenuData] imageFile:', imageFile);
+  console.log('[saveMenuData] imageFiles:', imageFiles);
+  console.log('[saveMenuData] imageFiles keys:', Object.keys(imageFiles));
+
   // 전체 요일 모드: 하나의 이미지
   if (imageFile) {
     formData.append('image', imageFile);
+    console.log('[saveMenuData] 전체 요일 이미지 추가됨');
   }
 
   // 개별 요일 모드: 요일별 이미지
@@ -98,6 +119,7 @@ export const saveMenuData = async (menuData, imageFile, imageFiles = {}) => {
   days.forEach(day => {
     if (imageFiles[day]) {
       formData.append(`image_${day}`, imageFiles[day]);
+      console.log(`[saveMenuData] ${day}요일 이미지 추가됨:`, imageFiles[day].name);
     }
   });
 
@@ -133,9 +155,23 @@ export const publishMenuData = async () => {
   return data;
 };
 
-// 식당의 모든 메뉴 데이터 삭제
+// 식당의 모든 메뉴 데이터 삭제 (이름 기반)
 export const deleteAllMenuDataByRestaurant = async (restaurantName) => {
   const response = await fetch(`/api/menu-data/restaurant/${encodeURIComponent(restaurantName)}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '식당 데이터 삭제 실패');
+  }
+
+  return await response.json();
+};
+
+// 식당의 모든 메뉴 데이터 삭제 (ID 기반)
+export const deleteAllMenuDataByRestaurantId = async (restaurantId) => {
+  const response = await fetch(`/api/menu-data/restaurant-id/${restaurantId}`, {
     method: 'DELETE',
   });
 

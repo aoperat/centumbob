@@ -28,6 +28,7 @@ const EntryTab = forwardRef(
   (
     {
       restaurants,
+      restaurantsData,
       dateRanges,
       selectedCafeteria,
       setSelectedCafeteria,
@@ -87,9 +88,17 @@ const EntryTab = forwardRef(
       const fetchData = async () => {
         if (!selectedCafeteria || !selectedDateRange) return;
 
+        // restaurantsData 배열에서 선택된 식당의 정보 찾기
+        const restaurant = restaurantsData?.find(r => r.name === selectedCafeteria);
+        if (!restaurant) return;
+
         setIsLoading(true);
         try {
-          const data = await loadMenuData(selectedCafeteria, selectedDateRange);
+          // restaurant 객체 전달 (id와 name 포함)
+          const data = await loadMenuData(
+            { id: restaurant.id, name: restaurant.name },
+            selectedDateRange
+          );
 
           if (data) {
             // 데이터가 있으면 저장된 데이터 사용
@@ -152,7 +161,7 @@ const EntryTab = forwardRef(
       };
 
       fetchData();
-    }, [selectedCafeteria, selectedDateRange, restaurantDetails]);
+    }, [selectedCafeteria, selectedDateRange, restaurantDetails, restaurantsData]);
 
     // 이미지 파일 처리 공통 함수
     const processImageFile = useCallback((file) => {
@@ -519,13 +528,33 @@ const EntryTab = forwardRef(
           ? true
           : currentRestaurant.use_all_days === 1;
 
+      // restaurantsData 배열에서 선택된 식당의 ID 찾기
+      let restaurant = null;
+      if (restaurantsData && restaurantsData.length > 0) {
+        restaurant = restaurantsData.find(r => r.name === selectedCafeteria);
+      }
+
+      if (!restaurant) {
+        console.error('restaurantsData에서 식당을 찾을 수 없습니다:', selectedCafeteria);
+        alert('식당 정보를 찾을 수 없습니다. 페이지를 새로고침해주세요.');
+        return;
+      }
+
       const finalData = {
         name: selectedCafeteria,
+        restaurantId: restaurant.id,
         date: selectedDateRange,
         menus: menuGrid,
         use_all_days: useAllDays,
         excluded_menu_items: excludedMenuItems,
       };
+
+      console.log('[handleSave] useAllDays:', useAllDays);
+      console.log('[handleSave] selectedCafeteria:', selectedCafeteria);
+      console.log('[handleSave] restaurantsData:', restaurantsData);
+      console.log('[handleSave] imageFile:', imageFile);
+      console.log('[handleSave] imageFiles:', imageFiles);
+      console.log('[handleSave] imageFiles keys:', Object.keys(imageFiles));
 
       if (useAllDays) {
         // 전체 요일 모드: 하나의 이미지
@@ -539,7 +568,7 @@ const EntryTab = forwardRef(
     // ref를 통해 부모 컴포넌트에서 저장 함수 호출 가능하도록
     useImperativeHandle(ref, () => ({
       save: handleSave,
-    }));
+    }), [selectedCafeteria, selectedDateRange, menuGrid, excludedMenuItems, imageFile, imageFiles, restaurantDetails, restaurantsData, onSave]);
 
     const days = ["월", "화", "수", "목", "금"];
 
@@ -567,11 +596,19 @@ const EntryTab = forwardRef(
                     onChange={(e) => setSelectedCafeteria(e.target.value)}
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-700 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
                   >
-                    {restaurants.map((res, i) => (
-                      <option key={i} value={res}>
-                        {res}
-                      </option>
-                    ))}
+                    {restaurantsData && restaurantsData.length > 0 ? (
+                      restaurantsData.map((res) => (
+                        <option key={res.id} value={res.name}>
+                          {res.building_name ? `${res.name} (${res.building_name})` : res.name}
+                        </option>
+                      ))
+                    ) : (
+                      restaurants.map((res, i) => (
+                        <option key={i} value={res}>
+                          {res}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
                 <div>

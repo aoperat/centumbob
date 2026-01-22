@@ -132,6 +132,52 @@ try {
     console.error("webhook_type 마이그레이션 오류:", migrationError);
   }
 
+  // 마이그레이션: building_name 컬럼 확인 및 추가
+  try {
+    const tableInfo3 = db.pragma("table_info(restaurants)");
+    const hasBuildingNameColumn = tableInfo3.find(
+      (col) => col.name === "building_name"
+    );
+    if (!hasBuildingNameColumn) {
+      console.log("restaurants 테이블에 building_name 컬럼 추가 중...");
+      db.exec(
+        "ALTER TABLE restaurants ADD COLUMN building_name TEXT DEFAULT ''"
+      );
+
+      // 기존 데이터 마이그레이션: 괄호 바깥 텍스트를 building_name으로, 괄호 안 텍스트를 name으로 분리
+      // 예: "동서대 (파티박스)" → name: "파티박스", building_name: "동서대"
+      try {
+        const existingRestaurants = db
+          .prepare("SELECT id, name FROM restaurants WHERE name LIKE '%(%'")
+          .all();
+        if (existingRestaurants.length > 0) {
+          console.log(
+            `${existingRestaurants.length}개 식당의 건물명 분리 마이그레이션 중...`
+          );
+          const updateStmt = db.prepare(
+            "UPDATE restaurants SET name = ?, building_name = ? WHERE id = ?"
+          );
+          existingRestaurants.forEach((row) => {
+            const match = row.name.match(/^(.+?)\s*\((.+?)\)\s*$/);
+            if (match) {
+              const buildingName = match[1].trim(); // 괄호 바깥 = 건물명
+              const newName = match[2].trim();      // 괄호 안 = 식당명
+              updateStmt.run(newName, buildingName, row.id);
+              console.log(
+                `  "${row.name}" → 식당명: "${newName}", 건물명: "${buildingName}"`
+              );
+            }
+          });
+          console.log("건물명 분리 마이그레이션 완료");
+        }
+      } catch (migrateError) {
+        console.error("건물명 분리 마이그레이션 오류:", migrateError);
+      }
+    }
+  } catch (migrationError) {
+    console.error("building_name 마이그레이션 오류:", migrationError);
+  }
+
   // 마이그레이션: menu_data 테이블에 image_paths 컬럼 확인 및 추가
   try {
     const menuDataTableInfo = db.pragma("table_info(menu_data)");
@@ -258,6 +304,109 @@ try {
     console.error("restaurant_id 마이그레이션 오류:", migrationError);
   }
 
+  // 마이그레이션: UNIQUE 제약을 restaurant_id 기반으로 변경
+  try {
+    const constraintCheck = db.prepare(`
+      SELECT sql FROM sqlite_master
+      WHERE type='table' AND name='menu_data'
+    `).get();
+
+    if (constraintCheck && constraintCheck.sql.includes('UNIQUE(restaurant_name, date_range)')) {
+      console.log('UNIQUE 제약을 restaurant_id 기반으로 변경 중...');
+
+      // SQLite는 제약 변경이 어려우므로 테이블 재생성 필요
+      // 1. 임시 테이블 생성 (새 제약 조건)
+      db.exec(`
+        CREATE TABLE menu_data_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          restaurant_id INTEGER NOT NULL,
+          restaurant_name TEXT NOT NULL,
+          date_range TEXT NOT NULL,
+          price_lunch TEXT,
+          price_dinner TEXT,
+          menus TEXT NOT NULL,
+          image_path TEXT,
+          image_paths TEXT,
+          excluded_menu_items TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(restaurant_id, date_range),
+          FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+        )
+      `);
+
+      // 2. 데이터 복사
+      db.exec(`
+        INSERT INTO menu_data_new (id, restaurant_id, restaurant_name, date_range, price_lunch, price_dinner, menus, image_path, image_paths, excluded_menu_items, created_at, updated_at)
+        SELECT id, restaurant_id, restaurant_name, date_range, price_lunch, price_dinner, menus, image_path, image_paths, excluded_menu_items, created_at, updated_at
+        FROM menu_data
+      `);
+
+      // 3. 기존 테이블 삭제 및 이름 변경
+      db.exec(`DROP TABLE menu_data`);
+      db.exec(`ALTER TABLE menu_data_new RENAME TO menu_data`);
+
+      // 4. 인덱스 재생성
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_menu_data_restaurant_id ON menu_data(restaurant_id)`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_menu_data_date_range ON menu_data(date_range)`);
+
+      console.log('✓ UNIQUE 제약 변경 완료 (restaurant_id, date_range)');
+    }
+  } catch (migrationError) {
+    console.error('UNIQUE 제약 변경 오류:', migrationError);
+    throw migrationError;
+  }
+
+  // 마이그레이션: restaurants 테이블의 name UNIQUE 제약 제거 (식당명 중복 허용)
+  try {
+    const restaurantsCheck = db.prepare(`
+      SELECT sql FROM sqlite_master
+      WHERE type='table' AND name='restaurants'
+    `).get();
+
+    if (restaurantsCheck && restaurantsCheck.sql.includes('name TEXT NOT NULL UNIQUE')) {
+      console.log('restaurants 테이블의 name UNIQUE 제약 제거 중...');
+
+      // 1. 임시 테이블 생성 (UNIQUE 제약 없음)
+      db.exec(`
+        CREATE TABLE restaurants_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          building_name TEXT DEFAULT '',
+          price_lunch TEXT DEFAULT '',
+          price_dinner TEXT DEFAULT '',
+          has_dinner INTEGER DEFAULT 1,
+          is_active INTEGER DEFAULT 1,
+          sort_order INTEGER DEFAULT 0,
+          webhook_url TEXT DEFAULT NULL,
+          webhook_type TEXT DEFAULT NULL,
+          use_all_days INTEGER DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // 2. 데이터 복사
+      db.exec(`
+        INSERT INTO restaurants_new (id, name, building_name, price_lunch, price_dinner, has_dinner, is_active, sort_order, webhook_url, webhook_type, use_all_days, created_at, updated_at)
+        SELECT id, name, building_name, price_lunch, price_dinner, has_dinner, is_active, sort_order, webhook_url, webhook_type, use_all_days, created_at, updated_at
+        FROM restaurants
+      `);
+
+      // 3. 기존 테이블 삭제 및 이름 변경
+      db.exec(`DROP TABLE restaurants`);
+      db.exec(`ALTER TABLE restaurants_new RENAME TO restaurants`);
+
+      // 4. 인덱스 재생성
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_restaurants_active ON restaurants(is_active, sort_order)`);
+
+      console.log('✓ restaurants 테이블 UNIQUE 제약 제거 완료 (식당명 중복 허용)');
+    }
+  } catch (migrationError) {
+    console.error('restaurants UNIQUE 제약 제거 오류:', migrationError);
+    throw migrationError;
+  }
+
   console.log("데이터베이스 테이블 초기화 완료");
 } catch (tableError) {
   console.error("테이블 생성 실패:", tableError);
@@ -300,6 +449,15 @@ export const saveMenuData = (data) => {
     }
   }
 
+  // restaurant_id가 확보되지 않으면 에러 발생
+  if (!finalRestaurantId) {
+    const errorMsg = restaurant_name
+      ? `Restaurant not found: ${restaurant_name}`
+      : 'restaurant_id is required';
+    console.error('[saveMenuData] Error:', errorMsg);
+    throw new Error(errorMsg);
+  }
+
   // image_paths를 JSON 문자열로 변환
   let imagePathsJson = null;
   if (image_paths) {
@@ -323,9 +481,9 @@ export const saveMenuData = (data) => {
   const stmt = db.prepare(`
     INSERT INTO menu_data (restaurant_name, restaurant_id, date_range, price_lunch, price_dinner, menus, image_path, image_paths, excluded_menu_items, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(restaurant_name, date_range) 
+    ON CONFLICT(restaurant_id, date_range)
     DO UPDATE SET
-      restaurant_id = excluded.restaurant_id,
+      restaurant_name = excluded.restaurant_name,
       price_lunch = excluded.price_lunch,
       price_dinner = excluded.price_dinner,
       menus = excluded.menus,
@@ -360,17 +518,23 @@ export const getMenuData = (restaurant_identifier, date_range) => {
     if (typeof restaurant_identifier === "number" || /^\d+$/.test(String(restaurant_identifier))) {
       // 숫자면 restaurant_id로 조회
       stmt = db.prepare(`
-        SELECT * FROM menu_data 
+        SELECT * FROM menu_data
         WHERE restaurant_id = ? AND date_range = ?
       `);
       params = [parseInt(restaurant_identifier, 10), date_range];
     } else {
-      // 문자열이면 restaurant_name으로 조회
+      // 문자열이면 restaurant_name → restaurant_id 변환 후 조회
+      const restaurant = db
+        .prepare("SELECT id FROM restaurants WHERE name = ?")
+        .get(restaurant_identifier);
+
+      if (!restaurant) return null;
+
       stmt = db.prepare(`
-        SELECT * FROM menu_data 
-        WHERE restaurant_name = ? AND date_range = ?
+        SELECT * FROM menu_data
+        WHERE restaurant_id = ? AND date_range = ?
       `);
-      params = [restaurant_identifier, date_range];
+      params = [restaurant.id, date_range];
     }
 
     const row = stmt.get(...params);
@@ -538,11 +702,31 @@ export const deleteMenuData = (restaurant_name, date_range) => {
 // 식당의 모든 데이터 삭제
 export const deleteAllMenuDataByRestaurant = (restaurant_name) => {
   const stmt = db.prepare(`
-    DELETE FROM menu_data 
+    DELETE FROM menu_data
     WHERE restaurant_name = ?
   `);
 
   return stmt.run(restaurant_name);
+};
+
+// restaurant_id 기반 데이터 삭제
+export const deleteMenuDataById = (restaurant_id, date_range) => {
+  const stmt = db.prepare(`
+    DELETE FROM menu_data
+    WHERE restaurant_id = ? AND date_range = ?
+  `);
+
+  return stmt.run(restaurant_id, date_range);
+};
+
+// restaurant_id 기반 식당의 모든 데이터 삭제
+export const deleteAllMenuDataByRestaurantId = (restaurant_id) => {
+  const stmt = db.prepare(`
+    DELETE FROM menu_data
+    WHERE restaurant_id = ?
+  `);
+
+  return stmt.run(restaurant_id);
 };
 
 // ==================== 식당 관리 CRUD ====================
@@ -555,10 +739,11 @@ export const getAllRestaurants = () => {
       ORDER BY sort_order ASC, id ASC
     `);
     const results = stmt.all();
-    // use_all_days 필드가 없으면 기본값 1로 설정 (하위 호환성)
+    // 하위 호환성: 없는 필드 기본값 설정
     return results.map((row) => ({
       ...row,
       use_all_days: row.use_all_days === undefined ? 1 : row.use_all_days,
+      building_name: row.building_name || "",
     }));
   } catch (error) {
     console.error("식당 목록 조회 오류:", error);
@@ -575,10 +760,11 @@ export const getActiveRestaurants = () => {
       ORDER BY sort_order ASC, id ASC
     `);
     const results = stmt.all();
-    // use_all_days 필드가 없으면 기본값 1로 설정 (하위 호환성)
+    // 하위 호환성: 없는 필드 기본값 설정
     return results.map((row) => ({
       ...row,
       use_all_days: row.use_all_days === undefined ? 1 : row.use_all_days,
+      building_name: row.building_name || "",
     }));
   } catch (error) {
     console.error("활성 식당 목록 조회 오류:", error);
@@ -590,6 +776,7 @@ export const getActiveRestaurants = () => {
 export const addRestaurant = (data) => {
   const {
     name,
+    building_name,
     price_lunch,
     price_dinner,
     has_dinner,
@@ -605,14 +792,15 @@ export const addRestaurant = (data) => {
   const newOrder = (maxOrder?.max_order || 0) + 1;
 
   const stmt = db.prepare(`
-    INSERT INTO restaurants (name, price_lunch, price_dinner, has_dinner, webhook_url, webhook_type, use_all_days, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO restaurants (name, building_name, price_lunch, price_dinner, has_dinner, webhook_url, webhook_type, use_all_days, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const hasDinnerVal = has_dinner === undefined ? 1 : has_dinner ? 1 : 0;
   const useAllDaysVal = use_all_days === undefined ? 1 : use_all_days ? 1 : 0;
   const result = stmt.run(
     name,
+    building_name || "",
     price_lunch || "",
     price_dinner || "",
     hasDinnerVal,
@@ -624,6 +812,7 @@ export const addRestaurant = (data) => {
   return {
     id: result.lastInsertRowid,
     name,
+    building_name: building_name || "",
     price_lunch,
     price_dinner,
     has_dinner: hasDinnerVal,
@@ -637,6 +826,7 @@ export const addRestaurant = (data) => {
 export const updateRestaurant = (id, data) => {
   const {
     name,
+    building_name,
     price_lunch,
     price_dinner,
     has_dinner,
@@ -653,6 +843,10 @@ export const updateRestaurant = (id, data) => {
   if (name !== undefined) {
     updates.push("name = ?");
     params.push(name);
+  }
+  if (building_name !== undefined) {
+    updates.push("building_name = ?");
+    params.push(building_name || "");
   }
   if (price_lunch !== undefined) {
     updates.push("price_lunch = ?");
@@ -712,7 +906,12 @@ export const deleteRestaurant = (id) => {
 // 식당 단일 조회
 export const getRestaurantById = (id) => {
   const stmt = db.prepare("SELECT * FROM restaurants WHERE id = ?");
-  return stmt.get(id);
+  const row = stmt.get(id);
+  if (!row) return null;
+  return {
+    ...row,
+    building_name: row.building_name || "",
+  };
 };
 
 // 식당 순서 일괄 업데이트

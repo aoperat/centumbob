@@ -15,6 +15,7 @@ import {
   getAllMenuData,
   getMenuDataList,
   deleteAllMenuDataByRestaurant,
+  deleteAllMenuDataByRestaurantId,
   getAllRestaurants,
   getActiveRestaurants,
   getRestaurantById,
@@ -919,6 +920,11 @@ app.post(
         });
       }
 
+      // restaurantId가 없으면 경고 로그 출력
+      if (!adminData.restaurantId) {
+        console.warn('[/api/save] Warning: restaurantId가 전달되지 않았습니다. restaurant_name으로 조회 시도:', adminData.name);
+      }
+
       // 기존 데이터 조회 (이미지 경로 유지용)
       const existing = getMenuData(adminData.name, adminData.date);
       let imagePath = null;
@@ -972,6 +978,7 @@ app.post(
 
       // DB에 저장
       const result = saveMenuData({
+        restaurant_id: adminData.restaurantId,
         restaurant_name: adminData.name,
         date_range: adminData.date,
         price_lunch: "",
@@ -1147,12 +1154,14 @@ app.post("/api/ocr/test-post", upload.single("image"), async (req, res) => {
 app.get("/api/load", (req, res) => {
   try {
     console.log("[/api/load] 요청 받음:", req.query);
-    const { restaurant, date } = req.query;
+    const { restaurant, restaurantId, date } = req.query;
 
     // 특정 식당/날짜 데이터 조회
-    if (restaurant && date) {
+    if ((restaurant || restaurantId) && date) {
       try {
-        const menuData = getMenuData(restaurant, date);
+        // restaurantId 우선 사용, 없으면 restaurant 사용 (하위 호환성)
+        const identifier = restaurantId || restaurant;
+        const menuData = getMenuData(identifier, date);
 
         if (!menuData) {
           console.log("[/api/load] 데이터 없음:", restaurant, date);
@@ -1256,6 +1265,33 @@ app.delete("/api/menu-data/restaurant/:restaurantName", (req, res) => {
   }
 });
 
+// restaurant_id 기반 식당의 모든 메뉴 데이터 삭제
+app.delete("/api/menu-data/restaurant-id/:restaurantId", (req, res) => {
+  try {
+    const restaurantId = parseInt(req.params.restaurantId, 10);
+
+    if (!restaurantId || isNaN(restaurantId)) {
+      return res.status(400).json({
+        error: "유효한 식당 ID가 필요합니다.",
+      });
+    }
+
+    const result = deleteAllMenuDataByRestaurantId(restaurantId);
+
+    res.json({
+      success: true,
+      message: `식당 ID ${restaurantId}의 모든 메뉴 데이터가 삭제되었습니다.`,
+      deleted: result.changes,
+    });
+  } catch (error) {
+    console.error("식당 메뉴 데이터 삭제 오류:", error);
+    res.status(500).json({
+      error: "식당 메뉴 데이터를 삭제하는 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
 // 게시 API: DB 데이터를 뷰어용 JSON 파일로 생성
 app.post("/api/publish", async (req, res) => {
   try {
@@ -1307,11 +1343,11 @@ app.post("/api/publish", async (req, res) => {
       });
     }
 
-    // 기준데이터(restaurants) 조회하여 식당명을 키로 하는 맵 생성
+    // 기준데이터(restaurants) 조회하여 식당 ID를 키로 하는 맵 생성
     const allRestaurants = getAllRestaurants();
     const restaurantMap = {};
     allRestaurants.forEach((r) => {
-      restaurantMap[r.name] = r;
+      restaurantMap[r.id] = r;
     });
 
     // viewer/public/images/ 디렉토리 생성
@@ -1326,8 +1362,8 @@ app.post("/api/publish", async (req, res) => {
       fs.mkdirSync(viewerImagesDir, { recursive: true });
     }
 
-    // 뷰어 형식으로 변환 (식당명을 키로 하는 객체)
-    const viewerData = {};
+    // 뷰어 형식으로 변환 (ID 기반 배열)
+    const viewerData = [];
     dataToPublish.forEach((dbData) => {
       try {
         let imageBase64 = null;
@@ -1419,69 +1455,35 @@ app.post("/api/publish", async (req, res) => {
         }
       }
 
-      // 기준데이터에서 해당 식당 정보 가져오기
-      const restaurantInfo = restaurantMap[dbData.restaurant_name] || null;
+      // 기준데이터에서 해당 식당 정보 가져오기 (restaurant_id로 조회)
+      const restaurantInfo = restaurantMap[dbData.restaurant_id] || null;
       if (!restaurantInfo) {
-        console.warn(`[게시] 경고: ${dbData.restaurant_name}에 대한 기준데이터를 찾을 수 없습니다.`);
+        console.warn(`[게시] 경고: restaurant_id ${dbData.restaurant_id} (${dbData.restaurant_name})에 대한 기준데이터를 찾을 수 없습니다.`);
       }
       const transformed = transformDbDataForViewer(
         dbData,
         imageBase64,
         restaurantInfo
       );
-      viewerData[transformed.name] = transformed;
+      viewerData.push(transformed);
       } catch (error) {
         console.error(`[게시] ${dbData.restaurant_name} 변환 실패:`, error);
         // 에러가 발생해도 계속 진행
       }
     });
 
-    console.log("[게시] 변환 후 식당명 목록:", Object.keys(viewerData));
+    console.log("[게시] 변환 후 식당 목록:", viewerData.map(d => `${d.name}(ID:${d.id})`));
 
-    // 중복 식당명 감지 및 병합
-    const mergedViewerData = {};
-    const processedNames = new Set();
+    // sort_order로 정렬
+    viewerData.sort((a, b) => a.sort_order - b.sort_order);
 
-    Object.keys(viewerData).forEach(name => {
-      if (processedNames.has(name)) return;
-      
-      // 다른 식당명 중 이 이름을 포함하는 것 찾기
-      const similarNames = Object.keys(viewerData).filter(otherName => {
-        if (otherName === name || processedNames.has(otherName)) return false;
-        return otherName.includes(name) || name.includes(otherName);
-      });
-      
-      if (similarNames.length > 0) {
-        // 더 긴 이름(상세한 이름)을 우선 사용
-        const allNames = [name, ...similarNames];
-        const primaryName = allNames.reduce((longest, current) => 
-          current.length > longest.length ? current : longest
-        );
-        
-        // 메뉴 데이터가 있는 것을 우선 사용
-        const namesWithData = allNames.filter(n => {
-          const data = viewerData[n];
-          return hasMenuData(data.data.menus);
-        });
-        
-        const finalName = namesWithData.length > 0 ? namesWithData[0] : primaryName;
-        
-        console.warn(`[게시] 중복 식당명 감지: ${allNames.join(', ')} -> ${finalName}로 병합`);
-        mergedViewerData[finalName] = viewerData[finalName];
-        
-        allNames.forEach(n => processedNames.add(n));
-      } else {
-        mergedViewerData[name] = viewerData[name];
-        processedNames.add(name);
-      }
-    });
+    console.log("[게시] 정렬 후 식당 목록:", viewerData.map(d => `${d.name}(ID:${d.id})`));
 
-    console.log("[게시] 최종 저장되는 식당명 목록:", Object.keys(mergedViewerData));
-
-    // 기준데이터에 있지만 게시되지 않은 식당 확인
-    const publishedNames = Object.keys(mergedViewerData);
-    const allRestaurantNames = allRestaurants.map(r => r.name);
-    const missingRestaurants = allRestaurantNames.filter(name => !publishedNames.includes(name));
+    // 기준데이터에 있지만 게시되지 않은 식당 확인 (ID 기반)
+    const publishedIds = viewerData.map(d => d.id);
+    const allRestaurantIds = allRestaurants.map(r => r.id);
+    const missingRestaurantIds = allRestaurantIds.filter(id => !publishedIds.includes(id));
+    const missingRestaurants = missingRestaurantIds.map(id => restaurantMap[id]?.name).filter(Boolean);
     if (missingRestaurants.length > 0) {
       console.warn("[게시] 경고: 다음 식당들이 게시되지 않았습니다:", missingRestaurants);
     }
@@ -1489,7 +1491,7 @@ app.post("/api/publish", async (req, res) => {
     // JSON 파일로 저장
     fs.writeFileSync(
       menuDataPath,
-      JSON.stringify(mergedViewerData, null, 2),
+      JSON.stringify(viewerData, null, 2),
       "utf-8"
     );
 
@@ -1508,7 +1510,7 @@ app.post("/api/publish", async (req, res) => {
     }
     fs.writeFileSync(
       viewerDataPath,
-      JSON.stringify(mergedViewerData, null, 2),
+      JSON.stringify(viewerData, null, 2),
       "utf-8"
     );
 
@@ -1516,7 +1518,7 @@ app.post("/api/publish", async (req, res) => {
       success: true,
       message: "데이터가 성공적으로 게시되었습니다.",
       count: dataToPublish.length,
-      published: Object.keys(mergedViewerData),
+      published: viewerData.map(d => d.name),
       missing: missingRestaurants || []
     });
   } catch (error) {
@@ -2486,6 +2488,7 @@ app.post("/api/restaurants", (req, res) => {
   try {
     const {
       name,
+      building_name,
       price_lunch,
       price_dinner,
       has_dinner,
@@ -2499,6 +2502,7 @@ app.post("/api/restaurants", (req, res) => {
 
     const newRestaurant = addRestaurant({
       name,
+      building_name,
       price_lunch,
       price_dinner,
       has_dinner,
@@ -2509,9 +2513,6 @@ app.post("/api/restaurants", (req, res) => {
     res.json(newRestaurant);
   } catch (error) {
     console.error("식당 추가 오류:", error);
-    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
-      return res.status(409).json({ error: "이미 존재하는 식당 이름입니다." });
-    }
     res.status(500).json({ error: "식당을 추가하는 중 오류가 발생했습니다." });
   }
 });
@@ -2532,9 +2533,6 @@ app.put("/api/restaurants/:id", (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error("식당 수정 오류:", error);
-    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
-      return res.status(409).json({ error: "이미 존재하는 식당 이름입니다." });
-    }
     res
       .status(500)
       .json({ error: "식당 정보를 수정하는 중 오류가 발생했습니다." });

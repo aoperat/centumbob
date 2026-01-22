@@ -61,7 +61,7 @@ export const transformDataForViewer = (adminData) => {
 // DB 데이터를 뷰어 형식으로 변환
 // restaurantInfo: 기준데이터(restaurants 테이블)의 가격 정보
 export const transformDbDataForViewer = (dbData, imageBase64 = null, restaurantInfo = null) => {
-  const { restaurant_name, date_range, price_lunch, price_dinner, menus, image_path, image_paths } = dbData;
+  const { restaurant_id, restaurant_name, date_range, price_lunch, price_dinner, menus, image_path, image_paths } = dbData;
 
   // 메뉴 데이터 변환: lunch/dinner → 점심/저녁
   const transformedMenus = {};
@@ -111,8 +111,17 @@ export const transformDbDataForViewer = (dbData, imageBase64 = null, restaurantI
   const finalPriceLunch = restaurantInfo?.price_lunch || price_lunch || "";
   const finalPriceDinner = restaurantInfo?.price_dinner || price_dinner || "";
 
+  // 건물명: 기준데이터(restaurantInfo)에서 가져옴
+  const buildingName = restaurantInfo?.building_name || "";
+
+  // sort_order: 기준데이터(restaurantInfo)에서 가져옴
+  const sortOrder = restaurantInfo?.sort_order || 999;
+
   return {
+    id: restaurant_id,
     name: restaurant_name,
+    building_name: buildingName,
+    sort_order: sortOrder,
     type: "text",
     price: {
       lunch: formatPrice(finalPriceLunch),

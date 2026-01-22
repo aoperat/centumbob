@@ -25,16 +25,6 @@ cd frontend && npm run dev
 cd viewer && npm run dev
 ```
 
-### Docker Development
-
-```bash
-# Development mode with hot reload
-docker-compose -f docker-compose.dev.yml up -d
-
-# Production mode
-docker-compose up -d
-```
-
 ### Build
 
 ```bash
@@ -48,30 +38,59 @@ cd viewer && npm run build
 
 1. Admin uploads meal image -> Backend analyzes via Tesseract OCR + GPT-4o Vision -> Extracted menu data returned
 2. Admin edits and saves menu -> Backend stores in SQLite (`backend/db/menu.db`)
-3. Admin publishes -> Backend generates `data/menu-data.json`
+3. Admin publishes -> Backend generates `data/menu-data.json` and copies images to `viewer/public/images/`
 4. GitHub Actions copies JSON to viewer and deploys to GitHub Pages
 
 ### Key Backend Modules (backend/)
 
-- `server.js`: Express routes for image analysis (`/api/analyze`), menu CRUD, blog generation, and health checks
-- `database.js`: SQLite operations using better-sqlite3 for menu_data, restaurants, date_ranges tables
-- `utils/transform.js`: Transforms database format to viewer-compatible JSON
+- `server.js`: Express routes for image analysis, menu CRUD, blog generation, webhooks, and complaints
+- `database.js`: SQLite operations using better-sqlite3 with auto-migrations for schema changes
+- `utils/transform.js`: Transforms database format (lunch/dinner) to viewer format (점심/저녁)
 - `utils/blogGenerator.js`: Generates Jekyll/Tistory blog posts from menu data
 - `utils/newsProvider.js`: Fetches daily news for blog content
+
+### API Endpoints
+
+Key endpoints in `backend/server.js`:
+- `POST /api/analyze` - GPT-4o Vision analysis of uploaded menu images
+- `POST /api/menu/upload` - Upload menu images for specific restaurant/day
+- `GET/POST /api/load` - Load/save menu data for restaurant + date range
+- `POST /api/publish` - Generate menu-data.json and copy images to viewer
+- `GET/POST/PUT/DELETE /api/restaurants` - Restaurant CRUD
+- `GET/POST/PUT/DELETE /api/date-ranges` - Date range CRUD
+- `POST /api/webhook/fetch-image` - Fetch menu images from external webhooks
+- `POST /api/webhook/fetch-json` - Fetch menu data from external JSON APIs
+- `POST /api/blog/generate` - Generate blog posts for Tistory/Jekyll
 
 ### Frontend Components
 
 Both frontend and viewer use React + Vite + Tailwind CSS:
 
-- Admin tabs: EntryTab (image upload/GPT analysis), ManagementTab (restaurants/dates), BlogTab, ComplaintTab, ApiGuideTab
-- Viewer: Single page showing weekly menus with day tabs, image modal, complaint submission
+Admin tabs (`frontend/src/components/`):
+- `EntryTab.jsx`: Image upload, GPT analysis, menu editing per restaurant/day
+- `ManagementTab.jsx`: Restaurant and date range management
+- `BlogTab.jsx`: Blog post generation controls
+- `ComplaintTab.jsx` / `ComplaintAdminTab.jsx`: User feedback management
+- `ApiGuideTab.jsx`: API documentation for external integrations
+
+Viewer (`viewer/src/components/`):
+- `MenuList.jsx`: Weekly menu display with day tabs
+- `ComplaintModal.jsx`: User complaint submission
 
 ### Database Schema
 
-Three main tables in SQLite:
-- `menu_data`: Stores menus per restaurant/date_range with JSON menus field
-- `restaurants`: Restaurant list with pricing, dinner availability, sort order
-- `date_ranges`: Week ranges with year/week numbers for ordering
+Three main tables in SQLite (`backend/db/menu.db`):
+
+**menu_data**: Menus per restaurant/date_range
+- `menus`: JSON with structure `{ "월": { "lunch": [], "dinner": [] }, ... }`
+- `image_paths`: JSON with day-specific images `{ "월": "path/to/image.jpg", ... }`
+- `excluded_menu_items`: JSON array of items to hide
+
+**restaurants**: Restaurant configuration
+- `has_dinner`, `use_all_days`: Display options
+- `webhook_url`, `webhook_type`: External data source config
+
+**date_ranges**: Week ranges with year/week for ordering
 
 ### Environment Variables (.env)
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { IconTrash, IconPlus, IconCheck, IconX, IconRefreshCw } from './Icons';
+import { IconTrash, IconPlus, IconCheck, IconX, IconRefreshCw, IconUpload } from './Icons';
 import { getWeekDateRange, getTotalWeeks } from '../utils/dateUtils';
-import { getDateRanges, addDateRange as addDateRangeAPI, updateDateRange, deleteDateRange as deleteDateRangeAPI } from '../utils/api';
+import { getDateRanges, addDateRange as addDateRangeAPI, updateDateRange, deleteDateRange as deleteDateRangeAPI, deleteAllMenuDataByRestaurantId, publishMenuData } from '../utils/api';
 
 const API_BASE_URL = '/api';
 
@@ -21,6 +21,7 @@ const ManagementTab = ({
   // 폼 상태
   const [formData, setFormData] = useState({
     name: '',
+    building_name: '',
     price_lunch: '',
     price_dinner: '',
     has_dinner: true,
@@ -83,6 +84,7 @@ const ManagementTab = ({
       setEditingId(restaurant.id);
       setFormData({
         name: restaurant.name,
+        building_name: restaurant.building_name || '',
         price_lunch: restaurant.price_lunch || '',
         price_dinner: restaurant.price_dinner || '',
         has_dinner: restaurant.has_dinner === 1,
@@ -94,6 +96,7 @@ const ManagementTab = ({
       setEditingId(null);
       setFormData({
         name: '',
+        building_name: '',
         price_lunch: '',
         price_dinner: '',
         has_dinner: true,
@@ -142,9 +145,13 @@ const ManagementTab = ({
 
   // 식당 삭제
   const handleDeleteRestaurant = async (id, name) => {
-    if (!confirm(`정말 '${name}' 식당을 삭제하시겠습니까?`)) return;
+    if (!confirm(`정말 '${name}' 식당을 삭제하시겠습니까?\n해당 식당의 모든 메뉴 데이터도 함께 삭제됩니다.`)) return;
 
     try {
+      // 먼저 메뉴 데이터 삭제 (restaurant_id 기반)
+      await deleteAllMenuDataByRestaurantId(id);
+
+      // 그 다음 식당 삭제
       const response = await fetch(`${API_BASE_URL}/restaurants/${id}`, {
         method: 'DELETE'
       });
@@ -202,9 +209,40 @@ const ManagementTab = ({
     }
   };
 
+  // 전체 데이터 게시
+  const handlePublish = async () => {
+    if (!confirm('활성화된 날짜 범위의 모든 데이터를 게시하시겠습니까?')) return;
+
+    try {
+      const result = await publishMenuData();
+      alert('데이터 게시 완료! 뷰어 페이지에서 확인할 수 있습니다.');
+      console.log("게시된 데이터:", result);
+    } catch (error) {
+      alert(`데이터 게시 실패: ${error.message}`);
+      console.error("게시 오류:", error);
+    }
+  };
+
   return (
     <div className="w-full h-full p-8 overflow-y-auto custom-scrollbar fade-in bg-slate-50">
       <div className="max-w-5xl mx-auto space-y-8">
+
+        {/* 전체 데이터 게시 버튼 */}
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6">
+          <div className="flex items-center justify-between">
+            <div className="text-white">
+              <h3 className="text-lg font-bold mb-1">전체 데이터 게시</h3>
+              <p className="text-sm text-blue-100">활성화된 날짜 범위의 모든 메뉴 데이터를 뷰어로 게시합니다.</p>
+            </div>
+            <button
+              onClick={handlePublish}
+              className="bg-white text-blue-600 px-6 py-3 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors shadow-md flex items-center gap-2"
+            >
+              <IconUpload size={18} />
+              전체 데이터 게시
+            </button>
+          </div>
+        </div>
         
         {/* 식당 관리 섹션 */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -228,6 +266,7 @@ const ManagementTab = ({
                 <tr>
                   <th className="px-6 py-3 font-bold">ID</th>
                   <th className="px-6 py-3 font-bold">식당 이름</th>
+                  <th className="px-6 py-3 font-bold">건물명</th>
                   <th className="px-6 py-3 font-bold">점심 가격</th>
                   <th className="px-6 py-3 font-bold">저녁 가격</th>
                   <th className="px-6 py-3 font-bold text-center">저녁 제공</th>
@@ -240,7 +279,7 @@ const ManagementTab = ({
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan="9" className="px-6 py-8 text-center text-slate-500">
+                    <td colSpan="10" className="px-6 py-8 text-center text-slate-500">
                       <div className="flex justify-center items-center gap-2">
                         <IconRefreshCw className="animate-spin" /> 로딩 중...
                       </div>
@@ -248,13 +287,14 @@ const ManagementTab = ({
                   </tr>
                 ) : dbRestaurants.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="px-6 py-8 text-center text-slate-500">등록된 식당이 없습니다.</td>
+                    <td colSpan="10" className="px-6 py-8 text-center text-slate-500">등록된 식당이 없습니다.</td>
                   </tr>
                 ) : (
                   dbRestaurants.map((res) => (
                     <tr key={res.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="px-6 py-4 text-slate-500 font-mono text-xs">{res.id}</td>
                       <td className="px-6 py-4 font-medium text-slate-900">{res.name}</td>
+                      <td className="px-6 py-4 text-slate-600">{res.building_name || '-'}</td>
                       <td className="px-6 py-4 text-slate-600">{res.price_lunch || '-'}</td>
                       <td className="px-6 py-4 text-slate-600">{res.price_dinner || '-'}</td>
                       <td className="px-6 py-4 text-center">
@@ -450,17 +490,29 @@ const ManagementTab = ({
             </div>
             
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">식당 이름 <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="예: 센텀호텔 구내식당"
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">식당 이름 <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="예: 파티박스"
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">건물명</label>
+                  <input
+                    type="text"
+                    value={formData.building_name}
+                    onChange={(e) => setFormData({ ...formData, building_name: e.target.value })}
+                    placeholder="예: 동서대"
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                  />
+                </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1.5">점심 기본 가격</label>
