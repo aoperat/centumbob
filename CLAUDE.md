@@ -60,6 +60,7 @@ Key endpoints in `backend/server.js`:
 - `GET/POST/PUT/DELETE /api/date-ranges` - Date range CRUD
 - `POST /api/webhook/fetch-image` - Fetch menu images from external webhooks
 - `POST /api/webhook/fetch-json` - Fetch menu data from external JSON APIs
+- `POST /api/webhook/upload-from-url` - **[NEW]** Download image from URL, analyze with OCR+GPT, and save to database (for n8n integration)
 - `POST /api/blog/generate` - Generate blog posts for Tistory/Jekyll
 
 ### Frontend Components
@@ -111,3 +112,46 @@ Viewer auto-deploys to GitHub Pages when pushing changes to `viewer/` or `data/m
 - 9101: Backend API
 - 9102: Admin Frontend
 - 9103: Viewer
+
+## n8n Integration
+
+The system supports automatic menu updates via n8n workflows. Use the `/api/webhook/upload-from-url` endpoint to automatically download, analyze, and save menu images.
+
+### Endpoint: POST /api/webhook/upload-from-url
+
+**Request Body**:
+```json
+{
+  "image_url": "https://...",
+  "restaurant_id": 6,
+  "type": "개별요일",  // or "전체요일"
+  "day_id": "월"       // required only for "개별요일"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "메뉴가 성공적으로 업로드되었습니다.",
+  "data": {
+    "restaurant_id": 6,
+    "restaurant_name": "삼촌밥차",
+    "date_range": "1.13-1.17",
+    "type": "개별요일",
+    "day_id": "월",
+    "extracted_data": { ... },
+    "saved_image": "삼촌밥차_1.13-1.17_1234567890.jpg"
+  }
+}
+```
+
+### n8n Workflow Setup
+
+1. Schedule trigger runs daily at specific times (e.g., 10-11 AM on weekdays)
+2. Fetch latest menu image from external source (e.g., Kakao profile page)
+3. Calculate current Korean day of week (월/화/수/목/금)
+4. Send POST request to `/api/webhook/upload-from-url` with image URL
+5. System automatically downloads, analyzes (OCR + GPT-4o Vision), and saves to database
+
+See `N8N_INTEGRATION.md` for detailed setup instructions.

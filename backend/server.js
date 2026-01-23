@@ -1530,6 +1530,232 @@ app.post("/api/publish", async (req, res) => {
   }
 });
 
+// ==================== 자동 게시 & Git Push API ====================
+
+app.post("/api/auto-publish-and-push", async (req, res) => {
+  try {
+    const { restaurant_id, day_id } = req.body;
+
+    console.log("[자동 게시] 시작:", { restaurant_id, day_id });
+
+    // 1. Publish 실행
+    console.log("[자동 게시] 1단계: 메뉴 데이터 게시 중...");
+
+    // 활성화된 날짜 범위 조회
+    const activeDateRanges = getActiveDateRanges();
+    if (activeDateRanges.length === 0) {
+      return res.status(400).json({
+        error: "활성화된 날짜 범위가 없습니다.",
+      });
+    }
+    const activeDateRange = activeDateRanges[0].date_range;
+
+    // DB에서 활성 날짜 범위의 데이터만 조회
+    const allMenuData = getAllMenuData();
+    const allData = allMenuData.filter(
+      (data) => data.date_range === activeDateRange
+    );
+
+    // 빈 메뉴 데이터 확인
+    const hasMenuData = (menus) => {
+      const days = ["월", "화", "수", "목", "금"];
+      return days.some(day => {
+        const dayMenu = menus[day] || { lunch: [], dinner: [] };
+        return (dayMenu.lunch && dayMenu.lunch.length > 0) ||
+               (dayMenu.dinner && dayMenu.dinner.length > 0);
+      });
+    };
+
+    const dataToPublish = allData.filter(dbData => hasMenuData(dbData.menus));
+
+    if (dataToPublish.length === 0) {
+      return res.status(400).json({
+        error: `활성화된 날짜 범위(${activeDateRange})에 게시할 데이터가 없습니다.`,
+      });
+    }
+
+    // 기준데이터 조회
+    const allRestaurants = getAllRestaurants();
+    const restaurantMap = {};
+    allRestaurants.forEach((r) => {
+      restaurantMap[r.id] = r;
+    });
+
+    // viewer/public/images/ 디렉토리 생성
+    const viewerImagesDir = path.join(__dirname, "..", "viewer", "public", "images");
+    if (!fs.existsSync(viewerImagesDir)) {
+      fs.mkdirSync(viewerImagesDir, { recursive: true });
+    }
+
+    // 뷰어 형식으로 변환
+    const viewerData = [];
+    dataToPublish.forEach((dbData) => {
+      try {
+        let imageBase64 = null;
+        const imagePathsByDay = dbData.image_paths || {};
+        const days = ["월", "화", "수", "목", "금"];
+
+        // 요일별 이미지 파일 복사
+        if (Object.keys(imagePathsByDay).length > 0) {
+          days.forEach((day) => {
+            if (imagePathsByDay[day]) {
+              try {
+                const imageAbsolutePath = path.join(__dirname, imagePathsByDay[day]);
+                if (fs.existsSync(imageAbsolutePath)) {
+                  const imageFileName = path.basename(imageAbsolutePath);
+                  const viewerImagePath = path.join(viewerImagesDir, imageFileName);
+                  if (!fs.existsSync(viewerImagePath) ||
+                      fs.statSync(imageAbsolutePath).mtime > fs.statSync(viewerImagePath).mtime) {
+                    fs.copyFileSync(imageAbsolutePath, viewerImagePath);
+                  }
+                  if (!imageBase64 && day === "월") {
+                    const imageBuffer = fs.readFileSync(imageAbsolutePath);
+                    const imageExt = path.extname(imageAbsolutePath).toLowerCase();
+                    let mimeType = "image/jpeg";
+                    if (imageExt === ".png") mimeType = "image/png";
+                    else if (imageExt === ".gif") mimeType = "image/gif";
+                    else if (imageExt === ".webp") mimeType = "image/webp";
+                    imageBase64 = `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
+                  }
+                }
+              } catch (imageError) {
+                console.error(`[${day}요일] 이미지 처리 오류:`, imageError);
+              }
+            }
+          });
+        }
+
+        // 전체 요일 모드: 단일 이미지 처리
+        if (!imageBase64 && dbData.image_path) {
+          try {
+            const imageAbsolutePath = path.join(__dirname, dbData.image_path);
+            if (fs.existsSync(imageAbsolutePath)) {
+              const imageBuffer = fs.readFileSync(imageAbsolutePath);
+              const imageExt = path.extname(imageAbsolutePath).toLowerCase();
+              let mimeType = "image/jpeg";
+              if (imageExt === ".png") mimeType = "image/png";
+              else if (imageExt === ".gif") mimeType = "image/gif";
+              else if (imageExt === ".webp") mimeType = "image/webp";
+              imageBase64 = `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
+
+              const imageFileName = path.basename(imageAbsolutePath);
+              const viewerImagePath = path.join(viewerImagesDir, imageFileName);
+              if (!fs.existsSync(viewerImagePath) ||
+                  fs.statSync(imageAbsolutePath).mtime > fs.statSync(viewerImagePath).mtime) {
+                fs.copyFileSync(imageAbsolutePath, viewerImagePath);
+              }
+            }
+          } catch (imageError) {
+            console.error("이미지 처리 오류:", imageError);
+          }
+        }
+
+        const restaurantInfo = restaurantMap[dbData.restaurant_id] || null;
+        const transformed = transformDbDataForViewer(dbData, imageBase64, restaurantInfo);
+        viewerData.push(transformed);
+      } catch (error) {
+        console.error(`[게시] ${dbData.restaurant_name} 변환 실패:`, error);
+      }
+    });
+
+    // sort_order로 정렬
+    viewerData.sort((a, b) => a.sort_order - b.sort_order);
+
+    // JSON 파일로 저장
+    fs.writeFileSync(menuDataPath, JSON.stringify(viewerData, null, 2), "utf-8");
+
+    // viewer/public/data/로도 복사
+    const viewerDataPath = path.join(__dirname, "..", "viewer", "public", "data", "menu-data.json");
+    const viewerDataDir = path.dirname(viewerDataPath);
+    if (!fs.existsSync(viewerDataDir)) {
+      fs.mkdirSync(viewerDataDir, { recursive: true });
+    }
+    fs.writeFileSync(viewerDataPath, JSON.stringify(viewerData, null, 2), "utf-8");
+
+    console.log("[자동 게시] 게시 완료");
+
+    // 2. Git Commit & Push
+    console.log("[자동 게시] 2단계: Git commit & push 중...");
+
+    // 커밋 메시지 생성
+    let commitMessage = "자동 업데이트: 메뉴 데이터";
+    if (restaurant_id && day_id) {
+      const restaurant = getRestaurantById(parseInt(restaurant_id, 10));
+      if (restaurant) {
+        commitMessage = `자동 업데이트: ${restaurant.name} ${day_id}요일 메뉴`;
+      }
+    }
+
+    // 프로젝트 루트 디렉토리
+    const projectRoot = path.join(__dirname, "..");
+
+    // Git add
+    const { execSync } = await import("child_process");
+    try {
+      execSync("git add data/menu-data.json viewer/public/images viewer/public/data", {
+        cwd: projectRoot,
+        encoding: "utf-8",
+      });
+      console.log("[자동 게시] git add 완료");
+    } catch (addError) {
+      console.error("[자동 게시] git add 실패:", addError.message);
+      return res.status(500).json({
+        error: "git add 실패",
+        message: addError.message,
+      });
+    }
+
+    // Git commit
+    try {
+      execSync(`git commit -m "${commitMessage}"`, {
+        cwd: projectRoot,
+        encoding: "utf-8",
+      });
+      console.log("[자동 게시] git commit 완료:", commitMessage);
+    } catch (commitError) {
+      // "nothing to commit" 에러는 무시
+      if (commitError.message.includes("nothing to commit")) {
+        console.log("[자동 게시] 변경사항 없음 (nothing to commit)");
+      } else {
+        console.error("[자동 게시] git commit 실패:", commitError.message);
+        return res.status(500).json({
+          error: "git commit 실패",
+          message: commitError.message,
+        });
+      }
+    }
+
+    // Git push
+    try {
+      execSync("git push", {
+        cwd: projectRoot,
+        encoding: "utf-8",
+        timeout: 30000, // 30초 타임아웃
+      });
+      console.log("[자동 게시] git push 완료");
+    } catch (pushError) {
+      console.error("[자동 게시] git push 실패:", pushError.message);
+      return res.status(500).json({
+        error: "git push 실패",
+        message: pushError.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "메뉴 데이터가 게시되고 GitHub에 업로드되었습니다.",
+      commit_message: commitMessage,
+      published_count: dataToPublish.length,
+    });
+  } catch (error) {
+    console.error("[자동 게시] 전체 오류:", error);
+    res.status(500).json({
+      error: "자동 게시 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
 // ==================== 블로그 생성 API ====================
 
 // 블로그 생성 상태 확인 엔드포인트 (디버깅용)
@@ -2458,6 +2684,792 @@ app.post("/api/webhook/fetch-json", async (req, res) => {
     console.error("[웹훅 JSON] 전체 오류:", error);
     res.status(500).json({
       error: "웹훅 JSON 가져오기 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// ==================== 웹훅 URL에서 이미지 업로드 및 분석 API ====================
+
+app.post("/api/webhook/upload-from-url", async (req, res) => {
+  try {
+    // 디버깅: 받은 데이터 로깅
+    console.log("[웹훅 업로드] 받은 req.body:", JSON.stringify(req.body, null, 2));
+    console.log("[웹훅 업로드] Content-Type:", req.headers['content-type']);
+
+    const { image_url, restaurant_id, type, day_id } = req.body;
+
+    // 필수 파라미터 검증
+    if (!image_url) {
+      return res.status(400).json({
+        error: "이미지 URL이 필요합니다.",
+      });
+    }
+
+    if (!restaurant_id || isNaN(parseInt(restaurant_id, 10))) {
+      return res.status(400).json({
+        error: "유효한 식당 ID가 필요합니다.",
+      });
+    }
+
+    if (!type || !["전체요일", "개별요일"].includes(type)) {
+      return res.status(400).json({
+        error: '타입 구분이 필요합니다. ("전체요일" 또는 "개별요일")',
+      });
+    }
+
+    if (type === "개별요일") {
+      const validDays = ["월", "화", "수", "목", "금"];
+      if (!day_id || !validDays.includes(day_id)) {
+        return res.status(400).json({
+          error: `개별요일 모드에서는 유효한 요일 ID가 필요합니다. (${validDays.join(", ")})`,
+        });
+      }
+    }
+
+    // URL 형식 검증
+    try {
+      new URL(image_url);
+    } catch (urlError) {
+      return res.status(400).json({
+        error: "잘못된 URL 형식입니다.",
+      });
+    }
+
+    const restaurantIdNum = parseInt(restaurant_id, 10);
+
+    console.log(
+      `[웹훅 업로드] 시작: restaurant_id=${restaurantIdNum}, type=${type}, day_id=${day_id || "N/A"}, url=${image_url}`
+    );
+
+    // 활성 날짜 범위 조회
+    const activeDateRanges = getActiveDateRanges();
+    if (activeDateRanges.length === 0) {
+      return res.status(400).json({
+        error: "활성화된 날짜 범위가 없습니다.",
+      });
+    }
+    const activeDateRange = activeDateRanges[0].date_range;
+
+    // 식당 정보 조회 및 검증
+    const restaurant = getRestaurantById(restaurantIdNum);
+    if (!restaurant) {
+      return res.status(404).json({
+        error: "식당을 찾을 수 없습니다.",
+      });
+    }
+
+    // OpenAI API 키 확인
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({
+        error: "OpenAI API 키가 설정되지 않았습니다.",
+      });
+    }
+
+    // 이미지 다운로드
+    console.log("[웹훅 업로드] 이미지 다운로드 중...");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let response;
+    try {
+      response = await fetch(image_url, {
+        method: "GET",
+        signal: controller.signal,
+        headers: {
+          Accept: "image/*",
+        },
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === "AbortError") {
+        return res.status(504).json({
+          error: "이미지 다운로드 시간 초과 (30초)",
+        });
+      }
+      console.error("[웹훅 업로드] 다운로드 실패:", fetchError);
+      return res.status(502).json({
+        error: "이미지를 다운로드할 수 없습니다.",
+        message: fetchError.message,
+      });
+    }
+
+    if (!response.ok) {
+      console.error(
+        "[웹훅 업로드] 다운로드 오류:",
+        response.status,
+        response.statusText
+      );
+      return res.status(502).json({
+        error: `이미지 다운로드 오류: ${response.status} ${response.statusText}`,
+      });
+    }
+
+    // Content-Type 확인
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.startsWith("image/")) {
+      console.error("[웹훅 업로드] 잘못된 Content-Type:", contentType);
+      return res.status(400).json({
+        error: "URL이 이미지를 반환하지 않습니다.",
+        contentType: contentType,
+      });
+    }
+
+    // 이미지 버퍼로 변환
+    const imageBuffer = Buffer.from(await response.arrayBuffer());
+
+    // 이미지 크기 검증 (최대 10MB)
+    if (imageBuffer.length > 10 * 1024 * 1024) {
+      return res.status(413).json({
+        error: "이미지 크기가 너무 큽니다. (최대 10MB)",
+      });
+    }
+
+    // 이미지 형식 검증
+    const validation = await validateImageBuffer(imageBuffer, contentType);
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: validation.error,
+      });
+    }
+
+    console.log(
+      `[웹훅 업로드] 이미지 다운로드 완료: ${imageBuffer.length} bytes`
+    );
+
+    // 파일 확장자 결정
+    let extension = "jpg";
+    if (contentType.includes("png")) extension = "png";
+    else if (contentType.includes("gif")) extension = "gif";
+    else if (contentType.includes("webp")) extension = "webp";
+
+    // 이미지를 base64로 변환
+    const imageBase64 = imageBuffer.toString("base64");
+    const imageDataUrl = `data:${contentType};base64,${imageBase64}`;
+
+    // 1. Tesseract OCR로 텍스트 1차 추출
+    console.log("[웹훅 업로드] OCR 분석 시작...");
+    let ocrText = "";
+    try {
+      const worker = await createWorker("kor+eng");
+      const ret = await worker.recognize(imageBuffer);
+      ocrText = ret.data.text;
+      await worker.terminate();
+      console.log(
+        "[웹훅 업로드] OCR 분석 완료 (텍스트 길이):",
+        ocrText.length
+      );
+    } catch (ocrError) {
+      console.warn(
+        "[웹훅 업로드] OCR 분석 실패 (GPT Vision만 사용):",
+        ocrError
+      );
+      // OCR 실패해도 계속 진행
+    }
+
+    // GPT API 호출 함수 (재시도 로직 포함)
+    const callGPTAPI = async (retryCount = 0) => {
+      try {
+        // 개별요일 모드일 때 추가 지침
+        const dayInfo = type === "개별요일"
+          ? `\n[중요] 이 이미지는 "${day_id}" 요일의 메뉴입니다. 분석한 메뉴를 반드시 "${day_id}" 요일 필드에 넣어주세요.\n`
+          : "";
+
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-2024-11-20",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `이 식단표 이미지를 정확하게 분석하여 다음 정보를 JSON 형식으로 추출해주세요.
+${dayInfo}
+[참고 정보]
+다음은 이미지에서 OCR(광학 문자 인식)로 추출한 원본 텍스트입니다.
+이미지가 흐릿하거나 글자가 잘 안 보일 때 이 텍스트를 참고하여 정확도를 높이세요.
+단, OCR 텍스트는 구조가 깨져있을 수 있으므로 메뉴의 배치나 요일 확인은 반드시 이미지를 기준으로 하세요.
+
+--- OCR 추출 텍스트 시작 ---
+${ocrText}
+--- OCR 추출 텍스트 끝 ---
+
+중요 지침:
+1. 이미지의 텍스트를 정확히 읽어야 합니다. 추측하지 마세요.
+2. 메뉴명은 이미지에 표시된 그대로 정확히 추출하세요.
+3. 가격 정보가 보이지 않으면 빈 문자열("")로 표시하세요.
+4. 메뉴가 없는 요일/시간대는 빈 배열([])로 표시하세요.
+5. 불확실한 정보는 포함하지 마세요.
+
+추출할 정보:
+1. 가격 정보:
+   - lunch: 점심 가격 (예: "7,000원", "7000원", 가격이 없으면 "")
+   - dinner: 저녁 가격 (예: "7,000원", "7000원", 가격이 없으면 "")
+
+2. 메뉴 정보 (월요일부터 금요일까지):
+   - 각 요일별로 점심(lunch)과 저녁(dinner) 메뉴를 배열로 추출
+   - 메뉴명은 이미지에 표시된 정확한 텍스트를 사용
+   - 각 메뉴는 별도의 배열 요소로 분리
+   - 메뉴가 없는 경우 빈 배열([])로 표시
+
+응답 형식 (반드시 이 형식을 정확히 따르세요):
+{
+  "price": {
+    "lunch": "가격 또는 빈 문자열",
+    "dinner": "가격 또는 빈 문자열"
+  },
+  "menus": {
+    "월": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "화": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "수": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "목": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "금": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    }
+  }
+}
+
+주의사항:
+- 반드시 위 JSON 형식을 정확히 따라야 합니다.
+- 다른 설명이나 주석 없이 순수한 JSON만 반환하세요.
+- 메뉴가 없는 경우 빈 배열([])을 사용하세요.
+- 가격이 없는 경우 빈 문자열("")을 사용하세요.`,
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: imageDataUrl,
+                    detail: "high",
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 2000,
+          temperature: 0.1,
+        });
+
+        const content = response.choices[0]?.message?.content;
+        if (!content) {
+          throw new Error("GPT 응답이 비어 있습니다.");
+        }
+
+        return content;
+      } catch (error) {
+        if (error.status === 429 && retryCount < 3) {
+          const waitTime = Math.pow(2, retryCount) * 1000;
+          console.log(`[웹훅 업로드] Rate limit, ${waitTime}ms 후 재시도...`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          return callGPTAPI(retryCount + 1);
+        }
+        throw error;
+      }
+    };
+
+    // 2. GPT-4o Vision으로 메뉴 데이터 추출
+    console.log("[웹훅 업로드] GPT 분석 시작...");
+    let gptResponse;
+    try {
+      gptResponse = await callGPTAPI();
+      console.log("[웹훅 업로드] GPT 분석 완료");
+    } catch (error) {
+      console.error("[웹훅 업로드] GPT API 오류:", error);
+      return res.status(500).json({
+        error: "메뉴 분석 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    // JSON 파싱
+    let menuData;
+    try {
+      const jsonMatch = gptResponse.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("GPT 응답에서 JSON을 찾을 수 없습니다.");
+      }
+      menuData = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      console.error("[웹훅 업로드] JSON 파싱 오류:", parseError);
+      console.error("GPT 응답:", gptResponse);
+      return res.status(500).json({
+        error: "GPT 응답을 파싱할 수 없습니다.",
+        gptResponse: gptResponse,
+      });
+    }
+
+    // 3. 이미지 저장 (일반 업로드와 동일한 구조 사용)
+    const timestamp = Date.now();
+    const filename = `${restaurant.name}_${activeDateRange}_${timestamp}.${extension}`;
+
+    // 디렉토리 구조: uploads/{restaurant}/{dateRange}/
+    const safeRestaurant = restaurant.name.replace(/[^a-zA-Z0-9가-힣]/g, "_");
+    const safeDateRange = activeDateRange.replace(/[^a-zA-Z0-9가-힣]/g, "_");
+    const destDir = path.join(uploadsDir, safeRestaurant, safeDateRange);
+
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+
+    const destPath = path.join(destDir, filename);
+    fs.writeFileSync(destPath, imageBuffer);
+
+    // 상대 경로 생성 (프론트엔드에서 사용)
+    const relativePath = path.relative(__dirname, destPath);
+    const imagePath = relativePath.split(path.sep).join("/");
+
+    console.log(`[웹훅 업로드] 이미지 저장 완료: ${imagePath}`);
+
+    // 4. 기존 데이터 조회
+    const existingData = getMenuData(restaurantIdNum, activeDateRange);
+
+    let finalMenus = existingData?.menus || {
+      월: { lunch: [], dinner: [] },
+      화: { lunch: [], dinner: [] },
+      수: { lunch: [], dinner: [] },
+      목: { lunch: [], dinner: [] },
+      금: { lunch: [], dinner: [] },
+    };
+
+    let finalImagePaths = existingData?.image_paths || {};
+
+    // 5. 데이터 병합 로직
+    if (type === "전체요일") {
+      // 전체 요일 덮어쓰기
+      finalMenus = menuData.menus;
+      finalImagePaths = {
+        월: imagePath,
+        화: imagePath,
+        수: imagePath,
+        목: imagePath,
+        금: imagePath,
+      };
+    } else if (type === "개별요일") {
+      // 개별 요일만 업데이트
+      // GPT가 어떤 요일에 메뉴를 넣었는지 찾기 (실제로 메뉴가 있는 첫 번째 요일)
+      let extractedMenuData = null;
+      const dayOrder = ["월", "화", "수", "목", "금"];
+
+      for (const day of dayOrder) {
+        if (menuData.menus[day]) {
+          const hasLunch = menuData.menus[day].lunch?.length > 0;
+          const hasDinner = menuData.menus[day].dinner?.length > 0;
+          if (hasLunch || hasDinner) {
+            extractedMenuData = menuData.menus[day];
+            console.log(`[웹훅 업로드] GPT가 분석한 요일: ${day}, 지정된 요일: ${day_id}`);
+            break;
+          }
+        }
+      }
+
+      if (extractedMenuData) {
+        finalMenus[day_id] = extractedMenuData;
+        finalImagePaths[day_id] = imagePath;
+        console.log(`[웹훅 업로드] ${day_id} 요일에 메뉴 저장 완료`);
+      } else {
+        console.warn(`[웹훅 업로드] GPT 분석 결과에 유효한 메뉴가 없습니다.`);
+      }
+    }
+
+    // 6. 데이터베이스 저장
+    const savedData = {
+      restaurant_id: restaurantIdNum,
+      date_range: activeDateRange,
+      price_lunch: menuData.price?.lunch || "",
+      price_dinner: menuData.price?.dinner || "",
+      menus: finalMenus,
+      image_paths: finalImagePaths,
+      excluded_menu_items: existingData?.excluded_menu_items || [],
+    };
+
+    saveMenuData(savedData);
+
+    console.log(
+      `[웹훅 업로드] 저장 완료: restaurant_id=${restaurantIdNum}, date_range=${activeDateRange}`
+    );
+
+    res.json({
+      success: true,
+      message: "메뉴가 성공적으로 업로드되었습니다.",
+      data: {
+        restaurant_id: restaurantIdNum,
+        restaurant_name: restaurant.name,
+        date_range: activeDateRange,
+        type: type,
+        day_id: day_id || null,
+        extracted_data: menuData,
+        saved_image: imagePath,
+      },
+    });
+  } catch (error) {
+    console.error("[웹훅 업로드] 전체 오류:", error);
+    res.status(500).json({
+      error: "메뉴 업로드 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 바이너리 이미지 업로드 (n8n용)
+app.post("/api/webhook/upload-binary", upload.single("image"), async (req, res) => {
+  try {
+    // 파라미터 추출
+    const { restaurant_id, type, day_id } = req.body;
+
+    console.log("[웹훅 바이너리] 받은 파라미터:", { restaurant_id, type, day_id });
+    console.log("[웹훅 바이너리] 파일 정보:", req.file ? {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : "없음");
+
+    // 필수 파라미터 검증
+    if (!req.file) {
+      return res.status(400).json({
+        error: "이미지 파일이 필요합니다.",
+      });
+    }
+
+    if (!restaurant_id || isNaN(parseInt(restaurant_id, 10))) {
+      return res.status(400).json({
+        error: "유효한 식당 ID가 필요합니다.",
+      });
+    }
+
+    if (!type || !["전체요일", "개별요일"].includes(type)) {
+      return res.status(400).json({
+        error: '타입 구분이 필요합니다. ("전체요일" 또는 "개별요일")',
+      });
+    }
+
+    if (type === "개별요일") {
+      const validDays = ["월", "화", "수", "목", "금"];
+      if (!day_id || !validDays.includes(day_id)) {
+        return res.status(400).json({
+          error: `개별요일 모드에서는 유효한 요일 ID가 필요합니다. (${validDays.join(", ")})`,
+        });
+      }
+    }
+
+    const restaurantIdNum = parseInt(restaurant_id, 10);
+
+    console.log(
+      `[웹훅 바이너리] 시작: restaurant_id=${restaurantIdNum}, type=${type}, day_id=${day_id || "N/A"}`
+    );
+
+    // 활성 날짜 범위 조회
+    const activeDateRanges = getActiveDateRanges();
+    if (activeDateRanges.length === 0) {
+      return res.status(400).json({
+        error: "활성화된 날짜 범위가 없습니다.",
+      });
+    }
+    const activeDateRange = activeDateRanges[0].date_range;
+
+    // 식당 정보 조회 및 검증
+    const restaurant = getRestaurantById(restaurantIdNum);
+    if (!restaurant) {
+      return res.status(404).json({
+        error: "식당을 찾을 수 없습니다.",
+      });
+    }
+
+    // OpenAI API 키 확인
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({
+        error: "OpenAI API 키가 설정되지 않았습니다.",
+      });
+    }
+
+    // 이미지를 base64로 변환
+    const imageBuffer = req.file.buffer;
+    const imageBase64 = imageBuffer.toString("base64");
+    const imageDataUrl = `data:${req.file.mimetype};base64,${imageBase64}`;
+
+    // 1. Tesseract OCR로 텍스트 1차 추출
+    console.log("[웹훅 바이너리] OCR 분석 시작...");
+    let ocrText = "";
+    try {
+      const worker = await createWorker("kor+eng");
+      const ret = await worker.recognize(imageBuffer);
+      ocrText = ret.data.text;
+      await worker.terminate();
+      console.log(
+        "[웹훅 바이너리] OCR 분석 완료 (텍스트 길이):",
+        ocrText.length
+      );
+    } catch (ocrError) {
+      console.warn(
+        "[웹훅 바이너리] OCR 분석 실패 (GPT Vision만 사용):",
+        ocrError
+      );
+      // OCR 실패해도 계속 진행
+    }
+
+    // GPT API 호출 함수 (재시도 로직 포함)
+    const callGPTAPI = async (retryCount = 0) => {
+      try {
+        // 개별요일 모드일 때 추가 지침
+        const dayInfo = type === "개별요일"
+          ? `\n[중요] 이 이미지는 "${day_id}" 요일의 메뉴입니다. 분석한 메뉴를 반드시 "${day_id}" 요일 필드에 넣어주세요.\n`
+          : "";
+
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-2024-11-20",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `이 식단표 이미지를 정확하게 분석하여 다음 정보를 JSON 형식으로 추출해주세요.
+${dayInfo}
+[참고 정보]
+다음은 이미지에서 OCR(광학 문자 인식)로 추출한 원본 텍스트입니다.
+이미지가 흐릿하거나 글자가 잘 안 보일 때 이 텍스트를 참고하여 정확도를 높이세요.
+단, OCR 텍스트는 구조가 깨져있을 수 있으므로 메뉴의 배치나 요일 확인은 반드시 이미지를 기준으로 하세요.
+
+--- OCR 추출 텍스트 시작 ---
+${ocrText}
+--- OCR 추출 텍스트 끝 ---
+
+중요 지침:
+1. 이미지의 텍스트를 정확히 읽어야 합니다. 추측하지 마세요.
+2. 메뉴명은 이미지에 표시된 그대로 정확히 추출하세요.
+3. 가격 정보가 보이지 않으면 빈 문자열("")로 표시하세요.
+4. 메뉴가 없는 요일/시간대는 빈 배열([])로 표시하세요.
+5. 불확실한 정보는 포함하지 마세요.
+
+추출할 정보:
+1. 가격 정보:
+   - lunch: 점심 가격 (예: "7,000원", "7000원", 가격이 없으면 "")
+   - dinner: 저녁 가격 (예: "7,000원", "7000원", 가격이 없으면 "")
+
+2. 메뉴 정보 (월요일부터 금요일까지):
+   - 각 요일별로 점심(lunch)과 저녁(dinner) 메뉴를 배열로 추출
+   - 메뉴명은 이미지에 표시된 정확한 텍스트를 사용
+   - 각 메뉴는 별도의 배열 요소로 분리
+   - 메뉴가 없는 경우 빈 배열([])로 표시
+
+응답 형식 (반드시 이 형식을 정확히 따르세요):
+{
+  "price": {
+    "lunch": "가격 또는 빈 문자열",
+    "dinner": "가격 또는 빈 문자열"
+  },
+  "menus": {
+    "월": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "화": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "수": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "목": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    },
+    "금": {
+      "lunch": ["메뉴1", "메뉴2"],
+      "dinner": ["메뉴1", "메뉴2"]
+    }
+  }
+}
+
+주의사항:
+- 반드시 위 JSON 형식을 정확히 따라야 합니다.
+- 다른 설명이나 주석 없이 순수한 JSON만 반환하세요.
+- 메뉴가 없는 경우 빈 배열([])을 사용하세요.
+- 가격이 없는 경우 빈 문자열("")을 사용하세요.`,
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: imageDataUrl,
+                    detail: "high",
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 2000,
+          temperature: 0.1,
+        });
+
+        const content = response.choices[0]?.message?.content;
+        if (!content) {
+          throw new Error("GPT 응답이 비어 있습니다.");
+        }
+
+        return content;
+      } catch (error) {
+        if (error.status === 429 && retryCount < 3) {
+          const waitTime = Math.pow(2, retryCount) * 1000;
+          console.log(`[웹훅 바이너리] Rate limit, ${waitTime}ms 후 재시도...`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          return callGPTAPI(retryCount + 1);
+        }
+        throw error;
+      }
+    };
+
+    // 2. GPT-4o Vision으로 메뉴 데이터 추출
+    console.log("[웹훅 바이너리] GPT 분석 시작...");
+    let gptResponse;
+    try {
+      gptResponse = await callGPTAPI();
+      console.log("[웹훅 바이너리] GPT 분석 완료");
+    } catch (error) {
+      console.error("[웹훅 바이너리] GPT API 오류:", error);
+      return res.status(500).json({
+        error: "메뉴 분석 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    // JSON 파싱
+    let menuData;
+    try {
+      const jsonMatch = gptResponse.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("GPT 응답에서 JSON을 찾을 수 없습니다.");
+      }
+      menuData = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      console.error("[웹훅 바이너리] JSON 파싱 오류:", parseError);
+      console.error("GPT 응답:", gptResponse);
+      return res.status(500).json({
+        error: "GPT 응답을 파싱할 수 없습니다.",
+        gptResponse: gptResponse,
+      });
+    }
+
+    // 3. 이미지 저장 (일반 업로드와 동일한 구조 사용)
+    const timestamp = Date.now();
+    const fileExt = path.extname(req.file.originalname) || ".jpg";
+    const filename = `${restaurant.name}_${activeDateRange}_${timestamp}${fileExt}`;
+
+    // 디렉토리 구조: uploads/{restaurant}/{dateRange}/
+    const safeRestaurant = restaurant.name.replace(/[^a-zA-Z0-9가-힣]/g, "_");
+    const safeDateRange = activeDateRange.replace(/[^a-zA-Z0-9가-힣]/g, "_");
+    const destDir = path.join(uploadsDir, safeRestaurant, safeDateRange);
+
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+
+    const destPath = path.join(destDir, filename);
+    fs.writeFileSync(destPath, imageBuffer);
+
+    // 상대 경로 생성 (프론트엔드에서 사용)
+    const relativePath = path.relative(__dirname, destPath);
+    const imagePath = relativePath.split(path.sep).join("/");
+
+    console.log(`[웹훅 바이너리] 이미지 저장 완료: ${imagePath}`);
+
+    // 4. 기존 데이터 조회
+    const existingData = getMenuData(restaurantIdNum, activeDateRange);
+
+    let finalMenus = existingData?.menus || {
+      월: { lunch: [], dinner: [] },
+      화: { lunch: [], dinner: [] },
+      수: { lunch: [], dinner: [] },
+      목: { lunch: [], dinner: [] },
+      금: { lunch: [], dinner: [] },
+    };
+
+    let finalImagePaths = existingData?.image_paths || {};
+
+    // 5. 데이터 병합 로직
+    if (type === "전체요일") {
+      // 전체 요일 덮어쓰기
+      finalMenus = menuData.menus;
+      finalImagePaths = {
+        월: imagePath,
+        화: imagePath,
+        수: imagePath,
+        목: imagePath,
+        금: imagePath,
+      };
+    } else if (type === "개별요일") {
+      // 개별 요일만 업데이트
+      // GPT가 어떤 요일에 메뉴를 넣었는지 찾기 (실제로 메뉴가 있는 첫 번째 요일)
+      let extractedMenuData = null;
+      const dayOrder = ["월", "화", "수", "목", "금"];
+
+      for (const day of dayOrder) {
+        if (menuData.menus[day]) {
+          const hasLunch = menuData.menus[day].lunch?.length > 0;
+          const hasDinner = menuData.menus[day].dinner?.length > 0;
+          if (hasLunch || hasDinner) {
+            extractedMenuData = menuData.menus[day];
+            console.log(`[웹훅 바이너리] GPT가 분석한 요일: ${day}, 지정된 요일: ${day_id}`);
+            break;
+          }
+        }
+      }
+
+      if (extractedMenuData) {
+        finalMenus[day_id] = extractedMenuData;
+        finalImagePaths[day_id] = imagePath;
+        console.log(`[웹훅 바이너리] ${day_id} 요일에 메뉴 저장 완료`);
+      } else {
+        console.warn(`[웹훅 바이너리] GPT 분석 결과에 유효한 메뉴가 없습니다.`);
+      }
+    }
+
+    // 6. 데이터베이스 저장
+    const savedData = {
+      restaurant_id: restaurantIdNum,
+      date_range: activeDateRange,
+      price_lunch: menuData.price?.lunch || "",
+      price_dinner: menuData.price?.dinner || "",
+      menus: finalMenus,
+      image_paths: finalImagePaths,
+      excluded_menu_items: existingData?.excluded_menu_items || [],
+    };
+
+    saveMenuData(savedData);
+
+    console.log(
+      `[웹훅 바이너리] 저장 완료: restaurant_id=${restaurantIdNum}, date_range=${activeDateRange}`
+    );
+
+    res.json({
+      success: true,
+      message: "메뉴가 성공적으로 업로드되었습니다.",
+      data: {
+        restaurant_id: restaurantIdNum,
+        restaurant_name: restaurant.name,
+        date_range: activeDateRange,
+        type: type,
+        day_id: day_id || null,
+        extracted_data: menuData,
+        saved_image: imagePath,
+      },
+    });
+  } catch (error) {
+    console.error("[웹훅 바이너리] 전체 오류:", error);
+    res.status(500).json({
+      error: "메뉴 업로드 중 오류가 발생했습니다.",
       message: error.message,
     });
   }

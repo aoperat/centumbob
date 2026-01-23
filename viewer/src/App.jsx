@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   IconUtensils,
   IconImage,
   IconX,
   IconCalendar,
+  IconChevronLeft,
+  IconChevronRight,
 } from "./components/Icons";
 import MenuList from "./components/MenuList";
 import ComplaintModal from "./components/ComplaintModal";
@@ -18,8 +20,11 @@ function App() {
   const [currentDate, setCurrentDate] = useState("");
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
   const [pageViewCount, setPageViewCount] = useState(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
   const days = ["월", "화", "수", "목", "금"];
+  const tableScrollRef = useRef(null);
 
   // 빠른 접근을 위한 name 기반 맵 생성
   const menuMap = Object.fromEntries(menuData.map(d => [d.name, d]));
@@ -194,6 +199,47 @@ function App() {
     return { menu: null, price };
   };
 
+  // 스크롤 상태 체크
+  const checkScrollButtons = () => {
+    const container = tableScrollRef.current;
+    if (!container) return;
+
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    setCanScrollLeft(scrollLeft > 0);
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 1);
+  };
+
+  // 스크롤 함수
+  const scrollTable = (direction) => {
+    const container = tableScrollRef.current;
+    if (!container) return;
+
+    const scrollAmount = 300; // 스크롤할 픽셀 수
+    const newScrollLeft = direction === 'left'
+      ? container.scrollLeft - scrollAmount
+      : container.scrollLeft + scrollAmount;
+
+    container.scrollTo({
+      left: newScrollLeft,
+      behavior: 'smooth'
+    });
+  };
+
+  // 스크롤 이벤트 리스너
+  useEffect(() => {
+    const container = tableScrollRef.current;
+    if (!container) return;
+
+    checkScrollButtons();
+    container.addEventListener('scroll', checkScrollButtons);
+    window.addEventListener('resize', checkScrollButtons);
+
+    return () => {
+      container.removeEventListener('scroll', checkScrollButtons);
+      window.removeEventListener('resize', checkScrollButtons);
+    };
+  }, [menuData]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -230,7 +276,7 @@ function App() {
     <div className="min-h-screen bg-slate-50 flex flex-col items-center pb-10">
       {/* 상단 헤더 & 요일 탭 */}
       <header className="bg-white w-full sticky top-0 z-20 shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 pt-4 pb-2">
+        <div className="max-w-[1800px] mx-auto px-4 pt-4 pb-2">
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
               <span className="bg-blue-600 text-white p-1.5 rounded-lg">
@@ -287,15 +333,37 @@ function App() {
       </header>
 
       {/* 메인 컨텐츠 영역 (테이블 구조) */}
-      <main className="w-full max-w-7xl px-4 mt-6">
+      <main className="w-full max-w-[1800px] px-4 mt-6">
         <div className="mb-3 text-sm font-medium text-slate-500 ml-1">
           <span className="text-blue-600 font-bold">{activeDay}요일</span>의
           식단 비교
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
+          {/* 왼쪽 스크롤 버튼 */}
+          {canScrollLeft && (
+            <button
+              onClick={() => scrollTable('left')}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white/95 hover:bg-white border-2 border-slate-300 rounded-full p-2 shadow-lg transition-all hover:scale-110"
+              aria-label="왼쪽으로 스크롤"
+            >
+              <IconChevronLeft className="w-6 h-6 text-slate-700" />
+            </button>
+          )}
+
+          {/* 오른쪽 스크롤 버튼 */}
+          {canScrollRight && (
+            <button
+              onClick={() => scrollTable('right')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white/95 hover:bg-white border-2 border-slate-300 rounded-full p-2 shadow-lg transition-all hover:scale-110"
+              aria-label="오른쪽으로 스크롤"
+            >
+              <IconChevronRight className="w-6 h-6 text-slate-700" />
+            </button>
+          )}
+
           {/* 모바일 대응: 가로 스크롤 허용 */}
-          <div className="overflow-x-auto">
+          <div ref={tableScrollRef} className="overflow-x-auto scroll-smooth">
             <table className="w-full border-collapse min-w-[800px]">
               <thead>
                 <tr>
@@ -447,7 +515,7 @@ function App() {
         </div>
 
         {/* 방문자수 표시 */}
-        <div className="w-full max-w-7xl px-4 mt-4 mb-2">
+        <div className="w-full max-w-[1800px] px-4 mt-4 mb-2">
           <div className="text-center text-sm text-slate-600">
             {pageViewCount !== null && pageViewCount !== undefined ? (
               <span>
