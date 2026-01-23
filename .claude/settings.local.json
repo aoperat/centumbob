@@ -16,7 +16,8 @@
       "Bash(git add:*)",
       "Bash(git rm:*)",
       "Bash(del backendnul nul)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(del \".\\\\backend\\\\NUL\")"
     ]
   }
 }
