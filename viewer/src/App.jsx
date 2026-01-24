@@ -6,12 +6,20 @@ import {
   IconCalendar,
   IconChevronLeft,
   IconChevronRight,
+  IconCommunity,
 } from "./components/Icons";
 import MenuList from "./components/MenuList";
 import ComplaintModal from "./components/ComplaintModal";
+import AuthModal from "./components/AuthModal";
+import UserMenu from "./components/UserMenu";
+import ProfileModal from "./components/ProfileModal";
+import ChatWindow from "./components/ChatWindow";
+import CommunityModal from "./components/community/CommunityModal";
 import { getPageViews, incrementPageView } from "./utils/api";
+import { useAuth } from "./hooks/useAuth";
 
 function App() {
+  const { isAuthenticated } = useAuth();
   const [activeDay, setActiveDay] = useState("월");
   const [modalImage, setModalImage] = useState(null);
   const [menuData, setMenuData] = useState([]);
@@ -19,9 +27,17 @@ function App() {
   const [error, setError] = useState(null);
   const [currentDate, setCurrentDate] = useState("");
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isCommunityModalOpen, setIsCommunityModalOpen] = useState(false);
   const [pageViewCount, setPageViewCount] = useState(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  // 점심/저녁 토글: 14시 이전은 점심, 이후는 저녁 기본 선택
+  const [mealType, setMealType] = useState(() => {
+    const hour = new Date().getHours();
+    return hour < 14 ? "점심" : "저녁";
+  });
 
   const days = ["월", "화", "수", "목", "금"];
   const tableScrollRef = useRef(null);
@@ -290,6 +306,23 @@ function App() {
                   <IconCalendar /> {currentDate}
                 </span>
               )}
+              {isAuthenticated ? (
+                <UserMenu onOpenProfile={() => setIsProfileModalOpen(true)} />
+              ) : (
+                <button
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="px-4 py-2 bg-slate-600 text-white text-sm font-bold rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
+                >
+                  로그인
+                </button>
+              )}
+              <button
+                onClick={() => setIsCommunityModalOpen(true)}
+                className="px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-lg hover:bg-orange-600 transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                <IconCommunity className="w-4 h-4" />
+                오늘 뭐 먹지?
+              </button>
               <button
                 onClick={() => setIsComplaintModalOpen(true)}
                 className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
@@ -329,13 +362,15 @@ function App() {
               );
             })}
           </div>
+
         </div>
       </header>
 
       {/* 메인 컨텐츠 영역 (테이블 구조) */}
       <main className="w-full max-w-[1800px] px-4 mt-6">
         <div className="mb-3 text-sm font-medium text-slate-500 ml-1">
-          <span className="text-blue-600 font-bold">{activeDay}요일</span>의
+          <span className="text-blue-600 font-bold">{activeDay}요일</span>{" "}
+          <span className={mealType === "점심" ? "text-orange-600 font-bold" : "text-indigo-600 font-bold"}>{mealType}</span>{" "}
           식단 비교
         </div>
 
@@ -443,15 +478,43 @@ function App() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {/* 점심 행 */}
+                {/* 저녁 선택시: 점심 전환 버튼 (위에 표시) */}
+                {mealType === "저녁" && (
+                  <tr
+                    onClick={() => setMealType("점심")}
+                    className="cursor-pointer hover:bg-orange-50/50 transition-colors group"
+                  >
+                    <th className="py-2 px-4 bg-slate-50 border-r border-slate-200 sticky left-0 z-10">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <span className="text-sm">☀️</span>
+                        </span>
+                        <span className="text-xs font-medium text-slate-400 group-hover:text-orange-600">
+                          점심 보기
+                        </span>
+                      </div>
+                    </th>
+                    {cafeteriaKeys.map((_, idx) => (
+                      <td key={idx} className="py-2 px-4 bg-slate-50">
+                        <div className="h-1"></div>
+                      </td>
+                    ))}
+                  </tr>
+                )}
+
+                {/* 선택된 시간대(점심/저녁) 메뉴 행 */}
                 <tr>
-                  <th className="p-4 bg-white border-r border-slate-200 sticky left-0 z-10">
+                  <th className={`p-4 border-r border-slate-200 sticky left-0 z-10 ${mealType === "점심" ? "bg-white" : "bg-slate-50/50"}`}>
                     <div className="flex flex-col items-center justify-center gap-1">
-                      <span className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
-                        <IconUtensils className="w-4 h-4" />
+                      <span className={`w-8 h-8 rounded-full flex items-center justify-center ${mealType === "점심" ? "bg-orange-100 text-orange-600" : "bg-indigo-100 text-indigo-600"}`}>
+                        {mealType === "점심" ? (
+                          <span className="text-base">☀️</span>
+                        ) : (
+                          <span className="text-base">🌙</span>
+                        )}
                       </span>
                       <span className="text-xs font-bold text-slate-600">
-                        점심
+                        {mealType}
                       </span>
                     </div>
                   </th>
@@ -459,15 +522,21 @@ function App() {
                     const { menu, price } = getMenuData(
                       name,
                       activeDay,
-                      "점심"
+                      mealType
                     );
+                    const bgClass = mealType === "점심"
+                      ? "bg-white hover:bg-slate-50"
+                      : "bg-slate-50/50 hover:bg-slate-100";
+                    const priceClass = mealType === "점심"
+                      ? "bg-orange-50 border-orange-100 text-orange-700"
+                      : "bg-indigo-50 border-indigo-100 text-indigo-700";
                     return (
                       <td
                         key={idx}
-                        className="p-4 align-top bg-white hover:bg-slate-50 transition-colors"
+                        className={`p-4 align-top transition-colors ${bgClass}`}
                       >
                         {menu && menu.length > 0 && (
-                          <div className="inline-block px-2 py-0.5 bg-orange-50 border border-orange-100 rounded text-orange-700 text-xs font-bold mb-1">
+                          <div className={`inline-block px-2 py-0.5 border rounded text-xs font-bold mb-1 ${priceClass}`}>
                             {price}
                           </div>
                         )}
@@ -476,39 +545,30 @@ function App() {
                     );
                   })}
                 </tr>
-                {/* 저녁 행 */}
-                <tr>
-                  <th className="p-4 bg-slate-50/50 border-r border-slate-200 sticky left-0 z-10">
-                    <div className="flex flex-col items-center justify-center gap-1">
-                      <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                        <span className="text-xs font-bold">🌙</span>
-                      </span>
-                      <span className="text-xs font-bold text-slate-600">
-                        저녁
-                      </span>
-                    </div>
-                  </th>
-                  {cafeteriaKeys.map((name, idx) => {
-                    const { menu, price } = getMenuData(
-                      name,
-                      activeDay,
-                      "저녁"
-                    );
-                    return (
-                      <td
-                        key={idx}
-                        className="p-4 align-top bg-slate-50/50 hover:bg-slate-100 transition-colors"
-                      >
-                        {menu && menu.length > 0 && (
-                          <div className="inline-block px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-indigo-700 text-xs font-bold mb-1">
-                            {price}
-                          </div>
-                        )}
-                        <MenuList items={menu} />
+
+                {/* 점심 선택시: 저녁 전환 버튼 (아래 표시) */}
+                {mealType === "점심" && (
+                  <tr
+                    onClick={() => setMealType("저녁")}
+                    className="cursor-pointer hover:bg-indigo-50/50 transition-colors group"
+                  >
+                    <th className="py-2 px-4 bg-slate-50 border-r border-slate-200 sticky left-0 z-10">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <span className="text-sm">🌙</span>
+                        </span>
+                        <span className="text-xs font-medium text-slate-400 group-hover:text-indigo-600">
+                          저녁 보기
+                        </span>
+                      </div>
+                    </th>
+                    {cafeteriaKeys.map((_, idx) => (
+                      <td key={idx} className="py-2 px-4 bg-slate-50">
+                        <div className="h-1"></div>
                       </td>
-                    );
-                  })}
-                </tr>
+                    ))}
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -533,7 +593,7 @@ function App() {
 
         {/* 하단 안내 */}
         <div className="text-center text-xs text-slate-400 py-6">
-          * 점심/저녁 데이터가 없는 경우 공란으로 표시됩니다.
+          * 테이블 상단/하단의 아이콘을 클릭하여 점심/저녁을 전환하세요.
           <br />* 좌우로 스크롤하여 더 많은 식당을 확인하세요.
         </div>
 
@@ -614,6 +674,28 @@ function App() {
         onClose={() => setIsComplaintModalOpen(false)}
         restaurants={restaurants}
         dateRanges={dateRanges}
+      />
+
+      {/* 로그인/회원가입 모달 */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
+
+      {/* 프로필 설정 모달 */}
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
+
+      {/* 실시간 채팅 */}
+      <ChatWindow />
+
+      {/* 커뮤니티 모달 */}
+      <CommunityModal
+        isOpen={isCommunityModalOpen}
+        onClose={() => setIsCommunityModalOpen(false)}
+        menuData={menuData}
       />
     </div>
   );

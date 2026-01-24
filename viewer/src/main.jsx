@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
+import { AuthProvider } from './contexts/AuthContext'
 
 // 빌드 버전 (빌드 시 자동 생성)
 const APP_VERSION = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : 'dev';
@@ -48,7 +49,9 @@ checkVersion().then(shouldRender => {
   if (shouldRender) {
     ReactDOM.createRoot(document.getElementById('root')).render(
       <React.StrictMode>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </React.StrictMode>,
     );
   }
