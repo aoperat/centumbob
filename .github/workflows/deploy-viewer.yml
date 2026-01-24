@@ -53,6 +53,8 @@ jobs:
           VITE_BASE_PATH: /${{ steps.repo.outputs.REPO_NAME }}/
           VITE_BUILD_TIME: ${{ github.run_number }}-${{ github.sha }}
           VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3001' }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Get GitHub username
         id: username
