@@ -131,8 +131,12 @@
   <script>
     (function() {
       var script = document.createElement('script');
-      script.src = '/version-check.js?t=' + Date.now();
+      // 상대 경로 사용 (현재 페이지 기준)
+      script.src = './version-check.js?t=' + Date.now();
       script.async = true;
+      script.onerror = function() {
+        console.log('[Version Check] 스크립트 로드 실패 (무시)');
+      };
       document.body.appendChild(script);
     })();
   </script>
