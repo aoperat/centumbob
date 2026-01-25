@@ -1,0 +1,329 @@
+{
+  "name": "에이스하이테크(다와) 자동 스케줄러",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0/30 10-11 * * 1"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 0],
+      "id": "schedule-trigger-ace",
+      "name": "매주 월요일 10-11시 30분마다"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "lfvEQkKveg69gKIN",
+          "mode": "list",
+          "cachedResultName": "센텀밥집데이터",
+          "cachedResultUrl": "/projects/gPDkKpsaxZ3x6mMv/datatables/lfvEQkKveg69gKIN"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "restaurant_id",
+              "keyValue": "5"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [0, 100],
+      "id": "get-last-title-ace",
+      "name": "이전 제목 조회 (에이스)"
+    },
+    {
+      "parameters": {
+        "url": "https://blog.naver.com/dawafood-centum/221630046754",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [200, 0],
+      "id": "fetch-blog-ace",
+      "name": "블로그 페이지 가져오기"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 프레임셋 HTML에서 본문 주소 추출\nconst html = $input.first().json.data;\nconst match = html.match(/id=\"mainFrame\"[^>]*src=\"([^\"]+)\"/);\n\nif (!match) {\n  throw new Error(\"본문 프레임 주소를 찾을 수 없습니다.\");\n}\n\nconst relativeUrl = match[1].replace(/&amp;/g, '&');\n\nreturn {\n  json: {\n    contentUrl: `https://m.blog.naver.com${relativeUrl.startsWith('/') ? relativeUrl : '/' + relativeUrl}`\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 0],
+      "id": "extract-frame-url-ace",
+      "name": "본문 URL 추출"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.contentUrl }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [600, 0],
+      "id": "fetch-content-ace",
+      "name": "본문 HTML 가져오기"
+    },
+    {
+      "parameters": {
+        "jsCode": "// HTML에서 게시글 제목 추출\nconst html = $input.first().json.data;\nconst titleMatch = html.match(/<meta property=\"og:title\" content=\"([^\"]+)\"/);\nconst currentTitle = titleMatch ? titleMatch[1] : \"제목 없음\";\n\nreturn {\n  json: {\n    html: html,\n    current_title: currentTitle\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 0],
+      "id": "extract-title-ace",
+      "name": "게시글 제목 추출"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [800, 100],
+      "id": "merge-title-ace",
+      "name": "Merge (제목 비교)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "current-title",
+              "name": "current_title",
+              "value": "={{ $json.current_title }}",
+              "type": "string"
+            },
+            {
+              "id": "prev-title",
+              "name": "prev_title",
+              "value": "={{ $json.current_title }}",
+              "type": "string"
+            },
+            {
+              "id": "is-new",
+              "name": "is_new",
+              "value": "={{ $json.current_title !== $json.current_title }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1000, 100],
+      "id": "compare-title-ace",
+      "name": "제목 비교"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "title-different",
+              "leftValue": "={{ $json.current_title }}",
+              "rightValue": "={{ $json.prev_title }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1200, 100],
+      "id": "if-new-post-ace",
+      "name": "If (새 게시글이면)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// HTML에서 테이블 데이터 파싱\nconst html = $input.first().json.html;\nconst trRegex = /<tr class=\"se-tr\">([\\s\\S]*?)<\\/tr>/g;\nconst rows = [];\nlet match;\n\nwhile ((match = trRegex.exec(html)) !== null) {\n  const tdContent = match[1].match(/<span[^>]*><b>([\\s\\S]*?)<\\/b><\\/span>/g);\n  if (tdContent) {\n    const cleanCells = tdContent.map(td => td.replace(/<[^>]*>/g, '').trim());\n    rows.push(cleanCells);\n  }\n}\n\n// 요일별 데이터 매핑\nconst days = [\"월\", \"화\", \"수\", \"목\", \"금\"];\nconst weeklyMenu = {};\n\nif (rows.length > 0) {\n  days.forEach((day, index) => {\n    weeklyMenu[day] = {\n      date: rows[0][index] || \"날짜정보 없음\",\n      menuItems: rows.slice(1).map(row => row[index]).filter(item => item && item !== \"​\")\n    };\n  });\n}\n\nreturn {\n  json: {\n    title: \"에이스하이테크 이번주 식단\",\n    current_title: $input.first().json.current_title,\n    weeklyMenu: weeklyMenu\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 100],
+      "id": "parse-menu-ace",
+      "name": "메뉴 데이터 파싱"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9101/api/webhook/upload-json-data",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ restaurant_id: 5, weeklyMenu: $json.weeklyMenu }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [1600, 100],
+      "id": "upload-to-backend-ace",
+      "name": "백엔드에 업로드"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "lfvEQkKveg69gKIN",
+          "mode": "list",
+          "cachedResultName": "센텀밥집데이터",
+          "cachedResultUrl": "/projects/gPDkKpsaxZ3x6mMv/datatables/lfvEQkKveg69gKIN"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "restaurant_id",
+              "keyValue": "5"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "current_title": "={{ $('메뉴 데이터 파싱').item.json.current_title }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "current_title",
+              "displayName": "current_title",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [1800, 100],
+      "id": "update-title-ace",
+      "name": "제목 업데이트"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "message-field",
+              "name": "message",
+              "value": "=에이스하이테크(다와) 주간 식단 자동 업데이트 완료\\n제목: {{ $('메뉴 데이터 파싱').item.json.current_title }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2000, 100],
+      "id": "set-message-ace",
+      "name": "메시지 설정"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "2wKHX5PetS6SSJtpn9ur0",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/2wKHX5PetS6SSJtpn9ur0",
+          "cachedResultName": "Send Telegram Msg"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": ["message"],
+          "schema": [
+            {
+              "id": "message",
+              "displayName": "message",
+              "type": "string"
+            }
+          ]
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [2200, 100],
+      "id": "send-telegram-ace",
+      "name": "텔레그램 알림"
+    }
+  ],
+  "connections": {
+    "매주 월요일 10-11시 30분마다": {
+      "main": [
+        [
+          { "node": "블로그 페이지 가져오기", "type": "main", "index": 0 },
+          { "node": "이전 제목 조회 (에이스)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "블로그 페이지 가져오기": {
+      "main": [[{ "node": "본문 URL 추출", "type": "main", "index": 0 }]]
+    },
+    "본문 URL 추출": {
+      "main": [[{ "node": "본문 HTML 가져오기", "type": "main", "index": 0 }]]
+    },
+    "본문 HTML 가져오기": {
+      "main": [[{ "node": "게시글 제목 추출", "type": "main", "index": 0 }]]
+    },
+    "게시글 제목 추출": {
+      "main": [[{ "node": "Merge (제목 비교)", "type": "main", "index": 0 }]]
+    },
+    "이전 제목 조회 (에이스)": {
+      "main": [[{ "node": "Merge (제목 비교)", "type": "main", "index": 1 }]]
+    },
+    "Merge (제목 비교)": {
+      "main": [[{ "node": "제목 비교", "type": "main", "index": 0 }]]
+    },
+    "제목 비교": {
+      "main": [[{ "node": "If (새 게시글이면)", "type": "main", "index": 0 }]]
+    },
+    "If (새 게시글이면)": {
+      "main": [[{ "node": "메뉴 데이터 파싱", "type": "main", "index": 0 }], []]
+    },
+    "메뉴 데이터 파싱": {
+      "main": [[{ "node": "백엔드에 업로드", "type": "main", "index": 0 }]]
+    },
+    "백엔드에 업로드": {
+      "main": [[{ "node": "제목 업데이트", "type": "main", "index": 0 }]]
+    },
+    "제목 업데이트": {
+      "main": [[{ "node": "메시지 설정", "type": "main", "index": 0 }]]
+    },
+    "메시지 설정": {
+      "main": [[{ "node": "텔레그램 알림", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {}
+}

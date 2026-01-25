@@ -3115,6 +3115,103 @@ app.post("/api/webhook/fetch-json", async (req, res) => {
   }
 });
 
+// ==================== 웹훅 JSON 데이터 직접 업로드 API ====================
+
+app.post("/api/webhook/upload-json-data", async (req, res) => {
+  try {
+    console.log("[웹훅 JSON 업로드] 받은 req.body:", JSON.stringify(req.body, null, 2));
+
+    const { restaurant_id, weeklyMenu } = req.body;
+
+    // 필수 파라미터 검증
+    if (!restaurant_id || isNaN(parseInt(restaurant_id, 10))) {
+      return res.status(400).json({
+        error: "유효한 식당 ID가 필요합니다.",
+      });
+    }
+
+    if (!weeklyMenu || typeof weeklyMenu !== 'object') {
+      return res.status(400).json({
+        error: "weeklyMenu 데이터가 필요합니다.",
+      });
+    }
+
+    const restaurantIdNum = parseInt(restaurant_id, 10);
+
+    console.log(`[웹훅 JSON 업로드] 시작: restaurant_id=${restaurantIdNum}`);
+
+    // 활성 날짜 범위 조회
+    const activeDateRanges = await getActiveDateRanges();
+    if (activeDateRanges.length === 0) {
+      return res.status(400).json({
+        error: "활성화된 날짜 범위가 없습니다.",
+      });
+    }
+    const activeDateRange = activeDateRanges[0].date_range;
+
+    // 식당 정보 조회
+    const restaurant = await getRestaurantById(restaurantIdNum);
+    if (!restaurant) {
+      return res.status(404).json({
+        error: "해당 식당을 찾을 수 없습니다.",
+      });
+    }
+
+    // 기존 메뉴 데이터 조회
+    const existingData = await getMenuData(restaurantIdNum, activeDateRange);
+    const existingMenus = existingData?.menus || {};
+
+    // weeklyMenu 데이터를 데이터베이스 형식으로 변환
+    // 입력: { "월": { "date": "1/27", "menuItems": [...] }, ... }
+    // 출력: { "월": { "lunch": [...] }, ... }
+    const transformedMenus = {};
+    const validDays = ["월", "화", "수", "목", "금"];
+
+    for (const day of validDays) {
+      if (weeklyMenu[day] && Array.isArray(weeklyMenu[day].menuItems)) {
+        // 기존 데이터 유지 (저녁 메뉴 보존)
+        transformedMenus[day] = {
+          lunch: weeklyMenu[day].menuItems.filter(item => item && item.trim()),
+          dinner: existingMenus[day]?.dinner || [],
+        };
+      } else if (existingMenus[day]) {
+        // 새 데이터가 없으면 기존 데이터 유지
+        transformedMenus[day] = existingMenus[day];
+      }
+    }
+
+    console.log(`[웹훅 JSON 업로드] 변환된 메뉴 데이터:`, JSON.stringify(transformedMenus, null, 2));
+
+    // 데이터베이스에 저장
+    await saveMenuData({
+      restaurant_id: restaurantIdNum,
+      date_range: activeDateRange,
+      menus: transformedMenus,
+      image_paths: existingData?.image_paths || {},
+      excluded_menu_items: existingData?.excluded_menu_items || [],
+    });
+
+    console.log(`[웹훅 JSON 업로드] 성공: ${restaurant.name} - ${activeDateRange}`);
+
+    res.json({
+      success: true,
+      message: "메뉴 데이터가 성공적으로 저장되었습니다.",
+      data: {
+        restaurant_id: restaurantIdNum,
+        restaurant_name: restaurant.name,
+        date_range: activeDateRange,
+        updated_days: Object.keys(transformedMenus),
+      },
+    });
+  } catch (error) {
+    console.error("[웹훅 JSON 업로드] 오류:", error);
+    res.status(500).json({
+      error: "메뉴 데이터 저장 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
 // ==================== 웹훅 URL에서 이미지 업로드 및 분석 API ====================
 
 app.post("/api/webhook/upload-from-url", async (req, res) => {
