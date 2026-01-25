@@ -71,9 +71,10 @@ jobs:
           USERNAME="${{ steps.username.outputs.USERNAME }}"
           BASE_URL="https://${USERNAME}.github.io/${REPO_NAME}"
 
-          # 버전 치환 (index.html + sw.js)
+          # 버전 치환 (index.html + sw.js + version-check.js)
           sed -i "s/__APP_VERSION__/$VERSION/g" index.html
           sed -i "s/__APP_VERSION__/$VERSION/g" sw.js
+          sed -i "s/__APP_VERSION__/$VERSION/g" version-check.js
 
           # URL 치환 (사용자명과 레포지토리명)
           sed -i "s|https://aoperat.github.io/centumbob/|${BASE_URL}/|g" index.html

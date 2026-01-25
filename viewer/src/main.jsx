@@ -19,41 +19,41 @@ const registerServiceWorker = async () => {
         scope: basePath,
       });
 
-      console.log('[Main] Service Worker 등록 성공:', registration.scope);
+      console.log('[SW] 등록 완료:', registration.scope);
 
-      // 업데이트 확인
+      // 업데이트 감지 시 자동 적용
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
-        console.log('[Main] 새 Service Worker 발견');
+        console.log('[SW] 새 버전 다운로드 중...');
 
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // 새 버전이 설치되었고, 이전 버전이 활성화 중
-            console.log('[Main] 새 버전 설치 완료! 자동 업데이트 중...');
-
-            // Service Worker에게 즉시 활성화 요청
+            // 새 버전이 설치됨 - 즉시 활성화
+            console.log('[SW] 새 버전 설치 완료! 활성화 중...');
             newWorker.postMessage({ type: 'SKIP_WAITING' });
           }
         });
       });
 
-      // Service Worker가 제어권을 가져올 때 페이지 새로고침
+      // Service Worker 업데이트 시 페이지 새로고침
       let refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (refreshing) return;
         refreshing = true;
-        console.log('[Main] Service Worker 업데이트됨. 페이지 새로고침...');
+        console.log('[SW] 새 버전 활성화됨. 페이지 새로고침...');
         window.location.reload();
       });
 
-      // 주기적으로 업데이트 확인 (1시간마다)
-      setInterval(() => {
-        registration.update();
-      }, 60 * 60 * 1000);
+      // 페이지 포커스 시 업데이트 확인 (사용자가 탭으로 돌아올 때)
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          registration.update();
+        }
+      });
 
       return registration;
     } catch (error) {
-      console.error('[Main] Service Worker 등록 실패:', error);
+      console.error('[SW] 등록 실패:', error);
     }
   }
 };
