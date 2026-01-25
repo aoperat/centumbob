@@ -174,22 +174,22 @@ const AuthModal = ({ isOpen, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b border-slate-200">
+        <div className="flex justify-between items-center p-3 sm:p-4 border-b border-slate-200 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
                 setTab('login');
                 setError('');
               }}
-              className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+              className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
                 tab === 'login'
                   ? 'bg-blue-600 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -202,7 +202,7 @@ const AuthModal = ({ isOpen, onClose }) => {
                 setTab('signup');
                 setError('');
               }}
-              className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+              className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
                 tab === 'signup'
                   ? 'bg-blue-600 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -220,19 +220,19 @@ const AuthModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {/* Error message */}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs sm:text-sm">
               {error}
             </div>
           )}
 
           {/* Login form */}
           {tab === 'login' && (
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                   아이디 <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -240,14 +240,14 @@ const AuthModal = ({ isOpen, onClose }) => {
                   value={loginData.username}
                   onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
                   placeholder="아이디를 입력하세요"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   autoComplete="username"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                   비밀번호 <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -255,24 +255,24 @@ const AuthModal = ({ isOpen, onClose }) => {
                   value={loginData.password}
                   onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                   placeholder="비밀번호를 입력하세요"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   autoComplete="current-password"
                   required
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-4">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 sm:pt-4">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-6 py-2 bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-colors"
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-colors"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? '로그인 중...' : '로그인'}
                 </button>
@@ -282,9 +282,9 @@ const AuthModal = ({ isOpen, onClose }) => {
 
           {/* Signup form */}
           {tab === 'signup' && (
-            <form onSubmit={handleSignup} className="space-y-4">
+            <form onSubmit={handleSignup} className="space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                   아이디 <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -292,7 +292,7 @@ const AuthModal = ({ isOpen, onClose }) => {
                   value={signupData.username}
                   onChange={(e) => setSignupData({ ...signupData, username: e.target.value })}
                   placeholder="3-20자 (영문, 숫자, _)"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   autoComplete="username"
                   required
                 />
@@ -312,7 +312,7 @@ const AuthModal = ({ isOpen, onClose }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                   닉네임 <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -320,14 +320,14 @@ const AuthModal = ({ isOpen, onClose }) => {
                   value={signupData.nickname}
                   onChange={(e) => setSignupData({ ...signupData, nickname: e.target.value })}
                   placeholder="2-30자"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   autoComplete="nickname"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                   비밀번호 <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -335,14 +335,14 @@ const AuthModal = ({ isOpen, onClose }) => {
                   value={signupData.password}
                   onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
                   placeholder="최소 6자"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   autoComplete="new-password"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                   비밀번호 확인 <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -350,14 +350,14 @@ const AuthModal = ({ isOpen, onClose }) => {
                   value={signupData.passwordConfirm}
                   onChange={(e) => setSignupData({ ...signupData, passwordConfirm: e.target.value })}
                   placeholder="비밀번호를 다시 입력하세요"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   autoComplete="new-password"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                   이메일 <span className="text-slate-500 text-xs">(선택사항)</span>
                 </label>
                 <input
@@ -365,7 +365,7 @@ const AuthModal = ({ isOpen, onClose }) => {
                   value={signupData.email}
                   onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
                   placeholder="이메일 주소 (나중에 추가 가능)"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   autoComplete="email"
                 />
                 <p className="text-xs text-slate-500 mt-1">
@@ -373,18 +373,18 @@ const AuthModal = ({ isOpen, onClose }) => {
                 </p>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 sm:pt-4">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-6 py-2 bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-colors"
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-colors"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading || usernameCheck.checking || !usernameCheck.available}
-                  className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? '가입 중...' : '회원가입'}
                 </button>

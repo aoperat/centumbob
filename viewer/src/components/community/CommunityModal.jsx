@@ -9,7 +9,7 @@ export default function CommunityModal({ isOpen, onClose, menuData = [] }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4"
       onClick={onClose}
     >
       <div
@@ -17,10 +17,10 @@ export default function CommunityModal({ isOpen, onClose, menuData = [] }) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b border-slate-200 bg-gradient-to-r from-orange-50 to-yellow-50">
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <span className="bg-orange-500 text-white p-1.5 rounded-lg">
-              <IconVote className="w-5 h-5" />
+        <div className="flex justify-between items-center p-3 sm:p-4 border-b border-slate-200 bg-gradient-to-r from-orange-50 to-yellow-50">
+          <h2 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
+            <span className="bg-orange-500 text-white p-1 sm:p-1.5 rounded-lg">
+              <IconVote className="w-4 h-4 sm:w-5 sm:h-5" />
             </span>
             오늘 뭐 먹지?
           </h2>

@@ -292,17 +292,17 @@ function App() {
     <div className="min-h-screen bg-slate-50 flex flex-col items-center pb-10">
       {/* 상단 헤더 & 요일 탭 */}
       <header className="bg-white w-full sticky top-0 z-20 shadow-sm border-b border-gray-200">
-        <div className="max-w-[1800px] mx-auto px-4 pt-4 pb-2">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <span className="bg-blue-600 text-white p-1.5 rounded-lg">
-                <IconUtensils className="w-5 h-5" />
+        <div className="max-w-[1800px] mx-auto px-3 sm:px-4 pt-3 sm:pt-4 pb-2">
+          <div className="flex justify-between items-center mb-3 sm:mb-4">
+            <h1 className="text-base sm:text-xl font-bold text-slate-800 flex items-center gap-1.5 sm:gap-2">
+              <span className="bg-blue-600 text-white p-1 sm:p-1.5 rounded-lg">
+                <IconUtensils className="w-4 h-4 sm:w-5 sm:h-5" />
               </span>
-              센텀 밥집
+              <span className="hidden xs:inline">센텀 밥집</span>
             </h1>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-3">
               {currentDate && (
-                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full flex items-center gap-1">
+                <span className="hidden sm:flex text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full items-center gap-1">
                   <IconCalendar /> {currentDate}
                 </span>
               )}
@@ -311,29 +311,34 @@ function App() {
               ) : (
                 <button
                   onClick={() => setIsAuthModalOpen(true)}
-                  className="px-4 py-2 bg-slate-600 text-white text-sm font-bold rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
+                  className="px-2 sm:px-4 py-2 bg-slate-600 text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
+                  title="로그인"
                 >
-                  로그인
+                  <span className="hidden sm:inline">로그인</span>
+                  <span className="sm:hidden">👤</span>
                 </button>
               )}
               <button
                 onClick={() => setIsCommunityModalOpen(true)}
-                className="px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-lg hover:bg-orange-600 transition-colors shadow-sm flex items-center gap-1.5"
+                className="px-2 sm:px-4 py-2 bg-orange-500 text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-orange-600 transition-colors shadow-sm flex items-center gap-1 sm:gap-1.5"
+                title="오늘 뭐 먹지?"
               >
                 <IconCommunity className="w-4 h-4" />
-                오늘 뭐 먹지?
+                <span className="hidden lg:inline">오늘 뭐 먹지?</span>
               </button>
               <button
                 onClick={() => setIsComplaintModalOpen(true)}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                className="px-2 sm:px-4 py-2 bg-blue-600 text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-1"
+                title="민원 제출"
               >
-                민원 제출
+                <span className="hidden sm:inline">민원 제출</span>
+                <span className="sm:hidden">📝</span>
               </button>
             </div>
           </div>
 
           {/* 요일 선택 탭 */}
-          <div className="flex justify-between bg-slate-100 p-1 rounded-xl max-w-md mx-auto sm:mx-0">
+          <div className="flex justify-between bg-slate-100 p-1 rounded-xl">
             {days.map((day) => {
               const isActive = activeDay === day;
               const isToday = !isWeekend && day === todayDay;
@@ -342,7 +347,7 @@ function App() {
                   key={day}
                   onClick={() => setActiveDay(day)}
                   className={`
-                    relative flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200
+                    relative flex-1 py-2.5 sm:py-2 rounded-lg text-sm sm:text-base font-bold transition-all duration-200 min-h-[44px] sm:min-h-0
                     ${
                       isActive
                         ? isToday
@@ -367,14 +372,117 @@ function App() {
       </header>
 
       {/* 메인 컨텐츠 영역 (테이블 구조) */}
-      <main className="w-full max-w-[1800px] px-4 mt-6">
-        <div className="mb-3 text-sm font-medium text-slate-500 ml-1">
+      <main className="w-full max-w-[1800px] px-3 sm:px-4 mt-4 sm:mt-6">
+        <div className="mb-2 sm:mb-3 text-xs sm:text-sm font-medium text-slate-500 ml-1">
           <span className="text-blue-600 font-bold">{activeDay}요일</span>{" "}
           <span className={mealType === "점심" ? "text-orange-600 font-bold" : "text-indigo-600 font-bold"}>{mealType}</span>{" "}
           식단 비교
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
+        {/* 모바일: 카드 레이아웃 */}
+        <div className="md:hidden space-y-3">
+          {cafeteriaKeys.map((name, idx) => {
+            const imageUrlsByDay = menuMap[name]?.imageUrlsByDay;
+            const dayImageUrl = imageUrlsByDay?.[activeDay];
+            const hasImageByDay = !!dayImageUrl;
+            const hasImage =
+              hasImageByDay ||
+              (menuMap[name]?.imageUrls &&
+               menuMap[name].imageUrls.length > 0);
+
+            const { menu: lunchMenu, price: lunchPrice } = getMenuData(name, activeDay, "점심");
+            const { menu: dinnerMenu, price: dinnerPrice } = getMenuData(name, activeDay, "저녁");
+            const hasDayData = (lunchMenu && lunchMenu.length > 0) || (dinnerMenu && dinnerMenu.length > 0);
+
+            const getImageUrl = (imageUrl) => {
+              if (imageUrl.startsWith("data:")) {
+                return imageUrl;
+              }
+              const basePath = import.meta.env.BASE_URL;
+              return `${basePath}${imageUrl}`.replace(/\/\//g, "/");
+            };
+
+            const displayImageUrl = dayImageUrl
+              ? getImageUrl(dayImageUrl)
+              : (menuMap[name]?.imageUrls?.[0] ? getImageUrl(menuMap[name].imageUrls[0]) : null);
+
+            const currentMenu = mealType === "점심" ? lunchMenu : dinnerMenu;
+            const currentPrice = mealType === "점심" ? lunchPrice : dinnerPrice;
+
+            if (!hasDayData) return null;
+
+            return (
+              <div key={idx} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                {/* 카드 헤더 */}
+                <div className="bg-slate-50 p-3 border-b border-slate-200">
+                  <h3 className="font-bold text-base text-slate-800 mb-1">{name}</h3>
+                  <p className="text-xs text-slate-500 mb-2">
+                    {menuMap[name]?.building_name || '\u00A0'}
+                  </p>
+                  {hasImage && displayImageUrl && (
+                    <button
+                      onClick={() => setModalImage(displayImageUrl)}
+                      className="px-2 py-1 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors flex items-center gap-1"
+                      title="원본 이미지 보기"
+                    >
+                      <IconImage className="w-3 h-3" />
+                      <span>이미지 보기</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* 식사 시간대 토글 */}
+                <div className="flex border-b border-slate-200">
+                  <button
+                    onClick={() => setMealType("점심")}
+                    className={`flex-1 py-2 text-sm font-bold transition-colors flex items-center justify-center gap-1.5 ${
+                      mealType === "점심"
+                        ? "bg-orange-50 text-orange-600 border-b-2 border-orange-500"
+                        : "bg-white text-slate-400"
+                    }`}
+                  >
+                    <span className="text-base">☀️</span>
+                    점심
+                  </button>
+                  <button
+                    onClick={() => setMealType("저녁")}
+                    className={`flex-1 py-2 text-sm font-bold transition-colors flex items-center justify-center gap-1.5 ${
+                      mealType === "저녁"
+                        ? "bg-indigo-50 text-indigo-600 border-b-2 border-indigo-500"
+                        : "bg-white text-slate-400"
+                    }`}
+                  >
+                    <span className="text-base">🌙</span>
+                    저녁
+                  </button>
+                </div>
+
+                {/* 메뉴 내용 */}
+                <div className="p-4">
+                  {currentMenu && currentMenu.length > 0 ? (
+                    <>
+                      {currentPrice && (
+                        <div className={`inline-block px-2 py-1 border rounded text-xs font-bold mb-2 ${
+                          mealType === "점심"
+                            ? "bg-orange-50 border-orange-100 text-orange-700"
+                            : "bg-indigo-50 border-indigo-100 text-indigo-700"
+                        }`}>
+                          {currentPrice}
+                        </div>
+                      )}
+                      <MenuList items={currentMenu} />
+                    </>
+                  ) : (
+                    <p className="text-gray-400 text-xs italic">정보 없음</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 데스크탑: 테이블 레이아웃 */}
+        <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
           {/* 왼쪽 스크롤 버튼 */}
           {canScrollLeft && (
             <button
@@ -397,7 +505,7 @@ function App() {
             </button>
           )}
 
-          {/* 모바일 대응: 가로 스크롤 허용 */}
+          {/* 가로 스크롤 허용 */}
           <div ref={tableScrollRef} className="overflow-x-auto scroll-smooth">
             <table className="w-full border-collapse min-w-[800px]">
               <thead>
@@ -575,8 +683,8 @@ function App() {
         </div>
 
         {/* 방문자수 표시 */}
-        <div className="w-full max-w-[1800px] px-4 mt-4 mb-2">
-          <div className="text-center text-sm text-slate-600">
+        <div className="w-full max-w-[1800px] px-3 sm:px-4 mt-3 sm:mt-4 mb-2">
+          <div className="text-center text-xs sm:text-sm text-slate-600">
             {pageViewCount !== null && pageViewCount !== undefined ? (
               <span>
                 오늘{" "}
@@ -592,42 +700,49 @@ function App() {
         </div>
 
         {/* 하단 안내 */}
-        <div className="text-center text-xs text-slate-400 py-6">
-          * 테이블 상단/하단의 아이콘을 클릭하여 점심/저녁을 전환하세요.
-          <br />* 좌우로 스크롤하여 더 많은 식당을 확인하세요.
+        <div className="text-center text-xs text-slate-400 py-4 sm:py-6 px-3">
+          <span className="hidden md:inline">
+            * 테이블 상단/하단의 아이콘을 클릭하여 점심/저녁을 전환하세요.
+            <br />* 좌우로 스크롤하여 더 많은 식당을 확인하세요.
+          </span>
+          <span className="md:hidden">
+            * 각 카드에서 점심/저녁을 전환할 수 있어요.
+          </span>
         </div>
 
         {/* 외부 링크 */}
-        <div className="flex flex-wrap gap-2 justify-center mb-6 text-xs">
+        <div className="flex flex-wrap gap-2 justify-center mb-6 text-xs px-3">
           <a
             href="https://pf.kakao.com/_FxbaQC"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm"
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm text-xs sm:text-sm"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z" />
             </svg>
-            삼촌밥차런치펍
+            <span className="hidden xs:inline">삼촌밥차런치펍</span>
+            <span className="xs:hidden">삼촌밥차</span>
           </a>
           <a
             href="https://pf.kakao.com/_CiVis"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm"
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm text-xs sm:text-sm"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z" />
             </svg>
-            슈마우스만찬센텀점
+            <span className="hidden xs:inline">슈마우스만찬센텀점</span>
+            <span className="xs:hidden">슈마우스</span>
           </a>
           <a
             href="https://blog.naver.com/dawafood-qubi"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#03C75A] text-white rounded-lg hover:bg-[#02b350] transition-colors font-medium shadow-sm"
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-[#03C75A] text-white rounded-lg hover:bg-[#02b350] transition-colors font-medium shadow-sm text-xs sm:text-sm"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor">
               <path d="M16.273 12.845L7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727v12.845z" />
             </svg>
             큐비e센텀
@@ -638,15 +753,15 @@ function App() {
       {/* 이미지 모달 */}
       {modalImage && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4"
           onClick={() => setModalImage(null)}
         >
           <div
             className="bg-white rounded-xl overflow-hidden w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="font-bold text-slate-800">식단표 원본</h3>
+            <div className="flex justify-between items-center p-3 sm:p-4 border-b">
+              <h3 className="font-bold text-sm sm:text-base text-slate-800">식단표 원본</h3>
               <button
                 onClick={() => setModalImage(null)}
                 className="p-1.5 hover:bg-slate-100 rounded-full transition-colors"
@@ -654,7 +769,7 @@ function App() {
                 <IconX />
               </button>
             </div>
-            <div className="overflow-auto p-0 bg-slate-900 flex-1 flex items-center justify-center min-h-[300px]">
+            <div className="overflow-auto p-0 bg-slate-900 flex-1 flex items-center justify-center min-h-[200px] sm:min-h-[300px]">
               <img
                 src={modalImage}
                 alt="Original Menu"

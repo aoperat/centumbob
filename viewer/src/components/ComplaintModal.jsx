@@ -163,7 +163,7 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4"
       onClick={onClose}
     >
       <div
@@ -171,12 +171,12 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}
-        <div className="flex justify-between items-center p-4 border-b border-slate-200">
-          <h2 className="text-xl font-bold text-slate-800">민원 제출 및 조회</h2>
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 sm:p-4 border-b border-slate-200 gap-2">
+          <h2 className="text-base sm:text-xl font-bold text-slate-800">민원 제출 및 조회</h2>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               onClick={() => setView("form")}
-              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+              className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
                 view === "form"
                   ? "bg-blue-600 text-white"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -191,7 +191,7 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                   loadComplaints();
                 }
               }}
-              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+              className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
                 view === "list"
                   ? "bg-blue-600 text-white"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -209,13 +209,13 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
         </div>
 
         {/* 컨텐츠 */}
-        <div className="overflow-y-auto flex-1 p-6">
+        <div className="overflow-y-auto flex-1 p-4 sm:p-6">
           {/* 민원 제출 폼 */}
           {view === "form" && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                     식당명 <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -223,7 +223,7 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                     onChange={(e) =>
                       setFormData({ ...formData, restaurant_name: e.target.value })
                     }
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     required
                   >
                     {restaurants?.map((restaurant) => (
@@ -234,7 +234,7 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                     날짜 범위
                   </label>
                   <select
@@ -242,7 +242,7 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                     onChange={(e) =>
                       setFormData({ ...formData, date_range: e.target.value })
                     }
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">선택 안함</option>
                     {dateRanges?.map((date) => (
@@ -255,16 +255,16 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                   카테고리 <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {["메뉴", "가격", "품질", "기타"].map((cat) => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setFormData({ ...formData, category: cat })}
-                      className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+                      className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
                         formData.category === cat
                           ? "bg-blue-600 text-white"
                           : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -277,7 +277,7 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                   제목 <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -287,13 +287,13 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                     setFormData({ ...formData, title: e.target.value })
                   }
                   placeholder="민원 제목을 입력하세요"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                   내용 <span className="text-red-500">*</span>
                 </label>
                 <textarea
@@ -303,14 +303,14 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                   }
                   placeholder="민원 내용을 상세히 입력하세요"
                   rows={5}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+                  className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                     작성자 이름 <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -320,12 +320,12 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                       setFormData({ ...formData, user_name: e.target.value })
                     }
                     placeholder="이름을 입력하세요"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                     이메일 <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -335,24 +335,24 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                       setFormData({ ...formData, user_email: e.target.value })
                     }
                     placeholder="이메일을 입력하세요"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     required
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2 sm:pt-4">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-6 py-2 bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-colors"
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-colors order-2 sm:order-1"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed order-1 sm:order-2"
                 >
                   {isLoading ? "제출 중..." : "민원 제출"}
                 </button>
@@ -362,11 +362,11 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
 
           {/* 민원 목록 */}
           {view === "list" && (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {/* 필터 */}
-              <div className="flex gap-4 items-end">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-end">
                 <div className="flex-1">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                     이메일
                   </label>
                   <input
@@ -374,17 +374,17 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                     value={userEmailFilter}
                     onChange={(e) => setUserEmailFilter(e.target.value)}
                     placeholder="조회할 이메일을 입력하세요"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
-                <div className="w-48">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                <div className="flex-1 sm:w-48 sm:flex-none">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                     상태 필터
                   </label>
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="all">전체</option>
                     <option value="pending">대기중</option>
@@ -396,7 +396,7 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                 <button
                   onClick={() => loadComplaints()}
                   disabled={isLoading || !userEmailFilter}
-                  className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto px-4 sm:px-6 py-2 text-sm sm:text-base bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? "조회 중..." : "조회"}
                 </button>
@@ -470,7 +470,7 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
 
           {/* 민원 상세 */}
           {view === "detail" && selectedComplaint && (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {/* 새로고침 버튼 */}
               <div className="flex justify-end">
                 <button
@@ -480,7 +480,7 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                     if (latest) {
                       setSelectedComplaint(latest);
                       // 목록도 업데이트
-                      const updatedList = complaints.map(c => 
+                      const updatedList = complaints.map(c =>
                         c.id === latest.id ? latest : c
                       );
                       setComplaints(updatedList);
@@ -488,21 +488,21 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
                     setIsLoading(false);
                   }}
                   disabled={isLoading}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 bg-slate-100 text-slate-700 text-xs sm:text-sm font-bold rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
                 >
                   {isLoading ? "새로고침 중..." : "새로고침"}
                 </button>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`px-3 py-1 rounded-lg text-sm font-bold ${getStatusColor(
+                  className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold ${getStatusColor(
                     selectedComplaint.status
                   )}`}
                 >
                   {getStatusText(selectedComplaint.status)}
                 </span>
                 <span
-                  className={`px-3 py-1 rounded-lg text-sm font-bold ${getCategoryColor(
+                  className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold ${getCategoryColor(
                     selectedComplaint.category
                   )}`}
                 >
@@ -511,10 +511,10 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
               </div>
 
               <div>
-                <h4 className="text-xl font-bold text-slate-800 mb-2">
+                <h4 className="text-lg sm:text-xl font-bold text-slate-800 mb-2">
                   {selectedComplaint.title}
                 </h4>
-                <div className="text-sm text-slate-500 space-y-1">
+                <div className="text-xs sm:text-sm text-slate-500 space-y-1">
                   <div>식당: {selectedComplaint.restaurant_name}</div>
                   {selectedComplaint.date_range && (
                     <div>날짜 범위: {selectedComplaint.date_range}</div>
@@ -530,16 +530,16 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
               </div>
 
               <div>
-                <h5 className="font-bold text-slate-700 mb-2">민원 내용</h5>
-                <div className="p-4 bg-slate-50 rounded-lg text-slate-700 whitespace-pre-wrap">
+                <h5 className="text-sm sm:text-base font-bold text-slate-700 mb-2">민원 내용</h5>
+                <div className="p-3 sm:p-4 bg-slate-50 rounded-lg text-xs sm:text-sm text-slate-700 whitespace-pre-wrap">
                   {selectedComplaint.content}
                 </div>
               </div>
 
               {selectedComplaint.admin_response && (
                 <div>
-                  <h5 className="font-bold text-slate-700 mb-2">관리자 답변</h5>
-                  <div className="p-4 bg-blue-50 rounded-lg text-slate-700 whitespace-pre-wrap">
+                  <h5 className="text-sm sm:text-base font-bold text-slate-700 mb-2">관리자 답변</h5>
+                  <div className="p-3 sm:p-4 bg-blue-50 rounded-lg text-xs sm:text-sm text-slate-700 whitespace-pre-wrap">
                     {selectedComplaint.admin_response}
                   </div>
                 </div>
@@ -548,7 +548,7 @@ const ComplaintModal = ({ isOpen, onClose, restaurants, dateRanges }) => {
               <div className="flex justify-end">
                 <button
                   onClick={() => setView("list")}
-                  className="px-6 py-2 bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-colors"
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-colors"
                 >
                   목록으로
                 </button>

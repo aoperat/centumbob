@@ -53,7 +53,7 @@ lerna-debug.log*
 ehthumbs.db
 Thumbs.db
 Desktop.ini
-
+nul
 # Docker
 .docker/
 docker-compose.override.yml
