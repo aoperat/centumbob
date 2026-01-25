@@ -1,3 +1,4 @@
+// restaurants는 { id, name } 객체 배열
 export default function VoteResults({ voteCounts, totalVotes, restaurants }) {
   if (totalVotes === 0) {
     return (
@@ -7,14 +8,24 @@ export default function VoteResults({ voteCounts, totalVotes, restaurants }) {
     );
   }
 
-  // Sort by vote count descending
+  // Sort by vote count descending, 0표인 식당은 제외
   const sorted = [...restaurants]
-    .map(name => ({
-      name,
-      count: voteCounts[name] || 0,
-      percentage: Math.round((voteCounts[name] || 0) / totalVotes * 100),
+    .map(restaurant => ({
+      id: restaurant.id,
+      name: restaurant.name,
+      count: voteCounts[restaurant.id] || 0,
+      percentage: Math.round((voteCounts[restaurant.id] || 0) / totalVotes * 100),
     }))
+    .filter(item => item.count > 0) // 0표 제외
     .sort((a, b) => b.count - a.count);
+
+  if (sorted.length === 0) {
+    return (
+      <div className="text-center py-8 text-slate-500">
+        아직 투표가 없습니다. 첫 번째로 투표해보세요!
+      </div>
+    );
+  }
 
   const winner = sorted[0];
 
@@ -31,11 +42,11 @@ export default function VoteResults({ voteCounts, totalVotes, restaurants }) {
         </div>
       )}
 
-      {/* Ranking list */}
+      {/* Ranking list - 투표 받은 식당만 표시 */}
       <div className="space-y-2">
         {sorted.map((item, index) => (
           <div
-            key={item.name}
+            key={item.id}
             className={`
               flex items-center gap-3 p-3 rounded-lg
               ${index === 0 ? 'bg-yellow-50' : index === 1 ? 'bg-slate-100' : index === 2 ? 'bg-amber-50' : 'bg-white'}

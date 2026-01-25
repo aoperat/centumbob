@@ -5,23 +5,27 @@ import { getDateRanges, addDateRange as addDateRangeAPI, updateDateRange, delete
 
 const API_BASE_URL = '/api';
 
-const ManagementTab = ({ 
+const ManagementTab = ({
   restaurants, // 상위 컴포넌트에서 전달받은 식당 목록 (문자열 배열) - 호환성 위해 유지하지만 내부적으로는 API 사용
   setRestaurants, // 상위 상태 업데이트용
-  dateRanges, 
-  setDateRanges 
+  dateRanges,
+  setDateRanges
 }) => {
   const [dbRestaurants, setDbRestaurants] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState(null);
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState(null);
+  const [isNewRestaurant, setIsNewRestaurant] = useState(false);
   const [dbDateRanges, setDbDateRanges] = useState([]);
   const [isLoadingDateRanges, setIsLoadingDateRanges] = useState(false);
-  
+  const [searchTerm, setSearchTerm] = useState('');
+
   // 폼 상태
   const [formData, setFormData] = useState({
     name: '',
     building_name: '',
+    address: '',
+    latitude: '',
+    longitude: '',
     price_lunch: '',
     price_dinner: '',
     has_dinner: true,
@@ -60,6 +64,42 @@ const ManagementTab = ({
     fetchDateRanges();
   }, []);
 
+  // 식당 선택 시 폼 데이터 업데이트
+  useEffect(() => {
+    if (selectedRestaurantId && !isNewRestaurant) {
+      const restaurant = dbRestaurants.find(r => r.id === selectedRestaurantId);
+      if (restaurant) {
+        setFormData({
+          name: restaurant.name,
+          building_name: restaurant.building_name || '',
+          address: restaurant.address || '',
+          latitude: restaurant.latitude || '',
+          longitude: restaurant.longitude || '',
+          price_lunch: restaurant.price_lunch || '',
+          price_dinner: restaurant.price_dinner || '',
+          has_dinner: restaurant.has_dinner === true || restaurant.has_dinner === 1,
+          webhook_url: restaurant.webhook_url || '',
+          webhook_type: restaurant.webhook_type || '',
+          use_all_days: restaurant.use_all_days === undefined ? true : (restaurant.use_all_days === true || restaurant.use_all_days === 1)
+        });
+      }
+    } else if (isNewRestaurant) {
+      setFormData({
+        name: '',
+        building_name: '',
+        address: '',
+        latitude: '',
+        longitude: '',
+        price_lunch: '',
+        price_dinner: '',
+        has_dinner: true,
+        webhook_url: '',
+        webhook_type: '',
+        use_all_days: true
+      });
+    }
+  }, [selectedRestaurantId, isNewRestaurant, dbRestaurants]);
+
   // 날짜 범위 목록 불러오기
   const fetchDateRanges = async () => {
     setIsLoadingDateRanges(true);
@@ -78,39 +118,16 @@ const ManagementTab = ({
     }
   };
 
-  // 모달 열기 (추가/수정)
-  const openModal = (restaurant = null) => {
-    if (restaurant) {
-      setEditingId(restaurant.id);
-      setFormData({
-        name: restaurant.name,
-        building_name: restaurant.building_name || '',
-        price_lunch: restaurant.price_lunch || '',
-        price_dinner: restaurant.price_dinner || '',
-        has_dinner: restaurant.has_dinner === true || restaurant.has_dinner === 1,
-        webhook_url: restaurant.webhook_url || '',
-        webhook_type: restaurant.webhook_type || '',
-        use_all_days: restaurant.use_all_days === undefined ? true : (restaurant.use_all_days === true || restaurant.use_all_days === 1)
-      });
-    } else {
-      setEditingId(null);
-      setFormData({
-        name: '',
-        building_name: '',
-        price_lunch: '',
-        price_dinner: '',
-        has_dinner: true,
-        webhook_url: '',
-        webhook_type: '',
-        use_all_days: true
-      });
-    }
-    setIsModalOpen(true);
+  // 새 식당 추가 버튼
+  const handleNewRestaurant = () => {
+    setIsNewRestaurant(true);
+    setSelectedRestaurantId(null);
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingId(null);
+  // 식당 선택
+  const handleSelectRestaurant = (restaurantId) => {
+    setIsNewRestaurant(false);
+    setSelectedRestaurantId(restaurantId);
   };
 
   // 식당 저장 (추가/수정)
@@ -118,12 +135,12 @@ const ManagementTab = ({
     if (!formData.name.trim()) return alert('식당 이름을 입력해주세요.');
 
     try {
-      const url = editingId 
-        ? `${API_BASE_URL}/restaurants/${editingId}`
-        : `${API_BASE_URL}/restaurants`;
-      
-      const method = editingId ? 'PUT' : 'POST';
-      
+      const url = isNewRestaurant
+        ? `${API_BASE_URL}/restaurants`
+        : `${API_BASE_URL}/restaurants/${selectedRestaurantId}`;
+
+      const method = isNewRestaurant ? 'POST' : 'PUT';
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -135,8 +152,16 @@ const ManagementTab = ({
         throw new Error(errorData.error || '저장에 실패했습니다.');
       }
 
+      const savedData = await response.json();
       await fetchRestaurants();
-      closeModal();
+
+      // 새 식당 추가 후 해당 식당 선택
+      if (isNewRestaurant && savedData.id) {
+        setIsNewRestaurant(false);
+        setSelectedRestaurantId(savedData.id);
+      }
+
+      alert('저장되었습니다.');
     } catch (error) {
       console.error('Error saving restaurant:', error);
       alert(error.message);
@@ -209,114 +234,375 @@ const ManagementTab = ({
     }
   };
 
+  // 필터링된 식당 목록
+  const filteredRestaurants = dbRestaurants.filter(r =>
+    r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (r.building_name && r.building_name.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
-    <div className="w-full h-full p-8 overflow-y-auto custom-scrollbar fade-in bg-slate-50">
-      <div className="max-w-5xl mx-auto space-y-8">
-        
-        {/* 식당 관리 섹션 */}
+    <div className="w-full h-full p-6 overflow-y-auto custom-scrollbar fade-in bg-slate-50">
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* 식당 관리 섹션 - 좌우 분할 */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-bold text-slate-800">식당 기준 정보 관리</h3>
-              <p className="text-xs text-slate-500">식당 목록과 기본 가격 정보를 관리합니다.</p>
-            </div>
-            <button
-              onClick={() => openModal()}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
-            >
-              <IconPlus size={16} />
-              새 식당 추가
-            </button>
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+            <h3 className="text-lg font-bold text-slate-800">식당 기준 정보 관리</h3>
+            <p className="text-xs text-slate-500 mt-1">식당을 선택하여 정보를 수정하거나 새로운 식당을 추가합니다.</p>
           </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
-                <tr>
-                  <th className="px-6 py-3 font-bold">ID</th>
-                  <th className="px-6 py-3 font-bold">식당 이름</th>
-                  <th className="px-6 py-3 font-bold">건물명</th>
-                  <th className="px-6 py-3 font-bold">점심 가격</th>
-                  <th className="px-6 py-3 font-bold">저녁 가격</th>
-                  <th className="px-6 py-3 font-bold text-center">저녁 제공</th>
-                  <th className="px-6 py-3 font-bold text-center">요일 모드</th>
-                  <th className="px-6 py-3 font-bold text-center">웹훅</th>
-                  <th className="px-6 py-3 font-bold text-center">상태</th>
-                  <th className="px-6 py-3 font-bold text-right">관리</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
+
+          <div className="flex" style={{ height: 'calc(100vh - 400px)', minHeight: '500px' }}>
+            {/* 좌측: 식당 목록 */}
+            <div className="w-80 border-r border-slate-200 flex flex-col">
+              {/* 검색 & 추가 버튼 */}
+              <div className="p-4 border-b border-slate-100 space-y-3">
+                <button
+                  onClick={handleNewRestaurant}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  <IconPlus size={16} />
+                  새 식당 추가
+                </button>
+                <input
+                  type="text"
+                  placeholder="식당 검색..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
+                />
+              </div>
+
+              {/* 식당 리스트 */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {isLoading ? (
-                  <tr>
-                    <td colSpan="10" className="px-6 py-8 text-center text-slate-500">
-                      <div className="flex justify-center items-center gap-2">
-                        <IconRefreshCw className="animate-spin" /> 로딩 중...
-                      </div>
-                    </td>
-                  </tr>
-                ) : dbRestaurants.length === 0 ? (
-                  <tr>
-                    <td colSpan="10" className="px-6 py-8 text-center text-slate-500">등록된 식당이 없습니다.</td>
-                  </tr>
+                  <div className="flex justify-center items-center h-32 text-slate-500">
+                    <IconRefreshCw className="animate-spin mr-2" size={16} />
+                    로딩 중...
+                  </div>
+                ) : filteredRestaurants.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 text-sm">
+                    {searchTerm ? '검색 결과가 없습니다.' : '등록된 식당이 없습니다.'}
+                  </div>
                 ) : (
-                  dbRestaurants.map((res) => (
-                    <tr key={res.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-6 py-4 text-slate-500 font-mono text-xs">{res.id}</td>
-                      <td className="px-6 py-4 font-medium text-slate-900">{res.name}</td>
-                      <td className="px-6 py-4 text-slate-600">{res.building_name || '-'}</td>
-                      <td className="px-6 py-4 text-slate-600">{res.price_lunch || '-'}</td>
-                      <td className="px-6 py-4 text-slate-600">{res.price_dinner || '-'}</td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${res.has_dinner ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
-                          {res.has_dinner ? '제공' : '미제공'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${(res.use_all_days === undefined || res.use_all_days === true || res.use_all_days === 1) ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                          {(res.use_all_days === undefined || res.use_all_days === true || res.use_all_days === 1) ? '전체 요일' : '개별 요일'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {res.webhook_url ? (
-                          <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
-                            res.webhook_type === 'image'
-                              ? 'bg-cyan-100 text-cyan-700'
-                              : res.webhook_type === 'json'
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {res.webhook_type === 'image' ? '이미지' : res.webhook_type === 'json' ? 'JSON' : '설정됨'}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`inline-block w-2 h-2 rounded-full ${res.is_active ? 'bg-green-500' : 'bg-slate-300'}`}></span>
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-2">
-                        <button
-                          onClick={() => openModal(res)}
-                          className="text-blue-600 hover:text-blue-800 font-medium text-xs px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                        >
-                          수정
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRestaurant(res.id, res.name)}
-                          className="text-red-500 hover:text-red-700 font-medium text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                        >
-                          삭제
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  <div className="divide-y divide-slate-100">
+                    {filteredRestaurants.map((res) => (
+                      <button
+                        key={res.id}
+                        onClick={() => handleSelectRestaurant(res.id)}
+                        className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${
+                          selectedRestaurantId === res.id && !isNewRestaurant
+                            ? 'bg-blue-50 border-l-4 border-blue-500'
+                            : 'border-l-4 border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-slate-900 text-sm truncate">{res.name}</div>
+                            {res.building_name && (
+                              <div className="text-xs text-slate-500 truncate mt-0.5">{res.building_name}</div>
+                            )}
+                            <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                              {res.has_dinner && (
+                                <span className="inline-block px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-bold">
+                                  저녁
+                                </span>
+                              )}
+                              {res.webhook_url && (
+                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  res.webhook_type === 'image' ? 'bg-cyan-100 text-cyan-700' : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {res.webhook_type === 'image' ? '이미지' : 'JSON'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <span className={`inline-block w-2 h-2 rounded-full ${res.is_active ? 'bg-green-500' : 'bg-slate-300'}`}></span>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            {/* 우측: 편집 폼 */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              {!selectedRestaurantId && !isNewRestaurant ? (
+                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                  <svg className="w-16 h-16 mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-sm">좌측에서 식당을 선택하거나 새 식당을 추가해주세요.</p>
+                </div>
+              ) : (
+                <div className="p-6">
+                  <div className="mb-6">
+                    <h4 className="text-lg font-bold text-slate-800 mb-1">
+                      {isNewRestaurant ? '새 식당 추가' : '식당 정보 수정'}
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      {isNewRestaurant ? '새로운 식당의 정보를 입력하세요.' : '선택한 식당의 정보를 수정합니다.'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* 기본 정보 */}
+                    <div className="bg-slate-50 rounded-lg p-4">
+                      <h5 className="text-sm font-bold text-slate-700 mb-3">기본 정보</h5>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5">식당 이름 <span className="text-red-500">*</span></label>
+                          <input
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            placeholder="예: STX f&c"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5">건물명</label>
+                          <input
+                            type="text"
+                            value={formData.building_name}
+                            onChange={(e) => setFormData({ ...formData, building_name: e.target.value })}
+                            placeholder="예: 부산영상산업센터"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 위치 정보 */}
+                    <div className="bg-slate-50 rounded-lg p-4">
+                      <h5 className="text-sm font-bold text-slate-700 mb-3">위치 정보</h5>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5">주소</label>
+                          <input
+                            type="text"
+                            value={formData.address}
+                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                            placeholder="예: 부산광역시 해운대구 센텀중앙로 55"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1.5">위도 (Latitude)</label>
+                            <input
+                              type="number"
+                              step="0.00000001"
+                              value={formData.latitude}
+                              onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                              placeholder="예: 35.1700"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1.5">경도 (Longitude)</label>
+                            <input
+                              type="number"
+                              step="0.00000001"
+                              value={formData.longitude}
+                              onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                              placeholder="예: 129.1286"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 가격 정보 */}
+                    <div className="bg-slate-50 rounded-lg p-4">
+                      <h5 className="text-sm font-bold text-slate-700 mb-3">가격 정보</h5>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5">점심 기본 가격</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.price_lunch}
+                            onChange={(e) => setFormData({ ...formData, price_lunch: e.target.value })}
+                            placeholder="예: 7000"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5">저녁 기본 가격</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.price_dinner}
+                            onChange={(e) => setFormData({ ...formData, price_dinner: e.target.value })}
+                            placeholder="예: 7000"
+                            disabled={!formData.has_dinner}
+                            className={`w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm ${!formData.has_dinner ? 'bg-slate-200 text-slate-400' : ''}`}
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <label className="flex items-center gap-2 cursor-pointer group">
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${formData.has_dinner ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300 group-hover:border-blue-400'}`}>
+                            {formData.has_dinner && <IconCheck size={14} className="text-white" />}
+                          </div>
+                          <input
+                            type="checkbox"
+                            className="hidden"
+                            checked={formData.has_dinner}
+                            onChange={(e) => setFormData({ ...formData, has_dinner: e.target.checked })}
+                          />
+                          <span className="text-sm font-medium text-slate-700">저녁 식사 제공</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* 요일 입력 방식 */}
+                    <div className="bg-slate-50 rounded-lg p-4">
+                      <h5 className="text-sm font-bold text-slate-700 mb-3">요일 입력 방식</h5>
+                      <div className="space-y-2">
+                        <label className="flex items-start gap-2 cursor-pointer group p-2 rounded hover:bg-white transition-colors">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 mt-0.5 ${formData.use_all_days ? 'bg-purple-600 border-purple-600' : 'bg-white border-slate-300 group-hover:border-purple-400'}`}>
+                            {formData.use_all_days && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                          </div>
+                          <input
+                            type="radio"
+                            name="use_all_days"
+                            className="hidden"
+                            checked={formData.use_all_days === true}
+                            onChange={() => setFormData({ ...formData, use_all_days: true })}
+                          />
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-slate-700">전체 요일 모드</span>
+                            <p className="text-xs text-slate-500 mt-0.5">일주일치 식단표를 한 번에 입력합니다</p>
+                          </div>
+                        </label>
+                        <label className="flex items-start gap-2 cursor-pointer group p-2 rounded hover:bg-white transition-colors">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 mt-0.5 ${!formData.use_all_days ? 'bg-orange-600 border-orange-600' : 'bg-white border-slate-300 group-hover:border-orange-400'}`}>
+                            {!formData.use_all_days && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                          </div>
+                          <input
+                            type="radio"
+                            name="use_all_days"
+                            className="hidden"
+                            checked={formData.use_all_days === false}
+                            onChange={() => setFormData({ ...formData, use_all_days: false })}
+                          />
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-slate-700">개별 요일 모드</span>
+                            <p className="text-xs text-slate-500 mt-0.5">요일별로 개별 입력합니다</p>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* 자동화 설정 */}
+                    <div className="bg-slate-50 rounded-lg p-4">
+                      <h5 className="text-sm font-bold text-slate-700 mb-3">자동화 설정 (선택)</h5>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1.5">웹훅 URL</label>
+                          <input
+                            type="url"
+                            value={formData.webhook_url}
+                            onChange={(e) => setFormData({ ...formData, webhook_url: e.target.value })}
+                            placeholder="예: http://localhost:5678/webhook/xxxxx"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                          />
+                          <p className="text-xs text-slate-400 mt-1">
+                            n8n 등의 웹훅 URL을 입력하면 자동으로 데이터를 가져올 수 있습니다.
+                          </p>
+                        </div>
+
+                        {formData.webhook_url && (
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-2">웹훅 데이터 타입</label>
+                            <div className="flex gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData.webhook_type === 'image' ? 'bg-cyan-600 border-cyan-600' : 'bg-white border-slate-300 group-hover:border-cyan-400'}`}>
+                                  {formData.webhook_type === 'image' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                                </div>
+                                <input
+                                  type="radio"
+                                  name="webhook_type"
+                                  className="hidden"
+                                  checked={formData.webhook_type === 'image'}
+                                  onChange={() => setFormData({ ...formData, webhook_type: 'image' })}
+                                />
+                                <span className="text-sm font-medium text-slate-700">이미지</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData.webhook_type === 'json' ? 'bg-amber-600 border-amber-600' : 'bg-white border-slate-300 group-hover:border-amber-400'}`}>
+                                  {formData.webhook_type === 'json' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                                </div>
+                                <input
+                                  type="radio"
+                                  name="webhook_type"
+                                  className="hidden"
+                                  checked={formData.webhook_type === 'json'}
+                                  onChange={() => setFormData({ ...formData, webhook_type: 'json' })}
+                                />
+                                <span className="text-sm font-medium text-slate-700">JSON</span>
+                              </label>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {formData.webhook_type === 'image'
+                                ? '웹훅에서 이미지를 가져와 GPT로 분석합니다.'
+                                : formData.webhook_type === 'json'
+                                  ? '웹훅에서 JSON 데이터를 직접 가져옵니다.'
+                                  : '웹훅에서 가져올 데이터 타입을 선택해주세요.'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 하단 버튼 */}
+                  <div className="mt-6 pt-4 border-t border-slate-200 flex justify-between items-center">
+                    {!isNewRestaurant && selectedRestaurantId && (
+                      <button
+                        onClick={() => {
+                          const restaurant = dbRestaurants.find(r => r.id === selectedRestaurantId);
+                          if (restaurant) {
+                            handleDeleteRestaurant(selectedRestaurantId, restaurant.name);
+                          }
+                        }}
+                        className="px-4 py-2 rounded-lg text-red-600 font-bold hover:bg-red-50 transition-colors text-sm border border-red-200"
+                      >
+                        <IconTrash size={16} className="inline mr-1" />
+                        삭제
+                      </button>
+                    )}
+                    <div className="flex gap-2 ml-auto">
+                      <button
+                        onClick={() => {
+                          setIsNewRestaurant(false);
+                          setSelectedRestaurantId(null);
+                        }}
+                        className="px-4 py-2 rounded-lg text-slate-600 font-bold hover:bg-slate-100 transition-colors text-sm"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={handleSaveRestaurant}
+                        className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors text-sm shadow-md hover:shadow-lg"
+                      >
+                        <IconCheck size={16} className="inline mr-1" />
+                        저장
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* 날짜 관리 섹션 (기존 유지) */}
+        {/* 날짜 관리 섹션 */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
             <div>
@@ -383,7 +669,7 @@ const ManagementTab = ({
                 return null;
               }
             })()}
-            
+
             {/* 날짜 범위 테이블 */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
@@ -444,200 +730,6 @@ const ManagementTab = ({
           </div>
         </div>
       </div>
-
-      {/* 식당 추가/수정 모달 */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform transition-all scale-100">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 className="font-bold text-lg text-slate-800">
-                {editingId ? '식당 정보 수정' : '새 식당 추가'}
-              </h3>
-              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600">
-                <IconX size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">식당 이름 <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="예: 파티박스"
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">건물명</label>
-                  <input
-                    type="text"
-                    value={formData.building_name}
-                    onChange={(e) => setFormData({ ...formData, building_name: e.target.value })}
-                    placeholder="예: 동서대"
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">점심 기본 가격</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.price_lunch}
-                    onChange={(e) => setFormData({ ...formData, price_lunch: e.target.value })}
-                    placeholder="예: 7000"
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">저녁 기본 가격</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.price_dinner}
-                    onChange={(e) => setFormData({ ...formData, price_dinner: e.target.value })}
-                    placeholder="예: 7000"
-                    disabled={!formData.has_dinner}
-                    className={`w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all ${!formData.has_dinner ? 'bg-slate-100 text-slate-400' : ''}`}
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 pt-2">
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${formData.has_dinner ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300 group-hover:border-blue-400'}`}>
-                    {formData.has_dinner && <IconCheck size={14} className="text-white" />}
-                  </div>
-                  <input
-                    type="checkbox"
-                    className="hidden"
-                    checked={formData.has_dinner}
-                    onChange={(e) => setFormData({ ...formData, has_dinner: e.target.checked })}
-                  />
-                  <span className="text-sm font-medium text-slate-700">저녁 식사 제공</span>
-                </label>
-              </div>
-
-              <div className="mt-4 pt-2 border-t border-slate-200">
-                <label className="block text-xs font-bold text-slate-500 mb-2">요일 입력 방식</label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData.use_all_days ? 'bg-purple-600 border-purple-600' : 'bg-white border-slate-300 group-hover:border-purple-400'}`}>
-                      {formData.use_all_days && <div className="w-2 h-2 rounded-full bg-white"></div>}
-                    </div>
-                    <input
-                      type="radio"
-                      name="use_all_days"
-                      className="hidden"
-                      checked={formData.use_all_days === true}
-                      onChange={(e) => setFormData({ ...formData, use_all_days: true })}
-                    />
-                    <div className="flex-1">
-                      <span className="text-sm font-medium text-slate-700">전체 요일 모드</span>
-                      <p className="text-xs text-slate-500 mt-0.5">일주일치 식단표를 한 번에 입력합니다</p>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${!formData.use_all_days ? 'bg-orange-600 border-orange-600' : 'bg-white border-slate-300 group-hover:border-orange-400'}`}>
-                      {!formData.use_all_days && <div className="w-2 h-2 rounded-full bg-white"></div>}
-                    </div>
-                    <input
-                      type="radio"
-                      name="use_all_days"
-                      className="hidden"
-                      checked={formData.use_all_days === false}
-                      onChange={(e) => setFormData({ ...formData, use_all_days: false })}
-                    />
-                    <div className="flex-1">
-                      <span className="text-sm font-medium text-slate-700">개별 요일 모드</span>
-                      <p className="text-xs text-slate-500 mt-0.5">요일별로 개별 입력합니다</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">
-                  웹훅 URL
-                  <span className="text-slate-400 font-normal ml-1">(선택)</span>
-                </label>
-                <input
-                  type="url"
-                  value={formData.webhook_url}
-                  onChange={(e) => setFormData({ ...formData, webhook_url: e.target.value })}
-                  placeholder="예: http://localhost:5678/webhook/xxxxx"
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
-                />
-                <p className="text-xs text-slate-400 mt-1">
-                  n8n 등의 웹훅 URL을 입력하면 자동으로 데이터를 가져올 수 있습니다.
-                </p>
-              </div>
-
-              {/* 웹훅 URL 입력 시에만 타입 선택 표시 */}
-              {formData.webhook_url && (
-                <div className="mt-4">
-                  <label className="block text-xs font-bold text-slate-500 mb-2">웹훅 데이터 타입</label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData.webhook_type === 'image' ? 'bg-cyan-600 border-cyan-600' : 'bg-white border-slate-300 group-hover:border-cyan-400'}`}>
-                        {formData.webhook_type === 'image' && <div className="w-2 h-2 rounded-full bg-white"></div>}
-                      </div>
-                      <input
-                        type="radio"
-                        name="webhook_type"
-                        className="hidden"
-                        checked={formData.webhook_type === 'image'}
-                        onChange={() => setFormData({ ...formData, webhook_type: 'image' })}
-                      />
-                      <span className="text-sm font-medium text-slate-700">이미지</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData.webhook_type === 'json' ? 'bg-amber-600 border-amber-600' : 'bg-white border-slate-300 group-hover:border-amber-400'}`}>
-                        {formData.webhook_type === 'json' && <div className="w-2 h-2 rounded-full bg-white"></div>}
-                      </div>
-                      <input
-                        type="radio"
-                        name="webhook_type"
-                        className="hidden"
-                        checked={formData.webhook_type === 'json'}
-                        onChange={() => setFormData({ ...formData, webhook_type: 'json' })}
-                      />
-                      <span className="text-sm font-medium text-slate-700">JSON</span>
-                    </label>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {formData.webhook_type === 'image'
-                      ? '웹훅에서 이미지를 가져와 GPT로 분석합니다.'
-                      : formData.webhook_type === 'json'
-                        ? '웹훅에서 JSON 데이터를 직접 가져옵니다.'
-                        : '웹훅에서 가져올 데이터 타입을 선택해주세요.'}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 rounded-lg text-slate-600 font-bold hover:bg-slate-200 transition-colors text-sm"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleSaveRestaurant}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors text-sm shadow-md hover:shadow-lg"
-              >
-                저장
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

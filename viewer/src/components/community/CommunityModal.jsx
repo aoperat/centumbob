@@ -4,8 +4,8 @@ import DailyVoting from './voting/DailyVoting';
 export default function CommunityModal({ isOpen, onClose, menuData = [] }) {
   if (!isOpen) return null;
 
-  // Extract restaurant names from menu data
-  const restaurants = menuData.map(d => d.name);
+  // Extract restaurant id and name from menu data (DailyVoting expects { id, name } objects)
+  const restaurants = menuData.map(d => ({ id: d.id, name: d.name }));
 
   return (
     <div
@@ -22,7 +22,7 @@ export default function CommunityModal({ isOpen, onClose, menuData = [] }) {
             <span className="bg-orange-500 text-white p-1 sm:p-1.5 rounded-lg">
               <IconVote className="w-4 h-4 sm:w-5 sm:h-5" />
             </span>
-            오늘 뭐 먹지?
+            오늘의 투표
           </h2>
           <button
             onClick={onClose}

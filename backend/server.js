@@ -4024,6 +4024,9 @@ app.post("/api/restaurants", async (req, res) => {
     const {
       name,
       building_name,
+      address,
+      latitude,
+      longitude,
       price_lunch,
       price_dinner,
       has_dinner,
@@ -4038,6 +4041,9 @@ app.post("/api/restaurants", async (req, res) => {
     const newRestaurant = await addRestaurant({
       name,
       building_name,
+      address,
+      latitude,
+      longitude,
       price_lunch,
       price_dinner,
       has_dinner,

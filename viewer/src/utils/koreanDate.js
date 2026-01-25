@@ -36,9 +36,14 @@ export function getKoreanDayOfWeek() {
 
 /**
  * Check if today is a weekday (Monday-Friday)
+ * 개발 환경에서는 항상 true 반환 (주말 테스트 가능)
  * @returns {boolean}
  */
 export function isWeekday() {
+  // 개발 환경에서는 주말에도 투표 테스트 가능
+  if (import.meta.env.DEV) {
+    return true;
+  }
   const day = getKoreanDayOfWeek();
   return !['토', '일'].includes(day);
 }

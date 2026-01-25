@@ -4,18 +4,18 @@ import { formatKoreanDate, getKoreanDateString, isWeekday } from '../../../utils
 import VoteCard from './VoteCard';
 import VoteResults from './VoteResults';
 
+// restaurants는 { id, name } 객체 배열
 export default function DailyVoting({ restaurants = [] }) {
   const [showResults, setShowResults] = useState(false);
   const {
     voteCounts,
     totalVotes,
-    userVote,
+    userVotedId,
     loading,
     voting,
     error,
     vote,
     getPercentage,
-    getSortedRestaurants,
   } = useVoting(restaurants);
 
   const today = getKoreanDateString();
@@ -29,14 +29,12 @@ export default function DailyVoting({ restaurants = [] }) {
     );
   }
 
-  const sortedRestaurants = getSortedRestaurants();
-
   return (
     <div className="p-4 sm:p-6">
       {/* Header */}
       <div className="text-center mb-6">
         <h3 className="text-xl font-bold text-slate-800 mb-1">
-          오늘 뭐 먹지? 🤔
+          오늘의 투표 🗳️
         </h3>
         <p className="text-sm text-slate-500">
           {formatKoreanDate(today)} 점심 투표
@@ -95,10 +93,10 @@ export default function DailyVoting({ restaurants = [] }) {
           ) : (
             <>
               {/* User vote status */}
-              {userVote && (
+              {userVotedId && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center text-sm">
                   <span className="text-blue-700">
-                    <strong>{userVote}</strong>에 투표했습니다
+                    <strong>{restaurants.find(r => r.id === userVotedId)?.name || '선택한 식당'}</strong>에 투표했습니다
                   </span>
                   <span className="text-blue-500 ml-2">(다시 클릭하면 변경됩니다)</span>
                 </div>
@@ -106,16 +104,17 @@ export default function DailyVoting({ restaurants = [] }) {
 
               {/* Vote cards */}
               <div className="grid gap-3 sm:grid-cols-2">
-                {sortedRestaurants.map((name, index) => (
+                {restaurants.map((restaurant) => (
                   <VoteCard
-                    key={name}
-                    restaurantName={name}
-                    voteCount={voteCounts[name] || 0}
-                    percentage={getPercentage(name)}
-                    isSelected={userVote === name}
+                    key={restaurant.id}
+                    restaurantId={restaurant.id}
+                    restaurantName={restaurant.name}
+                    voteCount={voteCounts[restaurant.id] || 0}
+                    percentage={getPercentage(restaurant.id)}
+                    isSelected={userVotedId === restaurant.id}
                     onVote={vote}
                     disabled={voting || !isVotingDay}
-                    rank={voteCounts[name] > 0 ? index + 1 : 0}
+                    rank={0}
                   />
                 ))}
               </div>

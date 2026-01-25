@@ -106,13 +106,13 @@ const NavBar = ({
               </button>
             )}
 
-            {/* 오늘 뭐 먹지? */}
+            {/* 오늘의 투표 */}
             <button
               onClick={onOpenCommunity}
               className="px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-lg hover:bg-orange-600 transition-colors shadow-sm flex items-center gap-1.5"
             >
               <IconCommunity className="w-4 h-4" />
-              오늘 뭐 먹지?
+              오늘의 투표
             </button>
           </div>
 
@@ -191,7 +191,7 @@ const NavBar = ({
                   className="w-full px-4 py-3 text-left text-sm font-bold text-orange-600 hover:bg-orange-50 transition-colors flex items-center gap-3"
                 >
                   <IconCommunity className="w-5 h-5" />
-                  오늘 뭐 먹지?
+                  오늘의 투표
                 </button>
 
                 {isAuthenticated && (

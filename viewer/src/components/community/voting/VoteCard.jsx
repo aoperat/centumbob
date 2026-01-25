@@ -1,4 +1,5 @@
 export default function VoteCard({
+  restaurantId,
   restaurantName,
   voteCount = 0,
   percentage = 0,
@@ -18,7 +19,7 @@ export default function VoteCard({
 
   return (
     <button
-      onClick={() => onVote(restaurantName)}
+      onClick={() => onVote(restaurantId, restaurantName)}
       disabled={disabled}
       className={`
         relative w-full p-4 rounded-xl border-2 transition-all duration-200

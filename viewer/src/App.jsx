@@ -8,6 +8,7 @@ import {
 import NavBar from "./components/NavBar";
 import Footer from "./components/Footer";
 import MenuList from "./components/MenuList";
+import { getAllRestaurantsPopularMenus } from "./utils/menuLikesApi";
 import ComplaintModal from "./components/ComplaintModal";
 import AdInquiryModal from "./components/AdInquiryModal";
 import AuthModal from "./components/AuthModal";
@@ -16,6 +17,7 @@ import ChatWindowV2 from "./components/ChatWindowV2";
 import CommunityModal from "./components/community/CommunityModal";
 import { getPageViews, incrementPageView } from "./utils/api";
 import { getActiveMenuData } from "./utils/menuApi";
+import { getUserLocation, addDistanceToMenuData, getNaverMapUrl, getDirectionsUrl } from "./utils/location";
 import { useAuth } from "./hooks/useAuth";
 import { useChat } from "./hooks/useChatV2";
 import "./styles/animations.css";
@@ -52,6 +54,10 @@ function App() {
   const [pageViewCount, setPageViewCount] = useState(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [popularMenusMap, setPopularMenusMap] = useState({}); // 식당별 역대 인기 메뉴
+  const [userLocation, setUserLocation] = useState(null); // 사용자 위치
+  const [locationError, setLocationError] = useState(null); // 위치 오류
+  const [locationLoaded, setLocationLoaded] = useState(false); // 위치 로딩 완료 여부
   // 점심/저녁 토글: 14시 이전은 점심, 이후는 저녁 기본 선택
   const [mealType, setMealType] = useState(() => {
     const hour = new Date().getHours();
@@ -77,18 +83,45 @@ function App() {
     }
   });
 
-  // JSON 데이터 로드
+  // 사용자 위치 가져오기
   useEffect(() => {
+    const loadUserLocation = async () => {
+      try {
+        const location = await getUserLocation();
+        setUserLocation(location);
+        console.log('[위치] 사용자 위치:', location);
+      } catch (error) {
+        console.warn('[위치] 위치 정보 가져오기 실패:', error.message);
+        setLocationError(error.message);
+      } finally {
+        setLocationLoaded(true); // 위치 로딩 완료 (성공/실패 상관없이)
+      }
+    };
+
+    loadUserLocation();
+  }, []);
+
+  // JSON 데이터 로드 (위치 로딩 완료 후 한 번만 실행)
+  useEffect(() => {
+    if (!locationLoaded) return; // 위치 로딩이 완료될 때까지 대기
+
     const loadMenuData = async () => {
       try {
         setLoading(true);
 
         // Supabase에서 직접 메뉴 데이터 조회
-        const data = await getActiveMenuData();
+        let data = await getActiveMenuData();
 
         // 배열로 받아야 하며, 만약 객체라면 에러 처리
         if (!Array.isArray(data)) {
           throw new Error("데이터 형식이 올바르지 않습니다. 배열이어야 합니다.");
+        }
+
+        // 사용자 위치가 있으면 거리 정보 추가 및 거리순 정렬
+        if (userLocation) {
+          data = addDistanceToMenuData(data, userLocation);
+          // 거리순으로 정렬 (가까운 순서)
+          data.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
         }
 
         setMenuData(data);
@@ -107,6 +140,20 @@ function App() {
     };
 
     loadMenuData();
+  }, [locationLoaded]); // 위치 로딩 완료 시 한 번만 실행
+
+  // 식당별 역대 인기 메뉴 로드
+  useEffect(() => {
+    const loadPopularMenus = async () => {
+      try {
+        const data = await getAllRestaurantsPopularMenus(2); // 최소 2개 좋아요
+        setPopularMenusMap(data);
+      } catch (error) {
+        console.error('인기 메뉴 로드 실패:', error);
+      }
+    };
+
+    loadPopularMenus();
   }, []);
 
   // 방문자수 조회 및 증가
@@ -432,20 +479,62 @@ function App() {
               <div key={idx} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 {/* 카드 헤더 */}
                 <div className="bg-slate-50 p-3 border-b border-slate-200">
-                  <h3 className="font-bold text-base text-slate-800 mb-1">{name}</h3>
-                  <p className="text-xs text-slate-500 mb-2">
-                    {menuMap[name]?.building_name || '\u00A0'}
-                  </p>
-                  {hasImage && displayImageUrl && (
-                    <button
-                      onClick={() => setModalImage(displayImageUrl)}
-                      className="px-2 py-1 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors flex items-center gap-1"
-                      title="원본 이미지 보기"
-                    >
-                      <IconImage className="w-3 h-3" />
-                      <span>이미지 보기</span>
-                    </button>
-                  )}
+                  <div className="flex items-start justify-between mb-1">
+                    <div className="flex-1">
+                      <h3 className="font-bold text-base text-slate-800">{name}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {menuMap[name]?.building_name || '\u00A0'}
+                      </p>
+                    </div>
+                    {menuMap[name]?.distanceText && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full whitespace-nowrap ml-2">
+                        {menuMap[name].distanceText}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {hasImage && displayImageUrl && (
+                      <button
+                        onClick={() => setModalImage(displayImageUrl)}
+                        className="flex-1 min-w-[80px] px-3 py-1.5 bg-gradient-to-r from-slate-50 to-slate-100 hover:from-slate-100 hover:to-slate-200 border border-slate-200 rounded-lg transition-all flex items-center justify-center gap-1.5 group shadow-sm hover:shadow"
+                        title="원본 이미지 보기"
+                      >
+                        <IconImage className="w-4 h-4 text-slate-600 group-hover:text-slate-700" />
+                      </button>
+                    )}
+                    {menuMap[name]?.location?.latitude && (
+                      <>
+                        <button
+                          onClick={() => window.open(getNaverMapUrl(
+                            menuMap[name].location.latitude,
+                            menuMap[name].location.longitude,
+                            menuMap[name].building_name,
+                            menuMap[name].location.address
+                          ), '_blank')}
+                          className="flex-1 min-w-[70px] px-3 py-1.5 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 border border-green-200 rounded-lg transition-all flex items-center justify-center gap-1.5 group shadow-sm hover:shadow"
+                          title="네이버 지도에서 보기"
+                        >
+                          <svg className="w-4 h-4 text-green-600 group-hover:text-green-700" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => window.open(getDirectionsUrl(
+                            menuMap[name].location.latitude,
+                            menuMap[name].location.longitude,
+                            menuMap[name].building_name,
+                            menuMap[name].location.address
+                          ), '_blank')}
+                          className="flex-1 min-w-[80px] px-3 py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200 rounded-lg transition-all flex items-center justify-center gap-1.5 group shadow-sm hover:shadow"
+                          title="길찾기"
+                        >
+                          <svg className="w-4 h-4 text-blue-600 group-hover:text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* 메뉴 내용 */}
@@ -462,7 +551,15 @@ function App() {
                   )}
                   {currentMenu && currentMenu.length > 0 ? (
                     <>
-                      <MenuList items={currentMenu} />
+                      <MenuList
+                        items={currentMenu}
+                        restaurantId={menuMap[name]?.id}
+                        restaurantName={name}
+                        day={activeDay}
+                        mealType={mealType}
+                        dateRange={currentDate}
+                        popularMenus={popularMenusMap[menuMap[name]?.id] || {}}
+                      />
                     </>
                   ) : (
                     <p className="text-gray-400 text-xs italic">정보 없음</p>
@@ -540,35 +637,71 @@ function App() {
                     return (
                       <th
                         key={idx}
-                        className="p-4 bg-slate-50 border-b border-slate-200 text-left min-w-[200px]"
+                        className="p-4 bg-slate-50 border-b border-slate-200 text-left min-w-[220px]"
                       >
                         <div className="flex flex-col gap-2 min-h-[88px]">
-                          {/* 첫 번째 줄: 식당명 (고정 높이) */}
-                          <span
-                            className="text-slate-800 font-bold text-base block truncate w-full h-6"
-                            title={name}
-                          >
-                            {name}
-                          </span>
-                          {/* 두 번째 줄: 건물명 (항상 공간 차지) */}
+                          {/* 첫 번째 줄: 식당명 + 거리 */}
+                          <div className="flex items-center justify-between gap-2 h-6">
+                            <span
+                              className="text-slate-800 font-bold text-base truncate flex-1"
+                              title={name}
+                            >
+                              {name}
+                            </span>
+                            {menuMap[name]?.distanceText && (
+                              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full whitespace-nowrap">
+                                {menuMap[name].distanceText}
+                              </span>
+                            )}
+                          </div>
+                          {/* 두 번째 줄: 건물명 */}
                           <span className="text-slate-500 font-medium text-sm block truncate w-full h-5">
                             {menuMap[name]?.building_name || '\u00A0'}
                           </span>
-                          {/* 세 번째 줄: 이미지 버튼 (항상 공간 차지) */}
-                          <div className="h-7 flex items-center">
-                            {hasImage && hasDayData && displayImageUrl ? (
+                          {/* 세 번째 줄: 이미지/지도 버튼 */}
+                          <div className="h-7 flex items-center gap-1">
+                            {hasImage && hasDayData && displayImageUrl && (
                               <button
                                 onClick={() =>
                                   setModalImage(displayImageUrl)
                                 }
-                                className="px-2 py-1 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors flex items-center gap-1"
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md transition-all text-xs flex items-center gap-1 shadow-sm hover:shadow group"
                                 title="원본 이미지 보기"
                               >
-                                <IconImage className="w-3 h-3" />
-                                <span>이미지 보기</span>
+                                <IconImage className="w-4 h-4 text-slate-600 group-hover:text-slate-700" />
                               </button>
-                            ) : (
-                              <span className="invisible">placeholder</span>
+                            )}
+                            {menuMap[name]?.location?.latitude && (
+                              <>
+                                <button
+                                  onClick={() => window.open(getNaverMapUrl(
+                                    menuMap[name].location.latitude,
+                                    menuMap[name].location.longitude,
+                                    menuMap[name].building_name,
+                                    menuMap[name].location.address
+                                  ), '_blank')}
+                                  className="p-1.5 bg-green-50 hover:bg-green-100 border border-green-200 rounded-md transition-all shadow-sm hover:shadow group"
+                                  title="네이버 지도에서 보기"
+                                >
+                                  <svg className="w-4 h-4 text-green-600 group-hover:text-green-700" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => window.open(getDirectionsUrl(
+                                    menuMap[name].location.latitude,
+                                    menuMap[name].location.longitude,
+                                    menuMap[name].building_name,
+                                    menuMap[name].location.address
+                                  ), '_blank')}
+                                  className="p-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all shadow-sm hover:shadow group"
+                                  title="길찾기"
+                                >
+                                  <svg className="w-4 h-4 text-blue-600 group-hover:text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                                  </svg>
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
@@ -635,7 +768,15 @@ function App() {
                                 {currentPrice}
                               </div>
                             )}
-                            <MenuList items={currentMenu} />
+                            <MenuList
+                              items={currentMenu}
+                              restaurantId={menuMap[name]?.id}
+                              restaurantName={name}
+                              day={activeDay}
+                              mealType={mealType}
+                              dateRange={currentDate}
+                              popularMenus={popularMenusMap[menuMap[name]?.id] || {}}
+                            />
                           </div>
                         </div>
                       </td>

@@ -83,21 +83,39 @@ export const getActiveMenuData = async () => {
           금: { lunch: [], dinner: [] },
         };
 
-        // 요일별 이미지 URL 생성
-        let imageUrls = null;
-        if (dbData?.image_paths) {
-          imageUrls = {};
-          const days = ['월', '화', '수', '목', '금'];
+        // 이미지 URL 생성
+        let imageUrlsByDay = null;
+        let imageUrlsArray = [];
+        const days = ['월', '화', '수', '목', '금'];
+        const basePath = import.meta.env.BASE_URL || '/centumbob_v2/';
+
+        // 개별요일 모드 (image_paths 객체)
+        if (dbData?.image_paths && typeof dbData.image_paths === 'object') {
+          imageUrlsByDay = {};
+          const uniqueImages = new Set();
+
           days.forEach((day) => {
             if (dbData.image_paths[day]) {
-              // 이미지 경로를 절대 URL로 변환
               const imagePath = dbData.image_paths[day];
               const fileName = imagePath.split('/').pop();
-              // GitHub Pages 기준 경로 (배포 시 사용)
-              const basePath = import.meta.env.BASE_URL || '/centumbob_v2/';
-              imageUrls[day] = `${basePath}images/${fileName}`.replace(/\/\//g, '/');
+              const fullUrl = `${basePath}images/${fileName}`.replace(/\/\//g, '/');
+              imageUrlsByDay[day] = fullUrl;
+              uniqueImages.add(fullUrl);
             }
           });
+
+          imageUrlsArray = Array.from(uniqueImages);
+        }
+        // 전체요일 모드 (image_path 단일 문자열) - 모든 요일에 동일 이미지
+        else if (dbData?.image_path) {
+          const fileName = dbData.image_path.split('/').pop();
+          const fullUrl = `${basePath}images/${fileName}`.replace(/\/\//g, '/');
+
+          imageUrlsByDay = {};
+          days.forEach((day) => {
+            imageUrlsByDay[day] = fullUrl;
+          });
+          imageUrlsArray = [fullUrl];
         }
 
         // Viewer 형식으로 변환 (기존 menu-data.json 구조와 동일하게)
@@ -115,13 +133,21 @@ export const getActiveMenuData = async () => {
             lunch: priceLunch ? `${Number(priceLunch).toLocaleString()}원` : '',
             dinner: priceDinner ? `${Number(priceDinner).toLocaleString()}원` : '',
           },
+          // 위치 정보 추가
+          location: {
+            latitude: restaurant.latitude,
+            longitude: restaurant.longitude,
+            address: restaurant.address,
+          },
           data: {
             date: dbData?.date_range || activeDateRange,
             menus: dbData
               ? transformMenusForViewer(dbData.menus, dbData.excluded_menu_items)
               : transformMenusForViewer(emptyMenus, []),
-            images: imageUrls,
           },
+          // imageUrls와 imageUrlsByDay는 data 밖에 최상위 레벨로
+          imageUrls: imageUrlsArray,
+          imageUrlsByDay: imageUrlsByDay,
         };
 
         viewerData.push(viewerItem);
@@ -133,8 +159,12 @@ export const getActiveMenuData = async () => {
       }
     });
 
-    // sort_order로 정렬
-    viewerData.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    // sort_order로 정렬 (동일한 sort_order는 id로 2차 정렬)
+    viewerData.sort((a, b) => {
+      const orderDiff = (a.sort_order || 0) - (b.sort_order || 0);
+      if (orderDiff !== 0) return orderDiff;
+      return (a.id || 0) - (b.id || 0);
+    });
 
     console.log('[Menu API] 변환된 viewer 데이터:', viewerData.length);
 

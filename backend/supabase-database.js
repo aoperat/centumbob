@@ -275,6 +275,9 @@ export const addRestaurant = async (data) => {
   const {
     name,
     building_name,
+    address,
+    latitude,
+    longitude,
     price_lunch,
     price_dinner,
     has_dinner,
@@ -298,6 +301,9 @@ export const addRestaurant = async (data) => {
     .insert({
       name,
       building_name: building_name || '',
+      address: address || null,
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
       price_lunch: price_lunch || '',
       price_dinner: price_dinner || '',
       has_dinner: has_dinner !== undefined ? has_dinner : true,
@@ -320,6 +326,9 @@ export const updateRestaurant = async (id, data) => {
 
   if (data.name !== undefined) updates.name = data.name;
   if (data.building_name !== undefined) updates.building_name = data.building_name || '';
+  if (data.address !== undefined) updates.address = data.address || null;
+  if (data.latitude !== undefined) updates.latitude = data.latitude ? parseFloat(data.latitude) : null;
+  if (data.longitude !== undefined) updates.longitude = data.longitude ? parseFloat(data.longitude) : null;
   if (data.price_lunch !== undefined) updates.price_lunch = data.price_lunch;
   if (data.price_dinner !== undefined) updates.price_dinner = data.price_dinner;
   if (data.has_dinner !== undefined) updates.has_dinner = data.has_dinner;

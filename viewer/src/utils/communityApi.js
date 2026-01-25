@@ -355,9 +355,11 @@ export async function getVoteCounts(date = null) {
     return { counts: {}, total: 0 };
   }
 
+  // restaurant_id 기준으로 집계 (중복 이름 문제 해결)
   const counts = {};
   data.forEach(vote => {
-    counts[vote.restaurant_name] = (counts[vote.restaurant_name] || 0) + 1;
+    const key = vote.restaurant_id || vote.restaurant_name; // fallback for old data
+    counts[key] = (counts[key] || 0) + 1;
   });
 
   return { counts, total: data.length };
@@ -365,12 +367,13 @@ export async function getVoteCounts(date = null) {
 
 /**
  * Cast a vote
- * @param {string} restaurantName - Restaurant to vote for
+ * @param {number} restaurantId - Restaurant ID to vote for
+ * @param {string} restaurantName - Restaurant name (for display)
  * @param {string} userId - User UUID (nullable)
  * @param {string} anonymousId - Anonymous ID
  * @returns {Promise<{data: Object, error: Error}>}
  */
-export async function castVote(restaurantName, userId, anonymousId) {
+export async function castVote(restaurantId, restaurantName, userId, anonymousId) {
   // First, delete any existing vote for today
   const voteDate = getKoreanDateString();
 
@@ -391,6 +394,7 @@ export async function castVote(restaurantName, userId, anonymousId) {
   const { data, error } = await supabase
     .from('centumbob_daily_votes')
     .insert({
+      restaurant_id: restaurantId,
       restaurant_name: restaurantName,
       user_id: userId || null,
       anonymous_id: !userId ? anonymousId : null,
@@ -422,7 +426,12 @@ export async function getUserVote(userId, anonymousId) {
   }
 
   const { data } = await query.maybeSingle();
-  return { vote: data };
+  // restaurant_id 반환 (없으면 restaurant_name으로 fallback)
+  return {
+    vote: data,
+    votedRestaurantId: data?.restaurant_id || null,
+    votedRestaurantName: data?.restaurant_name || null,
+  };
 }
 
 /**
