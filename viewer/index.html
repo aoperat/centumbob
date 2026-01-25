@@ -57,11 +57,40 @@
     // __APP_VERSION__ 은 빌드 시 자동으로 치환됩니다
     (function () {
       var VERSION = '__APP_VERSION__';
-      var KEY = 'centumbob_version';
-      var stored = localStorage.getItem(KEY);
+      var VERSION_KEY = 'centumbob_version';
+      var SW_MIGRATION_KEY = 'centumbob_sw_migrated';
+      var stored = localStorage.getItem(VERSION_KEY);
 
       // 개발 환경이면 스킵
       if (VERSION.indexOf('__') === 0) return;
+
+      // Service Worker 마이그레이션 체크 (일회성)
+      // Service Worker가 없는 구버전 사용자를 위한 강제 업데이트
+      if (!localStorage.getItem(SW_MIGRATION_KEY)) {
+        console.log('[Migration] Service Worker 마이그레이션 중...');
+
+        // 모든 캐시 삭제
+        if ('caches' in window) {
+          caches.keys().then(function (names) {
+            return Promise.all(names.map(function (name) {
+              return caches.delete(name);
+            }));
+          }).then(function () {
+            console.log('[Migration] 캐시 삭제 완료');
+          });
+        }
+
+        // 마이그레이션 완료 표시
+        localStorage.setItem(SW_MIGRATION_KEY, 'true');
+        localStorage.setItem(VERSION_KEY, VERSION);
+
+        // 강제 새로고침 (캐시 무시)
+        console.log('[Migration] 페이지 새로고침...');
+        setTimeout(function() {
+          window.location.href = window.location.href.split('?')[0] + '?_sw_init=' + Date.now();
+        }, 100);
+        return;
+      }
 
       // 버전이 다르면 강제 업데이트
       if (stored && stored !== VERSION) {
@@ -78,34 +107,58 @@
           });
         }
 
-        // localStorage 클리어 (선택사항 - 필요시 주석 해제)
-        // localStorage.clear();
-
         // 새 버전 저장
-        localStorage.setItem(KEY, VERSION);
+        localStorage.setItem(VERSION_KEY, VERSION);
 
         // 강제 새로고침 (캐시 무시)
-        if (location.reload) {
-          location.reload(true);
-        } else {
-          location.href = location.href.split('?')[0] + '?v=' + Date.now();
-        }
+        setTimeout(function() {
+          window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now();
+        }, 100);
+        return;
       } else if (!stored) {
         // 첫 방문 시 버전 저장
-        localStorage.setItem(KEY, VERSION);
+        localStorage.setItem(VERSION_KEY, VERSION);
       }
 
-      // 주기적으로 버전 체크 (5분마다)
-      setInterval(function () {
-        fetch(location.href + '?v=' + Date.now(), {
-          method: 'HEAD',
-          cache: 'no-store'
-        }).then(function (response) {
+      // 실제 서버 버전 체크 (페이지 로드 시 1회 + 5분마다)
+      var checkServerVersion = function() {
+        // index.html을 fetch해서 버전 비교
+        fetch(window.location.href.split('?')[0] + '?_check=' + Date.now(), {
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        }).then(function(response) {
           return response.text();
-        }).catch(function () {
-          // 네트워크 오류 무시
+        }).then(function(html) {
+          // HTML에서 버전 추출
+          var match = html.match(/var VERSION = '([^']+)'/);
+          if (match && match[1] && match[1] !== VERSION) {
+            console.log('서버에 새 버전 발견:', match[1]);
+            localStorage.setItem(VERSION_KEY, match[1]);
+
+            // 캐시 삭제 후 새로고침
+            if ('caches' in window) {
+              caches.keys().then(function(names) {
+                return Promise.all(names.map(function(name) {
+                  return caches.delete(name);
+                }));
+              }).then(function() {
+                window.location.reload(true);
+              });
+            } else {
+              window.location.reload(true);
+            }
+          }
+        }).catch(function(err) {
+          console.debug('버전 체크 실패 (무시):', err);
         });
-      }, 5 * 60 * 1000);
+      };
+
+      // 페이지 로드 후 3초 뒤 첫 체크
+      setTimeout(checkServerVersion, 3000);
+
+      // 5분마다 주기적 체크
+      setInterval(checkServerVersion, 5 * 60 * 1000);
     })();
   </script>
   <!-- Google Analytics (GA4) -->
