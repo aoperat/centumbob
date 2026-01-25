@@ -4033,6 +4033,8 @@ app.post("/api/restaurants", async (req, res) => {
       webhook_url,
       webhook_type,
       use_all_days,
+      map_url,
+      directions_url,
     } = req.body;
     if (!name) {
       return res.status(400).json({ error: "식당 이름은 필수입니다." });
@@ -4050,6 +4052,8 @@ app.post("/api/restaurants", async (req, res) => {
       webhook_url,
       webhook_type,
       use_all_days,
+      map_url,
+      directions_url,
     });
     res.json(newRestaurant);
   } catch (error) {

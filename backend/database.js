@@ -178,6 +178,38 @@ try {
     console.error("building_name 마이그레이션 오류:", migrationError);
   }
 
+  // 마이그레이션: map_url 컬럼 확인 및 추가
+  try {
+    const tableInfo4 = db.pragma("table_info(restaurants)");
+    const hasMapUrlColumn = tableInfo4.find(
+      (col) => col.name === "map_url"
+    );
+    if (!hasMapUrlColumn) {
+      console.log("restaurants 테이블에 map_url 컬럼 추가 중...");
+      db.exec(
+        "ALTER TABLE restaurants ADD COLUMN map_url TEXT DEFAULT NULL"
+      );
+    }
+  } catch (migrationError) {
+    console.error("map_url 마이그레이션 오류:", migrationError);
+  }
+
+  // 마이그레이션: directions_url 컬럼 확인 및 추가
+  try {
+    const tableInfo5 = db.pragma("table_info(restaurants)");
+    const hasDirectionsUrlColumn = tableInfo5.find(
+      (col) => col.name === "directions_url"
+    );
+    if (!hasDirectionsUrlColumn) {
+      console.log("restaurants 테이블에 directions_url 컬럼 추가 중...");
+      db.exec(
+        "ALTER TABLE restaurants ADD COLUMN directions_url TEXT DEFAULT NULL"
+      );
+    }
+  } catch (migrationError) {
+    console.error("directions_url 마이그레이션 오류:", migrationError);
+  }
+
   // 마이그레이션: menu_data 테이블에 image_paths 컬럼 확인 및 추가
   try {
     const menuDataTableInfo = db.pragma("table_info(menu_data)");
@@ -783,6 +815,8 @@ export const addRestaurant = (data) => {
     webhook_url,
     webhook_type,
     use_all_days,
+    map_url,
+    directions_url,
   } = data;
 
   // 현재 최대 sort_order 구하기
@@ -792,8 +826,8 @@ export const addRestaurant = (data) => {
   const newOrder = (maxOrder?.max_order || 0) + 1;
 
   const stmt = db.prepare(`
-    INSERT INTO restaurants (name, building_name, price_lunch, price_dinner, has_dinner, webhook_url, webhook_type, use_all_days, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO restaurants (name, building_name, price_lunch, price_dinner, has_dinner, webhook_url, webhook_type, use_all_days, map_url, directions_url, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const hasDinnerVal = has_dinner === undefined ? 1 : has_dinner ? 1 : 0;
@@ -807,6 +841,8 @@ export const addRestaurant = (data) => {
     webhook_url || null,
     webhook_type || null,
     useAllDaysVal,
+    map_url || null,
+    directions_url || null,
     newOrder
   );
   return {
@@ -818,6 +854,8 @@ export const addRestaurant = (data) => {
     has_dinner: hasDinnerVal,
     webhook_url: webhook_url || null,
     use_all_days: useAllDaysVal,
+    map_url: map_url || null,
+    directions_url: directions_url || null,
     sort_order: newOrder,
   };
 };
@@ -835,6 +873,8 @@ export const updateRestaurant = (id, data) => {
     webhook_url,
     webhook_type,
     use_all_days,
+    map_url,
+    directions_url,
   } = data;
 
   const updates = [];
@@ -879,6 +919,14 @@ export const updateRestaurant = (id, data) => {
   if (use_all_days !== undefined) {
     updates.push("use_all_days = ?");
     params.push(use_all_days ? 1 : 0);
+  }
+  if (map_url !== undefined) {
+    updates.push("map_url = ?");
+    params.push(map_url || null);
+  }
+  if (directions_url !== undefined) {
+    updates.push("directions_url = ?");
+    params.push(directions_url || null);
   }
 
   if (updates.length === 0) {

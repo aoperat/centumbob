@@ -53,51 +53,17 @@
     }
     </script>
   <script>
-    // 버전 체크 및 Service Worker 마이그레이션 (인라인 - 캐시 영향 없음)
+    // 버전 체크 - 새 버전 배포 시 캐시 삭제
     // __APP_VERSION__ 은 빌드 시 자동으로 치환됩니다
     (function () {
       var VERSION = '__APP_VERSION__';
       var VERSION_KEY = 'centumbob_version';
-      var SW_MIGRATION_KEY = 'centumbob_sw_migrated';
-      var stored = localStorage.getItem(VERSION_KEY);
-
-      // 개발 환경이면 스킵
       if (VERSION.indexOf('__') === 0) return;
 
-      // Service Worker 마이그레이션 체크 (일회성)
-      // Service Worker가 없는 구버전 사용자를 위한 강제 업데이트
-      if (!localStorage.getItem(SW_MIGRATION_KEY)) {
-        console.log('[Migration] Service Worker 마이그레이션 중...');
+      var stored = localStorage.getItem(VERSION_KEY);
 
-        // 모든 캐시 삭제
-        if ('caches' in window) {
-          caches.keys().then(function (names) {
-            return Promise.all(names.map(function (name) {
-              return caches.delete(name);
-            }));
-          }).then(function () {
-            console.log('[Migration] 캐시 삭제 완료');
-          });
-        }
-
-        // 마이그레이션 완료 표시
-        localStorage.setItem(SW_MIGRATION_KEY, 'true');
-        localStorage.setItem(VERSION_KEY, VERSION);
-
-        // 강제 새로고침 (캐시 무시)
-        console.log('[Migration] 페이지 새로고침...');
-        setTimeout(function() {
-          window.location.href = window.location.href.split('?')[0] + '?_sw_init=' + Date.now();
-        }, 100);
-        return;
-      }
-
-      // 버전이 다르면 캐시 삭제 (Service Worker가 처리)
       if (stored && stored !== VERSION) {
         console.log('[Version] 새 버전 감지:', VERSION, '(이전:', stored + ')');
-        localStorage.setItem(VERSION_KEY, VERSION);
-
-        // 캐시 삭제 (Service Worker가 자동으로 처리하지만 확실하게)
         if ('caches' in window) {
           caches.keys().then(function (names) {
             return Promise.all(names.map(function (name) {
@@ -105,10 +71,10 @@
             }));
           });
         }
-      } else if (!stored) {
-        // 첫 방문 시 버전 저장
+      }
+
+      if (!stored || stored !== VERSION) {
         localStorage.setItem(VERSION_KEY, VERSION);
-        console.log('[Version] 첫 방문 - 버전 저장:', VERSION);
       }
     })();
   </script>
@@ -126,22 +92,7 @@
 <body>
   <div id="root"></div>
 
-  <!-- 외부 버전 체크 스크립트 - 캐시 우회를 위해 타임스탬프 추가 -->
-  <!-- 이 스크립트는 항상 최신 버전을 가져와서 업데이트 필요 시 강제 새로고침 -->
-  <script>
-    (function() {
-      var script = document.createElement('script');
-      // 상대 경로 사용 (현재 페이지 기준)
-      script.src = './version-check.js?t=' + Date.now();
-      script.async = true;
-      script.onerror = function() {
-        console.log('[Version Check] 스크립트 로드 실패 (무시)');
-      };
-      document.body.appendChild(script);
-    })();
-  </script>
-
-  <script type="module" src="/src/main.jsx"></script>
+<script type="module" src="/src/main.jsx"></script>
 </body>
 
 </html>

@@ -32,7 +32,9 @@ const ManagementTab = ({
     has_dinner: true,
     webhook_url: '',
     webhook_type: '', // 'image' | 'json' | ''
-    use_all_days: true
+    use_all_days: true,
+    map_url: '',
+    directions_url: ''
   });
 
   // 날짜 관련 상태
@@ -81,7 +83,9 @@ const ManagementTab = ({
           has_dinner: restaurant.has_dinner === true || restaurant.has_dinner === 1,
           webhook_url: restaurant.webhook_url || '',
           webhook_type: restaurant.webhook_type || '',
-          use_all_days: restaurant.use_all_days === undefined ? true : (restaurant.use_all_days === true || restaurant.use_all_days === 1)
+          use_all_days: restaurant.use_all_days === undefined ? true : (restaurant.use_all_days === true || restaurant.use_all_days === 1),
+          map_url: restaurant.map_url || '',
+          directions_url: restaurant.directions_url || ''
         });
       }
     } else if (isNewRestaurant) {
@@ -96,7 +100,9 @@ const ManagementTab = ({
         has_dinner: true,
         webhook_url: '',
         webhook_type: '',
-        use_all_days: true
+        use_all_days: true,
+        map_url: '',
+        directions_url: ''
       });
     }
   }, [selectedRestaurantId, isNewRestaurant, dbRestaurants]);
@@ -588,6 +594,36 @@ const ManagementTab = ({
                             </p>
                           </div>
                         )}
+                      </div>
+                    </div>
+
+                    {/* 지도 링크 설정 */}
+                    <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm">
+                      <h5 className="text-sm font-bold text-slate-700 mb-2">지도 링크 설정 (선택)</h5>
+                      <p className="text-[10px] text-slate-400 mb-3">
+                        네이버 지도에서 해당 식당 페이지와 길찾기 URL을 복사하여 붙여넣으세요. 입력하지 않으면 좌표 기반으로 자동 생성됩니다.
+                      </p>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1">네이버 지도 URL</label>
+                          <input
+                            type="url"
+                            value={formData.map_url}
+                            onChange={(e) => setFormData({ ...formData, map_url: e.target.value })}
+                            placeholder="예: https://naver.me/xxxxx 또는 https://map.naver.com/..."
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1">길찾기 URL</label>
+                          <input
+                            type="url"
+                            value={formData.directions_url}
+                            onChange={(e) => setFormData({ ...formData, directions_url: e.target.value })}
+                            placeholder="예: https://map.naver.com/...directions..."
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

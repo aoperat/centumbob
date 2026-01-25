@@ -117,6 +117,10 @@ export const transformDbDataForViewer = (dbData, imageBase64 = null, restaurantI
   // sort_order: 기준데이터(restaurantInfo)에서 가져옴
   const sortOrder = restaurantInfo?.sort_order || 999;
 
+  // 지도 URL: 기준데이터(restaurantInfo)에서 가져옴
+  const mapUrl = restaurantInfo?.map_url || null;
+  const directionsUrl = restaurantInfo?.directions_url || null;
+
   return {
     id: restaurant_id,
     name: restaurant_name,
@@ -131,6 +135,14 @@ export const transformDbDataForViewer = (dbData, imageBase64 = null, restaurantI
       date: date_range || "",
       menus: transformedMenus,
       text: ""
+    },
+    // 위치 정보
+    location: {
+      latitude: restaurantInfo?.latitude || null,
+      longitude: restaurantInfo?.longitude || null,
+      address: restaurantInfo?.address || null,
+      map_url: mapUrl,
+      directions_url: directionsUrl,
     },
     imageUrls: imageUrls, // 하위 호환성: 전체 요일 모드용
     imageUrlsByDay: Object.keys(imageUrlsByDay).length > 0 ? imageUrlsByDay : undefined // 요일별 이미지

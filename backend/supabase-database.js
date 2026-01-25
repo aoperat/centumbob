@@ -284,6 +284,8 @@ export const addRestaurant = async (data) => {
     webhook_url,
     webhook_type,
     use_all_days,
+    map_url,
+    directions_url,
   } = data;
 
   // 현재 최대 sort_order 구하기
@@ -310,6 +312,8 @@ export const addRestaurant = async (data) => {
       webhook_url: webhook_url || null,
       webhook_type: webhook_type || null,
       use_all_days: use_all_days !== undefined ? use_all_days : true,
+      map_url: map_url || null,
+      directions_url: directions_url || null,
       sort_order: newOrder
     })
     .select()
@@ -337,6 +341,8 @@ export const updateRestaurant = async (id, data) => {
   if (data.webhook_url !== undefined) updates.webhook_url = data.webhook_url || null;
   if (data.webhook_type !== undefined) updates.webhook_type = data.webhook_type || null;
   if (data.use_all_days !== undefined) updates.use_all_days = data.use_all_days;
+  if (data.map_url !== undefined) updates.map_url = data.map_url || null;
+  if (data.directions_url !== undefined) updates.directions_url = data.directions_url || null;
 
   const { data: result, error } = await supabase
     .from('centumbob_cafeteria_restaurants')

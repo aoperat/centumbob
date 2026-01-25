@@ -138,6 +138,8 @@ export const getActiveMenuData = async () => {
             latitude: restaurant.latitude,
             longitude: restaurant.longitude,
             address: restaurant.address,
+            map_url: restaurant.map_url,
+            directions_url: restaurant.directions_url,
           },
           data: {
             date: dbData?.date_range || activeDateRange,

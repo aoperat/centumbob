@@ -502,15 +502,16 @@ function App() {
                         <IconImage className="w-4 h-4 text-slate-600 group-hover:text-slate-700" />
                       </button>
                     )}
-                    {menuMap[name]?.location?.latitude && (
+                    {(menuMap[name]?.location?.map_url || menuMap[name]?.location?.latitude) && (
                       <>
                         <button
-                          onClick={() => window.open(getNaverMapUrl(
-                            menuMap[name].location.latitude,
-                            menuMap[name].location.longitude,
-                            menuMap[name].building_name,
-                            menuMap[name].location.address
-                          ), '_blank')}
+                          onClick={() => window.open(
+                            menuMap[name].location.map_url || getNaverMapUrl(
+                              menuMap[name].location.latitude,
+                              menuMap[name].location.longitude,
+                              menuMap[name].building_name,
+                              menuMap[name].location.address
+                            ), '_blank')}
                           className="flex-1 min-w-[70px] px-3 py-1.5 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 border border-green-200 rounded-lg transition-all flex items-center justify-center gap-1.5 group shadow-sm hover:shadow"
                           title="네이버 지도에서 보기"
                         >
@@ -519,12 +520,13 @@ function App() {
                           </svg>
                         </button>
                         <button
-                          onClick={() => window.open(getDirectionsUrl(
-                            menuMap[name].location.latitude,
-                            menuMap[name].location.longitude,
-                            menuMap[name].building_name,
-                            menuMap[name].location.address
-                          ), '_blank')}
+                          onClick={() => window.open(
+                            menuMap[name].location.directions_url || getDirectionsUrl(
+                              menuMap[name].location.latitude,
+                              menuMap[name].location.longitude,
+                              menuMap[name].building_name,
+                              menuMap[name].location.address
+                            ), '_blank')}
                           className="flex-1 min-w-[80px] px-3 py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200 rounded-lg transition-all flex items-center justify-center gap-1.5 group shadow-sm hover:shadow"
                           title="길찾기"
                         >
@@ -671,15 +673,16 @@ function App() {
                                 <IconImage className="w-4 h-4 text-slate-600 group-hover:text-slate-700" />
                               </button>
                             )}
-                            {menuMap[name]?.location?.latitude && (
+                            {(menuMap[name]?.location?.map_url || menuMap[name]?.location?.latitude) && (
                               <>
                                 <button
-                                  onClick={() => window.open(getNaverMapUrl(
-                                    menuMap[name].location.latitude,
-                                    menuMap[name].location.longitude,
-                                    menuMap[name].building_name,
-                                    menuMap[name].location.address
-                                  ), '_blank')}
+                                  onClick={() => window.open(
+                                    menuMap[name].location.map_url || getNaverMapUrl(
+                                      menuMap[name].location.latitude,
+                                      menuMap[name].location.longitude,
+                                      menuMap[name].building_name,
+                                      menuMap[name].location.address
+                                    ), '_blank')}
                                   className="p-1.5 bg-green-50 hover:bg-green-100 border border-green-200 rounded-md transition-all shadow-sm hover:shadow group"
                                   title="네이버 지도에서 보기"
                                 >
@@ -688,12 +691,13 @@ function App() {
                                   </svg>
                                 </button>
                                 <button
-                                  onClick={() => window.open(getDirectionsUrl(
-                                    menuMap[name].location.latitude,
-                                    menuMap[name].location.longitude,
-                                    menuMap[name].building_name,
-                                    menuMap[name].location.address
-                                  ), '_blank')}
+                                  onClick={() => window.open(
+                                    menuMap[name].location.directions_url || getDirectionsUrl(
+                                      menuMap[name].location.latitude,
+                                      menuMap[name].location.longitude,
+                                      menuMap[name].building_name,
+                                      menuMap[name].location.address
+                                    ), '_blank')}
                                   className="p-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all shadow-sm hover:shadow group"
                                   title="길찾기"
                                 >
