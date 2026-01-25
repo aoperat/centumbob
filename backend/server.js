@@ -2294,7 +2294,7 @@ app.post("/api/complaints", async (req, res) => {
 
     // Supabase에 민원 저장
     const { data, error } = await supabase
-      .from("complaints")
+      .from("centumbob_complaints")
       .insert([
         {
           restaurant_name,
@@ -2344,7 +2344,7 @@ app.get("/api/complaints", async (req, res) => {
     } = req.query;
 
     let query = supabase
-      .from("complaints")
+      .from("centumbob_complaints")
       .select("*")
       .order("created_at", { ascending: false })
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
@@ -2389,28 +2389,43 @@ app.get("/api/complaints/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
-      .from("complaints")
+    // 먼저 조회
+    const { data: complaint, error: fetchError } = await supabase
+      .from("centumbob_complaints")
       .select("*")
       .eq("id", id)
       .single();
 
-    if (error) {
-      if (error.code === "PGRST116") {
+    if (fetchError) {
+      if (fetchError.code === "PGRST116") {
         return res.status(404).json({
           error: "민원을 찾을 수 없습니다.",
         });
       }
-      console.error("Supabase 오류:", error);
+      console.error("Supabase 오류:", fetchError);
       return res.status(500).json({
         error: "민원 조회 중 오류가 발생했습니다.",
-        message: error.message,
+        message: fetchError.message,
       });
+    }
+
+    // 읽지 않은 상태면 읽음으로 변경
+    if (!complaint.is_read) {
+      const { error: updateError } = await supabase
+        .from("centumbob_complaints")
+        .update({ is_read: true })
+        .eq("id", id);
+
+      if (updateError) {
+        console.error("읽음 상태 업데이트 오류:", updateError);
+      } else {
+        complaint.is_read = true;
+      }
     }
 
     res.json({
       success: true,
-      data,
+      data: complaint,
     });
   } catch (error) {
     console.error("민원 조회 오류:", error);
@@ -2425,7 +2440,7 @@ app.get("/api/complaints/:id", async (req, res) => {
 app.put("/api/complaints/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, admin_response } = req.body;
+    const { status, admin_response, is_read } = req.body;
 
     // 업데이트할 필드 구성
     const updateData = {};
@@ -2443,6 +2458,9 @@ app.put("/api/complaints/:id", async (req, res) => {
     if (admin_response !== undefined) {
       updateData.admin_response = admin_response;
     }
+    if (is_read !== undefined) {
+      updateData.is_read = is_read;
+    }
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
@@ -2451,7 +2469,7 @@ app.put("/api/complaints/:id", async (req, res) => {
     }
 
     const { data, error } = await supabase
-      .from("complaints")
+      .from("centumbob_complaints")
       .update(updateData)
       .eq("id", id)
       .select()
@@ -2479,6 +2497,638 @@ app.put("/api/complaints/:id", async (req, res) => {
     console.error("민원 업데이트 오류:", error);
     res.status(500).json({
       error: "민원 업데이트 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// ==================== 광고문의 관련 API ====================
+
+// 광고문의 제출
+app.post("/api/ad-inquiries", async (req, res) => {
+  try {
+    const {
+      company_name,
+      contact_name,
+      email,
+      phone,
+      ad_type,
+      description,
+    } = req.body;
+
+    // 필수 필드 검증
+    if (
+      !company_name ||
+      !contact_name ||
+      !email ||
+      !phone ||
+      !ad_type ||
+      !description
+    ) {
+      return res.status(400).json({
+        error:
+          "필수 필드가 누락되었습니다. (company_name, contact_name, email, phone, ad_type, description)",
+      });
+    }
+
+    // 광고 유형 검증
+    const validAdTypes = ["배너", "협찬", "팝업", "기타"];
+    if (!validAdTypes.includes(ad_type)) {
+      return res.status(400).json({
+        error: `유효하지 않은 광고 유형입니다. 가능한 값: ${validAdTypes.join(
+          ", "
+        )}`,
+      });
+    }
+
+    // Supabase에 광고문의 저장
+    const { data, error } = await supabase
+      .from("centumbob_ad_inquiries")
+      .insert([
+        {
+          company_name,
+          contact_name,
+          email,
+          phone,
+          ad_type,
+          description,
+          status: "pending",
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase 오류:", error);
+      return res.status(500).json({
+        error: "광고문의 제출 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "광고문의가 성공적으로 제출되었습니다.",
+      data,
+    });
+  } catch (error) {
+    console.error("광고문의 제출 오류:", error);
+    res.status(500).json({
+      error: "광고문의 제출 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 광고문의 목록 조회
+app.get("/api/ad-inquiries", async (req, res) => {
+  try {
+    const {
+      status,
+      email,
+      is_read,
+      limit = 100,
+      offset = 0,
+    } = req.query;
+
+    let query = supabase
+      .from("centumbob_ad_inquiries")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    // 필터링
+    if (status) {
+      query = query.eq("status", status);
+    }
+    if (email) {
+      query = query.eq("email", email);
+    }
+    if (is_read !== undefined) {
+      query = query.eq("is_read", is_read === "true");
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Supabase 오류:", error);
+      return res.status(500).json({
+        error: "광고문의 조회 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: data || [],
+      count: data?.length || 0,
+    });
+  } catch (error) {
+    console.error("광고문의 조회 오류:", error);
+    res.status(500).json({
+      error: "광고문의 조회 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 특정 광고문의 상세 조회
+app.get("/api/ad-inquiries/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 먼저 조회
+    const { data: inquiry, error: fetchError } = await supabase
+      .from("centumbob_ad_inquiries")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError) {
+      if (fetchError.code === "PGRST116") {
+        return res.status(404).json({
+          error: "광고문의를 찾을 수 없습니다.",
+        });
+      }
+      console.error("Supabase 오류:", fetchError);
+      return res.status(500).json({
+        error: "광고문의 조회 중 오류가 발생했습니다.",
+        message: fetchError.message,
+      });
+    }
+
+    // 읽지 않은 상태면 읽음으로 변경
+    if (!inquiry.is_read) {
+      const { error: updateError } = await supabase
+        .from("centumbob_ad_inquiries")
+        .update({ is_read: true })
+        .eq("id", id);
+
+      if (updateError) {
+        console.error("읽음 상태 업데이트 오류:", updateError);
+      } else {
+        inquiry.is_read = true;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: inquiry,
+    });
+  } catch (error) {
+    console.error("광고문의 조회 오류:", error);
+    res.status(500).json({
+      error: "광고문의 조회 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 광고문의 업데이트 (상태 변경 및 답변 작성)
+app.put("/api/ad-inquiries/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, admin_response, is_read } = req.body;
+
+    // 업데이트할 필드 구성
+    const updateData = {};
+    if (status) {
+      const validStatuses = ["pending", "processing", "resolved", "closed"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          error: `유효하지 않은 상태입니다. 가능한 값: ${validStatuses.join(
+            ", "
+          )}`,
+        });
+      }
+      updateData.status = status;
+    }
+    if (admin_response !== undefined) {
+      updateData.admin_response = admin_response;
+    }
+    if (is_read !== undefined) {
+      updateData.is_read = is_read;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        error: "업데이트할 필드가 없습니다.",
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("centumbob_ad_inquiries")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        return res.status(404).json({
+          error: "광고문의를 찾을 수 없습니다.",
+        });
+      }
+      console.error("Supabase 오류:", error);
+      return res.status(500).json({
+        error: "광고문의 업데이트 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "광고문의가 성공적으로 업데이트되었습니다.",
+      data,
+    });
+  } catch (error) {
+    console.error("광고문의 업데이트 오류:", error);
+    res.status(500).json({
+      error: "광고문의 업데이트 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// ==================== 관리자 대시보드 API ====================
+
+// 대시보드 요약 정보
+app.get("/api/admin/dashboard-summary", async (req, res) => {
+  try {
+    // 민원 통계
+    const { data: allComplaints, error: complaintsError } = await supabase
+      .from("centumbob_complaints")
+      .select("id, status, is_read");
+
+    if (complaintsError) throw complaintsError;
+
+    const complaintsStats = {
+      total: allComplaints?.length || 0,
+      // 해결됨/종료 상태는 읽지않음 알림에서 제외
+      unread: allComplaints?.filter((c) => !c.is_read && c.status !== 'resolved' && c.status !== 'closed').length || 0,
+      by_status: {
+        pending: allComplaints?.filter((c) => c.status === "pending").length || 0,
+        processing: allComplaints?.filter((c) => c.status === "processing").length || 0,
+        resolved: allComplaints?.filter((c) => c.status === "resolved").length || 0,
+        closed: allComplaints?.filter((c) => c.status === "closed").length || 0,
+      },
+    };
+
+    // 광고문의 통계
+    const { data: allAdInquiries, error: adInquiriesError } = await supabase
+      .from("centumbob_ad_inquiries")
+      .select("id, status, is_read");
+
+    if (adInquiriesError) throw adInquiriesError;
+
+    const adInquiriesStats = {
+      total: allAdInquiries?.length || 0,
+      // 해결됨/종료 상태는 읽지않음 알림에서 제외
+      unread: allAdInquiries?.filter((a) => !a.is_read && a.status !== 'resolved' && a.status !== 'closed').length || 0,
+      by_status: {
+        pending: allAdInquiries?.filter((a) => a.status === "pending").length || 0,
+        processing: allAdInquiries?.filter((a) => a.status === "processing").length || 0,
+        resolved: allAdInquiries?.filter((a) => a.status === "resolved").length || 0,
+        closed: allAdInquiries?.filter((a) => a.status === "closed").length || 0,
+      },
+    };
+
+    // 채팅 메시지 통계 (최근 7일)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const { data: recentMessages, error: messagesError } = await supabase
+      .from("centumbob_chat_messages")
+      .select("id")
+      .gte("created_at", sevenDaysAgo.toISOString());
+
+    if (messagesError && messagesError.code !== "42P01") {
+      // 테이블이 없는 경우 무시
+      console.error("채팅 메시지 조회 오류:", messagesError);
+    }
+
+    const chatStats = {
+      recent_7days: recentMessages?.length || 0,
+    };
+
+    // 블랙리스트 통계
+    const { data: blacklistData, error: blacklistError } = await supabase
+      .from("centumbob_chat_blacklist")
+      .select("id")
+      .eq("is_active", true);
+
+    if (blacklistError && blacklistError.code !== "42P01") {
+      console.error("블랙리스트 조회 오류:", blacklistError);
+    }
+
+    const blacklistStats = {
+      total: blacklistData?.length || 0,
+    };
+
+    // 식당 수
+    const restaurants = getAllRestaurants();
+    const restaurantsStats = {
+      total: restaurants?.length || 0,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        complaints: complaintsStats,
+        ad_inquiries: adInquiriesStats,
+        chat_messages: chatStats,
+        blacklist: blacklistStats,
+        restaurants: restaurantsStats,
+      },
+    });
+  } catch (error) {
+    console.error("대시보드 요약 조회 오류:", error);
+    res.status(500).json({
+      error: "대시보드 요약 조회 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 채팅 메시지 모니터링
+app.get("/api/admin/chat-messages", async (req, res) => {
+  try {
+    const {
+      days = 7,
+      channel,
+      limit = 50,
+      offset = 0,
+    } = req.query;
+
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - parseInt(days));
+
+    let query = supabase
+      .from("centumbob_chat_messages")
+      .select("*")
+      .gte("created_at", daysAgo.toISOString())
+      .order("created_at", { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    if (channel && channel !== "전체") {
+      query = query.eq("channel", channel);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      // 테이블이 없는 경우
+      if (error.code === "42P01") {
+        return res.json({
+          success: true,
+          data: [],
+          count: 0,
+          message: "채팅 메시지 테이블이 존재하지 않습니다.",
+        });
+      }
+      console.error("Supabase 오류:", error);
+      return res.status(500).json({
+        error: "채팅 메시지 조회 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: data || [],
+      count: data?.length || 0,
+    });
+  } catch (error) {
+    console.error("채팅 메시지 조회 오류:", error);
+    res.status(500).json({
+      error: "채팅 메시지 조회 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// ==================== 채팅 블랙리스트 관리 API ====================
+
+// 블랙리스트 목록 조회
+app.get("/api/admin/blacklist", async (req, res) => {
+  try {
+    const { is_active, limit = 100, offset = 0 } = req.query;
+
+    let query = supabase
+      .from("centumbob_chat_blacklist")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    if (is_active !== undefined) {
+      query = query.eq("is_active", is_active === "true");
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      if (error.code === "42P01") {
+        return res.json({
+          success: true,
+          data: [],
+          count: 0,
+          message: "블랙리스트 테이블이 존재하지 않습니다.",
+        });
+      }
+      console.error("Supabase 오류:", error);
+      return res.status(500).json({
+        error: "블랙리스트 조회 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: data || [],
+      count: data?.length || 0,
+    });
+  } catch (error) {
+    console.error("블랙리스트 조회 오류:", error);
+    res.status(500).json({
+      error: "블랙리스트 조회 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 블랙리스트 추가
+app.post("/api/admin/blacklist", async (req, res) => {
+  try {
+    const { ip_address, anonymous_id, user_id, reason, blocked_by, expires_at, notes } = req.body;
+
+    // 최소한 하나의 식별자는 필요
+    if (!ip_address && !anonymous_id && !user_id) {
+      return res.status(400).json({
+        error: "IP 주소, 익명 ID, 또는 사용자 ID 중 하나 이상이 필요합니다.",
+      });
+    }
+
+    if (!reason) {
+      return res.status(400).json({
+        error: "차단 사유가 필요합니다.",
+      });
+    }
+
+    const blacklistData = {
+      ip_address: ip_address || null,
+      anonymous_id: anonymous_id || null,
+      user_id: user_id || null,
+      reason,
+      blocked_by: blocked_by || "admin",
+      expires_at: expires_at || null,
+      notes: notes || null,
+      is_active: true,
+    };
+
+    const { data, error } = await supabase
+      .from("centumbob_chat_blacklist")
+      .insert([blacklistData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase 오류:", error);
+      return res.status(500).json({
+        error: "블랙리스트 추가 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      data,
+      message: "블랙리스트에 추가되었습니다.",
+    });
+  } catch (error) {
+    console.error("블랙리스트 추가 오류:", error);
+    res.status(500).json({
+      error: "블랙리스트 추가 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 블랙리스트 업데이트
+app.put("/api/admin/blacklist/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active, reason, expires_at, notes } = req.body;
+
+    const updateData = {};
+    if (is_active !== undefined) updateData.is_active = is_active;
+    if (reason !== undefined) updateData.reason = reason;
+    if (expires_at !== undefined) updateData.expires_at = expires_at;
+    if (notes !== undefined) updateData.notes = notes;
+
+    const { data, error } = await supabase
+      .from("centumbob_chat_blacklist")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase 오류:", error);
+      return res.status(500).json({
+        error: "블랙리스트 업데이트 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      data,
+      message: "블랙리스트가 업데이트되었습니다.",
+    });
+  } catch (error) {
+    console.error("블랙리스트 업데이트 오류:", error);
+    res.status(500).json({
+      error: "블랙리스트 업데이트 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 블랙리스트 삭제
+app.delete("/api/admin/blacklist/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from("centumbob_chat_blacklist")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Supabase 오류:", error);
+      return res.status(500).json({
+        error: "블랙리스트 삭제 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "블랙리스트에서 삭제되었습니다.",
+    });
+  } catch (error) {
+    console.error("블랙리스트 삭제 오류:", error);
+    res.status(500).json({
+      error: "블랙리스트 삭제 중 오류가 발생했습니다.",
+      message: error.message,
+    });
+  }
+});
+
+// 블랙리스트 체크 (특정 IP/익명ID/사용자ID가 차단되었는지 확인)
+app.post("/api/chat/check-blacklist", async (req, res) => {
+  try {
+    const { ip_address, anonymous_id, user_id } = req.body;
+
+    let query = supabase
+      .from("centumbob_chat_blacklist")
+      .select("*")
+      .eq("is_active", true);
+
+    // 현재 시간보다 이전에 만료된 항목 제외
+    query = query.or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`);
+
+    // IP, 익명ID, 사용자ID 중 하나라도 일치하면 차단
+    const conditions = [];
+    if (ip_address) conditions.push(`ip_address.eq.${ip_address}`);
+    if (anonymous_id) conditions.push(`anonymous_id.eq.${anonymous_id}`);
+    if (user_id) conditions.push(`user_id.eq.${user_id}`);
+
+    if (conditions.length > 0) {
+      query = query.or(conditions.join(","));
+    }
+
+    const { data, error } = await query;
+
+    if (error && error.code !== "42P01") {
+      console.error("Supabase 오류:", error);
+      return res.status(500).json({
+        error: "블랙리스트 확인 중 오류가 발생했습니다.",
+        message: error.message,
+      });
+    }
+
+    const isBlocked = data && data.length > 0;
+
+    res.json({
+      success: true,
+      blocked: isBlocked,
+      data: isBlocked ? data[0] : null,
+    });
+  } catch (error) {
+    console.error("블랙리스트 확인 오류:", error);
+    res.status(500).json({
+      error: "블랙리스트 확인 중 오류가 발생했습니다.",
       message: error.message,
     });
   }

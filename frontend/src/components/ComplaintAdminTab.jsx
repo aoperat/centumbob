@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { IconX, IconCheck } from './Icons';
 import { getComplaints, updateComplaint } from '../utils/api';
+import StatusBadge from './shared/StatusBadge';
 
 const ComplaintAdminTab = ({ restaurants }) => {
   const [complaints, setComplaints] = useState([]);
@@ -97,27 +98,6 @@ const ComplaintAdminTab = ({ restaurants }) => {
     loadComplaints();
   }, [statusFilter, restaurantFilter]);
 
-  // 상태별 색상
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-      case 'processing': return 'bg-blue-100 text-blue-700 border-blue-300';
-      case 'resolved': return 'bg-green-100 text-green-700 border-green-300';
-      case 'closed': return 'bg-gray-100 text-gray-700 border-gray-300';
-      default: return 'bg-slate-100 text-slate-700 border-slate-300';
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'pending': return '대기중';
-      case 'processing': return '처리중';
-      case 'resolved': return '해결됨';
-      case 'closed': return '종료';
-      default: return status;
-    }
-  };
-
   const getCategoryColor = (category) => {
     switch (category) {
       case '메뉴': return 'bg-purple-100 text-purple-700';
@@ -189,29 +169,17 @@ const ComplaintAdminTab = ({ restaurants }) => {
               </div>
 
               {/* 통계 */}
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="text-sm text-red-700 font-bold">읽지않음</div>
+                  <div className="text-2xl font-bold text-red-800">
+                    {complaints.filter(c => !c.is_read).length}
+                  </div>
+                </div>
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <div className="text-sm text-yellow-700 font-bold">대기중</div>
                   <div className="text-2xl font-bold text-yellow-800">
                     {complaints.filter(c => c.status === 'pending').length}
-                  </div>
-                </div>
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="text-sm text-blue-700 font-bold">처리중</div>
-                  <div className="text-2xl font-bold text-blue-800">
-                    {complaints.filter(c => c.status === 'processing').length}
-                  </div>
-                </div>
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="text-sm text-green-700 font-bold">해결됨</div>
-                  <div className="text-2xl font-bold text-green-800">
-                    {complaints.filter(c => c.status === 'resolved').length}
-                  </div>
-                </div>
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                  <div className="text-sm text-slate-700 font-bold">전체</div>
-                  <div className="text-2xl font-bold text-slate-800">
-                    {complaints.length}
                   </div>
                 </div>
               </div>
@@ -227,18 +195,23 @@ const ComplaintAdminTab = ({ restaurants }) => {
                     <div
                       key={complaint.id}
                       onClick={() => handleViewDetail(complaint)}
-                      className="p-4 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-all"
+                      className={`p-4 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-all ${
+                        !complaint.is_read ? 'bg-yellow-50' : 'bg-white'
+                      }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${getStatusColor(complaint.status)}`}>
-                              {getStatusText(complaint.status)}
-                            </span>
+                            <StatusBadge status={complaint.status} type="complaint" />
                             <span className={`px-2 py-1 rounded text-xs font-bold ${getCategoryColor(complaint.category)}`}>
                               {complaint.category}
                             </span>
                             <span className="text-sm text-slate-500">{complaint.restaurant_name}</span>
+                            {!complaint.is_read && (
+                              <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">
+                                NEW
+                              </span>
+                            )}
                             {complaint.admin_response && (
                               <span className="px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700">
                                 답변완료
@@ -278,12 +251,15 @@ const ComplaintAdminTab = ({ restaurants }) => {
             <div className="p-6 space-y-6">
               {/* 상태 및 카테고리 */}
               <div className="flex items-center gap-2">
-                <span className={`px-3 py-1 rounded-lg text-sm font-bold ${getStatusColor(selectedComplaint.status)}`}>
-                  {getStatusText(selectedComplaint.status)}
-                </span>
+                <StatusBadge status={selectedComplaint.status} type="complaint" />
                 <span className={`px-3 py-1 rounded-lg text-sm font-bold ${getCategoryColor(selectedComplaint.category)}`}>
                   {selectedComplaint.category}
                 </span>
+                {!selectedComplaint.is_read && (
+                  <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">
+                    NEW
+                  </span>
+                )}
               </div>
 
               {/* 상태 변경 버튼 */}

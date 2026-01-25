@@ -137,6 +137,100 @@ export const getComplaint = async (id) => {
   }
 };
 
+// ==================== 광고문의 관련 API ====================
+
+// 광고문의 제출
+export const submitAdInquiry = async (inquiryData) => {
+  try {
+    const response = await fetch(getApiUrl("/api/ad-inquiries"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(inquiryData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "광고문의 제출 실패");
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (
+      error.message.includes("Failed to fetch") ||
+      error.message.includes("ERR_CONNECTION_REFUSED")
+    ) {
+      throw new Error(
+        "백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요."
+      );
+    }
+    throw error;
+  }
+};
+
+// 광고문의 목록 조회
+export const getAdInquiries = async (filters = {}) => {
+  try {
+    const { status, email, is_read, limit, offset } = filters;
+    const params = new URLSearchParams();
+
+    if (status) params.append("status", status);
+    if (email) params.append("email", email);
+    if (is_read !== undefined) params.append("is_read", is_read);
+    if (limit) params.append("limit", limit);
+    if (offset) params.append("offset", offset);
+
+    const queryString = params.toString();
+    const url = getApiUrl(
+      `/api/ad-inquiries${queryString ? `?${queryString}` : ""}`
+    );
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "광고문의 조회 실패");
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (
+      error.message.includes("Failed to fetch") ||
+      error.message.includes("ERR_CONNECTION_REFUSED")
+    ) {
+      throw new Error(
+        "백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요."
+      );
+    }
+    throw error;
+  }
+};
+
+// 특정 광고문의 조회
+export const getAdInquiry = async (id) => {
+  try {
+    const response = await fetch(getApiUrl(`/api/ad-inquiries/${id}`));
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "광고문의 조회 실패");
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (
+      error.message.includes("Failed to fetch") ||
+      error.message.includes("ERR_CONNECTION_REFUSED")
+    ) {
+      throw new Error(
+        "백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요."
+      );
+    }
+    throw error;
+  }
+};
+
 // ==================== 방문자수 관련 API ====================
 
 // 방문자수 조회

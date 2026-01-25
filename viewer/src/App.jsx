@@ -1,25 +1,40 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  IconUtensils,
   IconImage,
   IconX,
-  IconCalendar,
   IconChevronLeft,
   IconChevronRight,
-  IconCommunity,
 } from "./components/Icons";
+import NavBar from "./components/NavBar";
+import Footer from "./components/Footer";
 import MenuList from "./components/MenuList";
 import ComplaintModal from "./components/ComplaintModal";
+import AdInquiryModal from "./components/AdInquiryModal";
 import AuthModal from "./components/AuthModal";
-import UserMenu from "./components/UserMenu";
 import ProfileModal from "./components/ProfileModal";
-import ChatWindow from "./components/ChatWindow";
+import ChatWindowV2 from "./components/ChatWindowV2";
 import CommunityModal from "./components/community/CommunityModal";
 import { getPageViews, incrementPageView } from "./utils/api";
 import { useAuth } from "./hooks/useAuth";
+import { useChat } from "./hooks/useChatV2";
 
 function App() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
+
+  // 채팅 데이터 가져오기 (전광판과 채팅창이 공유)
+  const {
+    messages,
+    loading: chatLoading,
+    error: chatError,
+    sending,
+    sendMessage,
+    chatDate,
+    isInputEnabled,
+    displayName,
+    isAnonymous,
+    anonymousMessagesRemaining,
+  } = useChat();
+
   const [activeDay, setActiveDay] = useState("월");
   const [modalImage, setModalImage] = useState(null);
   const [menuData, setMenuData] = useState([]);
@@ -27,9 +42,11 @@ function App() {
   const [error, setError] = useState(null);
   const [currentDate, setCurrentDate] = useState("");
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
+  const [isAdInquiryModalOpen, setIsAdInquiryModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isCommunityModalOpen, setIsCommunityModalOpen] = useState(false);
+  const [isChatWindowOpen, setIsChatWindowOpen] = useState(false);
   const [pageViewCount, setPageViewCount] = useState(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -39,8 +56,10 @@ function App() {
     return hour < 14 ? "점심" : "저녁";
   });
 
-  const days = ["월", "화", "수", "목", "금"];
   const tableScrollRef = useRef(null);
+
+  // 최신 메시지 가져오기
+  const latestMessage = messages.length > 0 ? messages[messages.length - 1] : null;
 
   // 빠른 접근을 위한 name 기반 맵 생성
   const menuMap = Object.fromEntries(menuData.map(d => [d.name, d]));
@@ -289,91 +308,101 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center pb-10">
-      {/* 상단 헤더 & 요일 탭 */}
-      <header className="bg-white w-full sticky top-0 z-20 shadow-sm border-b border-gray-200">
-        <div className="max-w-[1800px] mx-auto px-3 sm:px-4 pt-3 sm:pt-4 pb-2">
-          <div className="flex justify-between items-center mb-3 sm:mb-4">
-            <h1 className="text-base sm:text-xl font-bold text-slate-800 flex items-center gap-1.5 sm:gap-2">
-              <span className="bg-blue-600 text-white p-1 sm:p-1.5 rounded-lg">
-                <IconUtensils className="w-4 h-4 sm:w-5 sm:h-5" />
-              </span>
-              <span className="hidden xs:inline">센텀 밥집</span>
-            </h1>
-            <div className="flex items-center gap-1.5 sm:gap-3">
-              {currentDate && (
-                <span className="hidden sm:flex text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full items-center gap-1">
-                  <IconCalendar /> {currentDate}
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* 상단 네비게이션 바 */}
+      <NavBar
+        currentDate={currentDate}
+        isAuthenticated={isAuthenticated}
+        user={user}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
+        onOpenCommunity={() => setIsCommunityModalOpen(true)}
+        onLogout={logout}
+        activeDay={activeDay}
+        onDayChange={setActiveDay}
+        todayDay={todayDay}
+        isWeekend={isWeekend}
+      />
+
+      {/* 채팅 전광판 */}
+      <div
+        onClick={() => setIsChatWindowOpen(true)}
+        className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 border-y border-blue-100 cursor-pointer hover:from-blue-100 hover:to-indigo-100 transition-all shadow-sm group"
+      >
+        <div className="max-w-[1800px] mx-auto px-3 sm:px-4 py-3 flex items-center gap-3">
+          {/* 채팅 아이콘 + 라벨 */}
+          <div className="flex-shrink-0 flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-blue-200 group-hover:border-blue-300 transition-colors">
+            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <span className="text-xs font-bold text-blue-600">실시간 채팅</span>
+          </div>
+
+          {/* 전광판 메시지 */}
+          <div className="flex-1 overflow-hidden">
+            {latestMessage ? (
+              <div className="text-sm font-medium text-slate-700 truncate">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-xs font-bold">
+                    {latestMessage.display_name}
+                  </span>
+                  <span>{latestMessage.content}</span>
                 </span>
-              )}
-              {isAuthenticated ? (
-                <UserMenu onOpenProfile={() => setIsProfileModalOpen(true)} />
-              ) : (
-                <button
-                  onClick={() => setIsAuthModalOpen(true)}
-                  className="px-2 sm:px-4 py-2 bg-slate-600 text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
-                  title="로그인"
-                >
-                  <span className="hidden sm:inline">로그인</span>
-                  <span className="sm:hidden">👤</span>
-                </button>
-              )}
-              <button
-                onClick={() => setIsCommunityModalOpen(true)}
-                className="px-2 sm:px-4 py-2 bg-orange-500 text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-orange-600 transition-colors shadow-sm flex items-center gap-1 sm:gap-1.5"
-                title="오늘 뭐 먹지?"
-              >
-                <IconCommunity className="w-4 h-4" />
-                <span className="hidden lg:inline">오늘 뭐 먹지?</span>
-              </button>
-              <button
-                onClick={() => setIsComplaintModalOpen(true)}
-                className="px-2 sm:px-4 py-2 bg-blue-600 text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-1"
-                title="민원 제출"
-              >
-                <span className="hidden sm:inline">민원 제출</span>
-                <span className="sm:hidden">📝</span>
-              </button>
-            </div>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-500 italic truncate">
+                아직 채팅이 없습니다. 첫 메시지를 남겨보세요!
+              </div>
+            )}
           </div>
 
-          {/* 요일 선택 탭 */}
-          <div className="flex justify-between bg-slate-100 p-1 rounded-xl">
-            {days.map((day) => {
-              const isActive = activeDay === day;
-              const isToday = !isWeekend && day === todayDay;
-              return (
-                <button
-                  key={day}
-                  onClick={() => setActiveDay(day)}
-                  className={`
-                    relative flex-1 py-2.5 sm:py-2 rounded-lg text-sm sm:text-base font-bold transition-all duration-200 min-h-[44px] sm:min-h-0
-                    ${
-                      isActive
-                        ? isToday
-                          ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 ring-2 ring-blue-400/50 scale-105"
-                          : "bg-white text-blue-600 shadow-sm ring-1 ring-black/5"
-                        : isToday
-                        ? "bg-blue-50 text-blue-600 hover:bg-blue-100 ring-1 ring-blue-200"
-                        : "text-slate-400 hover:text-slate-600"
-                    }
-                  `}
-                >
-                  <span className="relative z-10">{day}</span>
-                  {isActive && isToday && (
-                    <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-400/20 to-blue-600/20 animate-pulse"></div>
-                  )}
-                </button>
-              );
-            })}
+          {/* 클릭 안내 */}
+          <div className="flex-shrink-0 hidden sm:flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full shadow-sm border border-blue-200 group-hover:border-blue-300 group-hover:bg-blue-50 transition-all">
+            <span className="text-xs font-medium text-blue-600">채팅 참여하기</span>
+            <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
           </div>
-
         </div>
-      </header>
+      </div>
 
       {/* 메인 컨텐츠 영역 (테이블 구조) */}
-      <main className="w-full max-w-[1800px] px-3 sm:px-4 mt-4 sm:mt-6">
-        <div className="mb-2 sm:mb-3 text-xs sm:text-sm font-medium text-slate-500 ml-1">
+      <main className="w-full max-w-[1800px] mx-auto px-3 sm:px-4 mt-4 sm:mt-6 flex-1 pb-8">
+        {/* 모바일: 식단 비교 헤더 + 점심/저녁 토글 */}
+        <div className="md:hidden mb-3 flex items-center justify-between">
+          <div className="text-xs font-medium text-slate-500">
+            <span className="text-blue-600 font-bold">{activeDay}요일</span>{" "}
+            <span className={mealType === "점심" ? "text-orange-600 font-bold" : "text-indigo-600 font-bold"}>{mealType}</span>{" "}
+            식단 비교
+          </div>
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+            <button
+              onClick={() => setMealType("점심")}
+              className={`px-3 py-1 text-xs font-bold rounded transition-colors flex items-center gap-1 ${
+                mealType === "점심"
+                  ? "bg-orange-500 text-white shadow-sm"
+                  : "bg-transparent text-slate-500"
+              }`}
+            >
+              <span>☀️</span>
+              점심
+            </button>
+            <button
+              onClick={() => setMealType("저녁")}
+              className={`px-3 py-1 text-xs font-bold rounded transition-colors flex items-center gap-1 ${
+                mealType === "저녁"
+                  ? "bg-indigo-500 text-white shadow-sm"
+                  : "bg-transparent text-slate-500"
+              }`}
+            >
+              <span>🌙</span>
+              저녁
+            </button>
+          </div>
+        </div>
+
+        {/* 데스크탑: 식단 비교 헤더 */}
+        <div className="hidden md:block mb-2 sm:mb-3 text-xs sm:text-sm font-medium text-slate-500 ml-1">
           <span className="text-blue-600 font-bold">{activeDay}요일</span>{" "}
           <span className={mealType === "점심" ? "text-orange-600 font-bold" : "text-indigo-600 font-bold"}>{mealType}</span>{" "}
           식단 비교
@@ -429,32 +458,6 @@ function App() {
                       <span>이미지 보기</span>
                     </button>
                   )}
-                </div>
-
-                {/* 식사 시간대 토글 */}
-                <div className="flex border-b border-slate-200">
-                  <button
-                    onClick={() => setMealType("점심")}
-                    className={`flex-1 py-2 text-sm font-bold transition-colors flex items-center justify-center gap-1.5 ${
-                      mealType === "점심"
-                        ? "bg-orange-50 text-orange-600 border-b-2 border-orange-500"
-                        : "bg-white text-slate-400"
-                    }`}
-                  >
-                    <span className="text-base">☀️</span>
-                    점심
-                  </button>
-                  <button
-                    onClick={() => setMealType("저녁")}
-                    className={`flex-1 py-2 text-sm font-bold transition-colors flex items-center justify-center gap-1.5 ${
-                      mealType === "저녁"
-                        ? "bg-indigo-50 text-indigo-600 border-b-2 border-indigo-500"
-                        : "bg-white text-slate-400"
-                    }`}
-                  >
-                    <span className="text-base">🌙</span>
-                    저녁
-                  </button>
                 </div>
 
                 {/* 메뉴 내용 */}
@@ -710,45 +713,13 @@ function App() {
           </span>
         </div>
 
-        {/* 외부 링크 */}
-        <div className="flex flex-wrap gap-2 justify-center mb-6 text-xs px-3">
-          <a
-            href="https://pf.kakao.com/_FxbaQC"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm text-xs sm:text-sm"
-          >
-            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z" />
-            </svg>
-            <span className="hidden xs:inline">삼촌밥차런치펍</span>
-            <span className="xs:hidden">삼촌밥차</span>
-          </a>
-          <a
-            href="https://pf.kakao.com/_CiVis"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:bg-[#FDD835] transition-colors font-medium shadow-sm text-xs sm:text-sm"
-          >
-            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 3C6.48 3 2 6.48 2 11c0 2.84 1.75 5.36 4.39 6.72L5.5 21l3.5-1.28c1.08.3 2.22.47 3.4.47 5.52 0 10-3.48 10-8s-4.48-8-10-8z" />
-            </svg>
-            <span className="hidden xs:inline">슈마우스만찬센텀점</span>
-            <span className="xs:hidden">슈마우스</span>
-          </a>
-          <a
-            href="https://blog.naver.com/dawafood-qubi"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-[#03C75A] text-white rounded-lg hover:bg-[#02b350] transition-colors font-medium shadow-sm text-xs sm:text-sm"
-          >
-            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M16.273 12.845L7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727v12.845z" />
-            </svg>
-            큐비e센텀
-          </a>
-        </div>
       </main>
+
+      {/* 하단 푸터 */}
+      <Footer
+        onOpenComplaint={() => setIsComplaintModalOpen(true)}
+        onOpenAdInquiry={() => setIsAdInquiryModalOpen(true)}
+      />
 
       {/* 이미지 모달 */}
       {modalImage && (
@@ -791,6 +762,12 @@ function App() {
         dateRanges={dateRanges}
       />
 
+      {/* 광고문의 모달 */}
+      <AdInquiryModal
+        isOpen={isAdInquiryModalOpen}
+        onClose={() => setIsAdInquiryModalOpen(false)}
+      />
+
       {/* 로그인/회원가입 모달 */}
       <AuthModal
         isOpen={isAuthModalOpen}
@@ -804,7 +781,21 @@ function App() {
       />
 
       {/* 실시간 채팅 */}
-      <ChatWindow />
+      <ChatWindowV2
+        restaurants={restaurants}
+        isOpen={isChatWindowOpen}
+        onClose={() => setIsChatWindowOpen(false)}
+        messages={messages}
+        loading={chatLoading}
+        error={chatError}
+        sending={sending}
+        sendMessage={sendMessage}
+        chatDate={chatDate}
+        isInputEnabled={isInputEnabled}
+        displayName={displayName}
+        isAnonymous={isAnonymous}
+        anonymousMessagesRemaining={anonymousMessagesRemaining}
+      />
 
       {/* 커뮤니티 모달 */}
       <CommunityModal

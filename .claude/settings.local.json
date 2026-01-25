@@ -19,7 +19,23 @@
       "Bash(git commit:*)",
       "Bash(del \".\\\\backend\\\\NUL\")",
       "Bash(git branch:*)",
-      "Bash(git worktree:*)"
+      "Bash(git worktree:*)",
+      "Bash(npx supabase:*)",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__search_docs",
+      "Bash(supabase --version:*)",
+      "Bash(supabase db execute:*)",
+      "Bash(clip)",
+      "Bash(clip.exe:*)",
+      "Bash(explorer \"https://supabase.com/dashboard/project/vaqfjjkwpzrolebvbnbl/sql/new\")",
+      "Bash(npm start)",
+      "Bash(npm run dev)",
+      "Bash(taskkill:*)",
+      "Bash(cmd.exe /c \"taskkill /PID 70544 /F\")",
+      "Bash(powershell -Command \"Stop-Process -Id 70544 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 140316,152680 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 82512 -Force\")"
     ]
   }
 }

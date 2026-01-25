@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { IconFileText, IconSave, IconSettings } from './components/Icons';
+import { IconSave } from './components/Icons';
+import AdminLayout from './components/layout/AdminLayout';
+import DashboardTab from './components/dashboard/DashboardTab';
 import EntryTab from './components/EntryTab';
 import ManagementTab from './components/ManagementTab';
-import ComplaintTab from './components/ComplaintTab';
 import ComplaintAdminTab from './components/ComplaintAdminTab';
+import AdInquiryAdminTab from './components/advertising/AdInquiryAdminTab';
+import ChatMonitorTab from './components/chat/ChatMonitorTab';
 import BlogTab from './components/BlogTab';
 import ApiGuideTab from './components/ApiGuideTab';
 import { saveMenuData, publishMenuData, getRestaurants, getDateRanges } from './utils/api';
@@ -14,9 +17,9 @@ function App() {
   // 새로고침 시 탭 상태 유지 (localStorage 사용)
   const [currentTab, setCurrentTab] = useState(() => {
     const savedTab = localStorage.getItem('centumbob_admin_currentTab');
-    return savedTab || "entry";
+    return savedTab || "dashboard"; // 기본 탭을 dashboard로 변경
   });
-  
+
   // 탭 변경 시 localStorage에 저장
   useEffect(() => {
     localStorage.setItem('centumbob_admin_currentTab', currentTab);
@@ -37,7 +40,7 @@ function App() {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        
+
         // 식당 목록 로드
         const restaurantData = await getRestaurants(true); // 활성 식당만
         setRestaurantsData(restaurantData);
@@ -107,171 +110,97 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      {/* 상단 네비게이션 헤더 */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-        <div className="px-6 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2">
-              <div className="bg-slate-800 text-white p-2 rounded-lg">
-                <IconFileText size={20} />
-              </div>
-              <h1 className="text-xl font-bold text-slate-800">식단 데이터 관리자</h1>
-            </div>
-            {/* 탭 메뉴 */}
-            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-              <button
-                onClick={() => setCurrentTab("entry")}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${
-                  currentTab === 'entry' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                데이터 입력
-              </button>
-              <button
-                onClick={() => setCurrentTab("management")}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-1 ${
-                  currentTab === 'management' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <IconSettings size={14} /> 기준 데이터 관리
-              </button>
-              <button
-                onClick={() => setCurrentTab("complaint")}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${
-                  currentTab === 'complaint' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                민원 제출
-              </button>
-              <button
-                onClick={() => setCurrentTab("complaint-admin")}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${
-                  currentTab === 'complaint-admin' 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                민원 관리
-              </button>
-              <button
-                onClick={() => setCurrentTab("blog")}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-1 ${
-                  currentTab === 'blog' 
-                    ? 'bg-white text-purple-600 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <IconFileText size={14} /> 블로그 생성
-              </button>
-              <button
-                onClick={() => setCurrentTab("api-guide")}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${
-                  currentTab === 'api-guide' 
-                    ? 'bg-white text-green-600 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                API 안내
-              </button>
-            </div>
-          </div>
-
-          {/* 액션 버튼 (입력 탭에서만 표시) */}
-          {currentTab === 'entry' && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  if (entryTabRef.current) {
-                    entryTabRef.current.save();
-                  }
-                }}
-                className="px-5 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 shadow-sm"
-              >
-                <IconSave size={18} />
-                데이터 저장
-              </button>
-              <button
-                onClick={handlePublish}
-                className="px-5 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
-              >
-                <IconSave size={18} />
-                데이터 게시
-              </button>
-            </div>
-          )}
+    <AdminLayout currentTab={currentTab} onTabChange={setCurrentTab}>
+      {/* 액션 버튼 (입력 탭에서만 표시) */}
+      {currentTab === 'entry' && (
+        <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-6 py-3 flex justify-end gap-2 shadow-sm">
+          <button
+            onClick={() => {
+              if (entryTabRef.current) {
+                entryTabRef.current.save();
+              }
+            }}
+            className="px-5 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <IconSave size={18} />
+            데이터 저장
+          </button>
+          <button
+            onClick={handlePublish}
+            className="px-5 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <IconSave size={18} />
+            데이터 게시
+          </button>
         </div>
-      </header>
+      )}
 
-      {/* 메인 컨텐츠 */}
-      <main className="flex-1 flex overflow-hidden">
-        {/* ================= 탭 1: 데이터 입력 ================= */}
-        {currentTab === 'entry' && (
-          isLoading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-slate-500">식당 목록 로딩 중...</div>
-            </div>
-          ) : (
-            <EntryTab
-              ref={entryTabRef}
-              restaurants={restaurants}
-              restaurantsData={restaurantsData}
-              dateRanges={dateRanges}
-              selectedCafeteria={selectedCafeteria}
-              setSelectedCafeteria={setSelectedCafeteria}
-              selectedDateRange={selectedDateRange}
-              setSelectedDateRange={setSelectedDateRange}
-              onSave={handleSave}
-            />
-          )
-        )}
+      {/* ================= 대시보드 ================= */}
+      {currentTab === 'dashboard' && (
+        <DashboardTab onTabChange={setCurrentTab} />
+      )}
 
-        {/* ================= 탭 2: 기준 데이터 관리 ================= */}
-        {currentTab === 'management' && (
-          <ManagementTab
+      {/* ================= 데이터 입력 ================= */}
+      {currentTab === 'entry' && (
+        isLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-slate-500">식당 목록 로딩 중...</div>
+          </div>
+        ) : (
+          <EntryTab
+            ref={entryTabRef}
             restaurants={restaurants}
-            setRestaurants={setRestaurants}
+            restaurantsData={restaurantsData}
             dateRanges={dateRanges}
-            setDateRanges={setDateRanges}
+            selectedCafeteria={selectedCafeteria}
+            setSelectedCafeteria={setSelectedCafeteria}
+            selectedDateRange={selectedDateRange}
+            setSelectedDateRange={setSelectedDateRange}
+            onSave={handleSave}
           />
-        )}
+        )
+      )}
 
-        {/* ================= 탭 3: 민원 제출 ================= */}
-        {currentTab === 'complaint' && (
-          <ComplaintTab
-            restaurants={restaurants}
-            dateRanges={dateRanges}
-          />
-        )}
+      {/* ================= 기준 데이터 관리 ================= */}
+      {currentTab === 'management' && (
+        <ManagementTab
+          restaurants={restaurants}
+          setRestaurants={setRestaurants}
+          dateRanges={dateRanges}
+          setDateRanges={setDateRanges}
+        />
+      )}
 
-        {/* ================= 탭 4: 민원 관리 ================= */}
-        {currentTab === 'complaint-admin' && (
-          <ComplaintAdminTab
-            restaurants={restaurants}
-          />
-        )}
+      {/* ================= 민원 관리 ================= */}
+      {currentTab === 'complaint-admin' && (
+        <ComplaintAdminTab
+          restaurants={restaurants}
+        />
+      )}
 
-        {/* ================= 탭 5: 블로그 생성 ================= */}
-        {currentTab === 'blog' && (
-          <BlogTab
-            dateRanges={dateRanges}
-          />
-        )}
+      {/* ================= 광고문의 관리 ================= */}
+      {currentTab === 'ad-admin' && (
+        <AdInquiryAdminTab />
+      )}
 
-        {/* ================= 탭 6: API 안내 ================= */}
-        {currentTab === 'api-guide' && (
-          <ApiGuideTab />
-        )}
-      </main>
-    </div>
+      {/* ================= 채팅 모니터 ================= */}
+      {currentTab === 'chat-monitor' && (
+        <ChatMonitorTab />
+      )}
+
+      {/* ================= 블로그 생성 ================= */}
+      {currentTab === 'blog' && (
+        <BlogTab
+          dateRanges={dateRanges}
+        />
+      )}
+
+      {/* ================= API 안내 ================= */}
+      {currentTab === 'api-guide' && (
+        <ApiGuideTab />
+      )}
+    </AdminLayout>
   );
 }
 
 export default App;
-
