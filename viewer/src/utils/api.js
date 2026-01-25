@@ -26,10 +26,10 @@ const getApiUrl = (endpoint) => {
     );
   }
 
-  // Edge Function인 경우: /api/complaints 제거하고 직접 경로 사용
+  // Edge Function인 경우: /api 접두사 제거하고 직접 경로 사용
   if (API_BASE_URL.includes("/functions/v1/")) {
-    // endpoint에서 /api/complaints 제거
-    let path = endpoint.replace("/api/complaints", "");
+    // endpoint에서 /api/complaints는 완전히 제거, 그 외 /api는 제거
+    let path = endpoint.replace(/^\/api\/complaints/, "").replace(/^\/api/, "");
     // /page-views로 시작하는 경우 그대로 사용
     if (path.startsWith("/page-views")) {
       return `${API_BASE_URL}${path}`;

@@ -283,11 +283,14 @@ const AdInquiryModal = ({ isOpen, onClose }) => {
                   <input
                     type="tel"
                     value={formData.phone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
-                    }
+                    onChange={(e) => {
+                      // 숫자만 입력 가능 (하이픈 자동 제거)
+                      const numbersOnly = e.target.value.replace(/\D/g, "");
+                      setFormData({ ...formData, phone: numbersOnly });
+                    }}
                     className="w-full px-3 sm:px-4 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    placeholder="010-1234-5678"
+                    placeholder="01012345678 (숫자만 입력)"
+                    maxLength="11"
                     required
                   />
                 </div>

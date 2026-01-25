@@ -450,17 +450,18 @@ function App() {
 
                 {/* 메뉴 내용 */}
                 <div className="p-4">
+                  {/* 가격 정보는 메뉴와 상관없이 표시 */}
+                  {currentPrice && (
+                    <div className={`inline-block px-2 py-1 border rounded text-xs font-bold mb-2 ${
+                      mealType === "점심"
+                        ? "bg-orange-50 border-orange-100 text-orange-700"
+                        : "bg-indigo-50 border-indigo-100 text-indigo-700"
+                    }`}>
+                      {currentPrice}
+                    </div>
+                  )}
                   {currentMenu && currentMenu.length > 0 ? (
                     <>
-                      {currentPrice && (
-                        <div className={`inline-block px-2 py-1 border rounded text-xs font-bold mb-2 ${
-                          mealType === "점심"
-                            ? "bg-orange-50 border-orange-100 text-orange-700"
-                            : "bg-indigo-50 border-indigo-100 text-indigo-700"
-                        }`}>
-                          {currentPrice}
-                        </div>
-                      )}
                       <MenuList items={currentMenu} />
                     </>
                   ) : (
@@ -628,7 +629,8 @@ function App() {
                         <div className="menu-container min-h-[200px]">
                           {/* 메뉴 내용 */}
                           <div key={mealType} className="menu-transition-enter">
-                            {currentMenu && currentMenu.length > 0 && currentPrice && (
+                            {/* 가격 정보는 메뉴와 상관없이 표시 */}
+                            {currentPrice && (
                               <div className={`inline-block px-2 py-0.5 border rounded text-xs font-bold mb-1 ${priceClass}`}>
                                 {currentPrice}
                               </div>
