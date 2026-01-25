@@ -502,7 +502,8 @@ function App() {
                         <IconImage className="w-4 h-4 text-slate-600 group-hover:text-slate-700" />
                       </button>
                     )}
-                    {(menuMap[name]?.location?.map_url || menuMap[name]?.location?.latitude) && (
+                    {/* TODO: 지도/길찾기 기능 완료 후 표시 */}
+                    {false && (menuMap[name]?.location?.map_url || menuMap[name]?.location?.latitude) && (
                       <>
                         <button
                           onClick={() => window.open(
@@ -673,7 +674,8 @@ function App() {
                                 <IconImage className="w-4 h-4 text-slate-600 group-hover:text-slate-700" />
                               </button>
                             )}
-                            {(menuMap[name]?.location?.map_url || menuMap[name]?.location?.latitude) && (
+                            {/* TODO: 지도/길찾기 기능 완료 후 표시 */}
+                            {false && (menuMap[name]?.location?.map_url || menuMap[name]?.location?.latitude) && (
                               <>
                                 <button
                                   onClick={() => window.open(
