@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { IconTrash, IconPlus, IconCheck, IconX, IconRefreshCw, IconUpload } from './Icons';
+import { IconTrash, IconPlus, IconCheck, IconX, IconRefreshCw } from './Icons';
 import { getWeekDateRange, getTotalWeeks } from '../utils/dateUtils';
-import { getDateRanges, addDateRange as addDateRangeAPI, updateDateRange, deleteDateRange as deleteDateRangeAPI, deleteAllMenuDataByRestaurantId, publishMenuData } from '../utils/api';
+import { getDateRanges, addDateRange as addDateRangeAPI, updateDateRange, deleteDateRange as deleteDateRangeAPI, deleteAllMenuDataByRestaurantId } from '../utils/api';
 
 const API_BASE_URL = '/api';
 
@@ -68,7 +68,7 @@ const ManagementTab = ({
       setDbDateRanges(data);
       
       // 상위 컴포넌트 상태도 업데이트 (활성 날짜 범위만)
-      const activeRanges = data.filter(dr => dr.is_active === 1).map(dr => dr.date_range);
+      const activeRanges = data.filter(dr => dr.is_active === true || dr.is_active === 1).map(dr => dr.date_range);
       setDateRanges(activeRanges);
     } catch (error) {
       console.error('Error fetching date ranges:', error);
@@ -87,10 +87,10 @@ const ManagementTab = ({
         building_name: restaurant.building_name || '',
         price_lunch: restaurant.price_lunch || '',
         price_dinner: restaurant.price_dinner || '',
-        has_dinner: restaurant.has_dinner === 1,
+        has_dinner: restaurant.has_dinner === true || restaurant.has_dinner === 1,
         webhook_url: restaurant.webhook_url || '',
         webhook_type: restaurant.webhook_type || '',
-        use_all_days: restaurant.use_all_days === undefined ? true : restaurant.use_all_days === 1
+        use_all_days: restaurant.use_all_days === undefined ? true : (restaurant.use_all_days === true || restaurant.use_all_days === 1)
       });
     } else {
       setEditingId(null);
@@ -202,47 +202,16 @@ const ManagementTab = ({
   // 날짜 범위 사용 여부 토글
   const handleToggleDateRangeActive = async (id, currentActive) => {
     try {
-      await updateDateRange(id, { is_active: currentActive === 1 ? 0 : 1 });
+      await updateDateRange(id, { is_active: !(currentActive === true || currentActive === 1) });
       await fetchDateRanges(); // 목록 새로고침
     } catch (error) {
       alert(`날짜 범위 상태 변경 실패: ${error.message}`);
     }
   };
 
-  // 전체 데이터 게시
-  const handlePublish = async () => {
-    if (!confirm('활성화된 날짜 범위의 모든 데이터를 게시하시겠습니까?')) return;
-
-    try {
-      const result = await publishMenuData();
-      alert('데이터 게시 완료! 뷰어 페이지에서 확인할 수 있습니다.');
-      console.log("게시된 데이터:", result);
-    } catch (error) {
-      alert(`데이터 게시 실패: ${error.message}`);
-      console.error("게시 오류:", error);
-    }
-  };
-
   return (
     <div className="w-full h-full p-8 overflow-y-auto custom-scrollbar fade-in bg-slate-50">
       <div className="max-w-5xl mx-auto space-y-8">
-
-        {/* 전체 데이터 게시 버튼 */}
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6">
-          <div className="flex items-center justify-between">
-            <div className="text-white">
-              <h3 className="text-lg font-bold mb-1">전체 데이터 게시</h3>
-              <p className="text-sm text-blue-100">활성화된 날짜 범위의 모든 메뉴 데이터를 뷰어로 게시합니다.</p>
-            </div>
-            <button
-              onClick={handlePublish}
-              className="bg-white text-blue-600 px-6 py-3 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors shadow-md flex items-center gap-2"
-            >
-              <IconUpload size={18} />
-              전체 데이터 게시
-            </button>
-          </div>
-        </div>
         
         {/* 식당 관리 섹션 */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -303,8 +272,8 @@ const ManagementTab = ({
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${(res.use_all_days === undefined || res.use_all_days === 1) ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                          {(res.use_all_days === undefined || res.use_all_days === 1) ? '전체 요일' : '개별 요일'}
+                        <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${(res.use_all_days === undefined || res.use_all_days === true || res.use_all_days === 1) ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                          {(res.use_all_days === undefined || res.use_all_days === true || res.use_all_days === 1) ? '전체 요일' : '개별 요일'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
@@ -450,12 +419,12 @@ const ManagementTab = ({
                           <button
                             onClick={() => handleToggleDateRangeActive(dr.id, dr.is_active)}
                             className={`inline-block px-3 py-1 rounded text-xs font-bold transition-colors ${
-                              dr.is_active === 1
+                              (dr.is_active === true || dr.is_active === 1)
                                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
                                 : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
                             }`}
                           >
-                            {dr.is_active === 1 ? '사용' : '미사용'}
+                            {(dr.is_active === true || dr.is_active === 1) ? '사용' : '미사용'}
                           </button>
                         </td>
                         <td className="px-6 py-4 text-right">

@@ -170,7 +170,7 @@ const EntryTab = forwardRef(
         const useAllDays =
           currentRestaurant?.use_all_days === undefined
             ? true
-            : currentRestaurant.use_all_days === 1;
+            : (currentRestaurant.use_all_days === true || currentRestaurant.use_all_days === 1);
 
         // 개별 요일 모드: 선택된 요일에 이미지 설정
         if (!useAllDays && targetDay) {
@@ -246,7 +246,7 @@ const EntryTab = forwardRef(
       const useAllDays =
         currentRestaurant?.use_all_days === undefined
           ? true
-          : currentRestaurant.use_all_days === 1;
+          : (currentRestaurant.use_all_days === true || currentRestaurant.use_all_days === 1);
 
       // 분석할 이미지 결정: 새로 업로드한 파일 또는 저장된 이미지
       let fileToAnalyze = null;
@@ -526,7 +526,7 @@ const EntryTab = forwardRef(
       const useAllDays =
         currentRestaurant?.use_all_days === undefined
           ? true
-          : currentRestaurant.use_all_days === 1;
+          : (currentRestaurant.use_all_days === true || currentRestaurant.use_all_days === 1);
 
       // restaurantsData 배열에서 선택된 식당의 ID 찾기
       let restaurant = null;
@@ -635,7 +635,7 @@ const EntryTab = forwardRef(
               const useAllDays =
                 currentRestaurant?.use_all_days === undefined
                   ? true
-                  : currentRestaurant.use_all_days === 1;
+                  : (currentRestaurant.use_all_days === true || currentRestaurant.use_all_days === 1);
 
               // 개별요일 모드일 때 현재 선택된 요일의 이미지
               const currentDayImage = !useAllDays
@@ -713,33 +713,63 @@ const EntryTab = forwardRef(
                     </div>
                   )}
 
-                  {/* 웹훅 이미지 버튼 - webhook_type이 'image'인 경우에만 표시 */}
-                  {!displayImage &&
-                    restaurantDetails[selectedCafeteria]?.webhook_url &&
-                    restaurantDetails[selectedCafeteria]?.webhook_type ===
-                      "image" && (
-                      <button
-                        onClick={handleFetchFromWebhook}
-                        disabled={isFetchingWebhook}
-                        className={`w-full py-3 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all mb-3
-                      ${
-                        isFetchingWebhook
-                          ? "bg-slate-400 cursor-wait"
-                          : "bg-gradient-to-r from-cyan-600 to-teal-600 hover:shadow-lg hover:scale-[1.02]"
-                      }`}
-                      >
-                        {isFetchingWebhook ? (
-                          <>
-                            <IconRefreshCw size={18} className="animate-spin" />{" "}
-                            가져오는 중...
-                          </>
-                        ) : (
-                          <>
-                            <IconDownload size={18} /> 웹훅에서 이미지 가져오기
-                          </>
-                        )}
-                      </button>
-                    )}
+                  {/* 웹훅 버튼들 - 이미지 업로드 전에 표시 */}
+                  <div className="space-y-2 mb-3">
+                    {/* 웹훅 이미지 가져오기 - webhook_type이 'image'인 경우 */}
+                    {!displayImage &&
+                      restaurantDetails[selectedCafeteria]?.webhook_url &&
+                      restaurantDetails[selectedCafeteria]?.webhook_type ===
+                        "image" && (
+                        <button
+                          onClick={handleFetchFromWebhook}
+                          disabled={isFetchingWebhook}
+                          className={`w-full py-3 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all
+                        ${
+                          isFetchingWebhook
+                            ? "bg-slate-400 cursor-wait"
+                            : "bg-gradient-to-r from-cyan-600 to-teal-600 hover:shadow-lg hover:scale-[1.02]"
+                        }`}
+                        >
+                          {isFetchingWebhook ? (
+                            <>
+                              <IconRefreshCw size={18} className="animate-spin" />{" "}
+                              이미지 가져오는 중...
+                            </>
+                          ) : (
+                            <>
+                              <IconDownload size={18} /> 웹훅에서 이미지 가져오기
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                    {/* 웹훅 JSON 가져오기 - webhook_type이 'json'인 경우 */}
+                    {restaurantDetails[selectedCafeteria]?.webhook_url &&
+                      restaurantDetails[selectedCafeteria]?.webhook_type ===
+                        "json" && (
+                        <button
+                          onClick={handleFetchJsonFromWebhook}
+                          disabled={isFetchingJson}
+                          className={`w-full py-3 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all
+                        ${
+                          isFetchingJson
+                            ? "bg-slate-800 cursor-wait"
+                            : "bg-gradient-to-r from-amber-600 to-orange-600 hover:shadow-lg hover:scale-[1.02]"
+                        }`}
+                        >
+                          {isFetchingJson ? (
+                            <>
+                              <IconRefreshCw size={18} className="animate-spin" />{" "}
+                              JSON 가져오는 중...
+                            </>
+                          ) : (
+                            <>
+                              <IconDownload size={18} /> 웹훅에서 JSON 가져오기
+                            </>
+                          )}
+                        </button>
+                      )}
+                  </div>
 
                   {!displayImage ? (
                     <label className="block w-full h-48 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50/50 transition-all group">
@@ -800,33 +830,6 @@ const EntryTab = forwardRef(
                       </>
                     )}
                   </button>
-
-                  {/* 웹훅 JSON 가져오기 버튼 - webhook_type이 'json'인 경우에만 표시 */}
-                  {restaurantDetails[selectedCafeteria]?.webhook_url &&
-                    restaurantDetails[selectedCafeteria]?.webhook_type ===
-                      "json" && (
-                      <button
-                        onClick={handleFetchJsonFromWebhook}
-                        disabled={isFetchingJson}
-                        className={`w-full py-2.5 rounded-xl font-bold text-white flex justify-center items-center gap-2 shadow-md transition-all text-sm
-                      ${
-                        isFetchingJson
-                          ? "bg-slate-800 cursor-wait"
-                          : "bg-gradient-to-r from-amber-600 to-orange-600 hover:shadow-lg hover:scale-[1.02]"
-                      }`}
-                      >
-                        {isFetchingJson ? (
-                          <>
-                            <IconRefreshCw size={16} className="animate-spin" />{" "}
-                            JSON 가져오는 중...
-                          </>
-                        ) : (
-                          <>
-                            <IconDownload size={16} /> 웹훅에서 JSON 가져오기
-                          </>
-                        )}
-                      </button>
-                    )}
                 </div>
               );
             })()}
@@ -868,7 +871,7 @@ const EntryTab = forwardRef(
               const useAllDays =
                 currentRestaurant?.use_all_days === undefined
                   ? true
-                  : currentRestaurant.use_all_days === 1;
+                  : (currentRestaurant.use_all_days === true || currentRestaurant.use_all_days === 1);
 
               // 요일별 이미지 업로드 핸들러
               const handleDayImageUpload = (day, file) => {

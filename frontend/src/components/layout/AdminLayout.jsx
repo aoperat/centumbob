@@ -4,11 +4,21 @@ import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 
 const AdminLayout = ({ currentTab, onTabChange, children }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // localStorage에서 사이드바 상태 불러오기 (기본값: true)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('centumbob_admin_sidebar_collapsed');
+    return saved === 'true';
+  });
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({
     complaints: 0,
     ad_inquiries: 0,
   });
+
+  // 사이드바 상태 변경 시 localStorage에 저장
+  useEffect(() => {
+    localStorage.setItem('centumbob_admin_sidebar_collapsed', isSidebarCollapsed);
+  }, [isSidebarCollapsed]);
 
   // 읽지 않은 항목 수 가져오기
   useEffect(() => {
@@ -41,8 +51,39 @@ const AdminLayout = ({ currentTab, onTabChange, children }) => {
       <header className="bg-slate-900 text-white shadow-lg">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
+            {/* 데스크톱: 사이드바 축소/확장 버튼 */}
             <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="hidden md:block p-2 hover:bg-slate-800 rounded-lg transition-colors"
+              title={isSidebarCollapsed ? "사이드바 확장" : "사이드바 축소"}
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                {isSidebarCollapsed ? (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 5l7 7-7 7M5 5l7 7-7 7"
+                  />
+                ) : (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+                  />
+                )}
+              </svg>
+            </button>
+
+            {/* 모바일: 사이드바 열기 버튼 */}
+            <button
+              onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
               className="md:hidden p-2 hover:bg-slate-800 rounded-lg transition-colors"
             >
               <svg
@@ -76,26 +117,40 @@ const AdminLayout = ({ currentTab, onTabChange, children }) => {
 
       {/* 메인 콘텐츠 */}
       <div className="flex flex-1 overflow-hidden">
-        {/* 사이드바 */}
-        <aside
-          className={`
-            ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-            md:translate-x-0 transition-transform duration-300
-            fixed md:static inset-y-0 left-0 z-40
-          `}
-        >
+        {/* 데스크톱 사이드바 */}
+        <aside className="hidden md:block transition-all duration-300">
           <Sidebar
             currentTab={currentTab}
             onTabChange={onTabChange}
             unreadCounts={unreadCounts}
+            isCollapsed={isSidebarCollapsed}
+          />
+        </aside>
+
+        {/* 모바일 사이드바 */}
+        <aside
+          className={`
+            ${isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+            md:hidden transition-transform duration-300
+            fixed inset-y-0 left-0 z-40
+          `}
+        >
+          <Sidebar
+            currentTab={currentTab}
+            onTabChange={(tab) => {
+              onTabChange(tab);
+              setIsMobileSidebarOpen(false);
+            }}
+            unreadCounts={unreadCounts}
+            isCollapsed={false}
           />
         </aside>
 
         {/* 사이드바 오버레이 (모바일) */}
-        {isSidebarOpen && (
+        {isMobileSidebarOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-30 md:hidden"
-            onClick={() => setIsSidebarOpen(false)}
+            onClick={() => setIsMobileSidebarOpen(false)}
           />
         )}
 

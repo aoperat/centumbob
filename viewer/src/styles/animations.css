@@ -1,0 +1,35 @@
+/* 메뉴 전환 애니메이션 */
+@keyframes menuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes menuFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.menu-transition-enter {
+  animation: menuFadeIn 0.3s ease-out forwards;
+}
+
+.menu-transition-exit {
+  animation: menuFadeOut 0.3s ease-out forwards;
+}
+
+/* 부드러운 높이 전환 */
+.menu-container {
+  transition: all 0.3s ease-in-out;
+}

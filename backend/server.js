@@ -28,7 +28,7 @@ import {
   addDateRange,
   updateDateRange,
   deleteDateRange,
-} from "./database.js";
+} from "./supabase-database.js";
 import { transformDbDataForViewer } from "./utils/transform.js";
 import {
   parseDateFromRange,
@@ -163,10 +163,10 @@ app.use(
 app.use(express.json());
 
 // 헬스 체크 엔드포인트
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
   try {
     // 데이터베이스 연결 확인
-    const testQuery = getMenuDataList();
+    const testQuery = await getMenuDataList();
     res.json({
       status: "ok",
       database: "connected",
@@ -529,7 +529,7 @@ app.post("/api/menu/upload", uploadImage.single("image"), async (req, res) => {
     }
 
     // 활성 날짜 범위 조회
-    const activeDateRanges = getActiveDateRanges();
+    const activeDateRanges = await getActiveDateRanges();
     if (activeDateRanges.length === 0) {
       return res.status(400).json({
         error: "활성화된 날짜 범위가 없습니다.",
@@ -538,7 +538,7 @@ app.post("/api/menu/upload", uploadImage.single("image"), async (req, res) => {
     const activeDateRange = activeDateRanges[0].date_range;
 
     // 식당 정보 조회 및 검증
-    const restaurant = getRestaurantById(restaurant_id);
+    const restaurant = await getRestaurantById(restaurant_id);
     if (!restaurant) {
       return res.status(404).json({
         error: "식당을 찾을 수 없습니다.",
@@ -731,7 +731,7 @@ ${ocrText}
     };
 
     // 기존 데이터 조회
-    const existing = getMenuData(restaurant_id, activeDateRange);
+    const existing = await getMenuData(restaurant_id, activeDateRange);
     let finalMenus = existing?.menus || {
       월: { lunch: [], dinner: [] },
       화: { lunch: [], dinner: [] },
@@ -792,7 +792,7 @@ ${ocrText}
     }
 
     // DB에 저장
-    const saveResult = saveMenuData({
+    const saveResult = await saveMenuData({
       restaurant_id: restaurant_id,
       restaurant_name: restaurant.name,
       date_range: activeDateRange,
@@ -926,7 +926,7 @@ app.post(
       }
 
       // 기존 데이터 조회 (이미지 경로 유지용)
-      const existing = getMenuData(adminData.name, adminData.date);
+      const existing = await getMenuData(adminData.name, adminData.date);
       let imagePath = null;
       let imagePaths = existing?.image_paths || null;
 
@@ -977,7 +977,7 @@ app.post(
       }
 
       // DB에 저장
-      const result = saveMenuData({
+      const result = await saveMenuData({
         restaurant_id: adminData.restaurantId,
         restaurant_name: adminData.name,
         date_range: adminData.date,
@@ -1007,7 +1007,7 @@ app.post(
 
 // 이미지 파일 제공 엔드포인트 (경로 직접 사용) - 더 구체적인 라우트를 먼저 등록
 // Express의 와일드카드 라우팅 문제를 해결하기 위해 정규식 사용
-app.get(/^\/api\/images\/path\/(.+)$/, (req, res) => {
+app.get(/^\/api\/images\/path\/(.+)$/, async (req, res) => {
   try {
     // req.path에서 정규식으로 경로 추출
     const match = req.path.match(/^\/api\/images\/path\/(.+)$/);
@@ -1151,7 +1151,7 @@ app.post("/api/ocr/test-post", upload.single("image"), async (req, res) => {
 });
 
 // 데이터 불러오기 API
-app.get("/api/load", (req, res) => {
+app.get("/api/load", async (req, res) => {
   try {
     console.log("[/api/load] 요청 받음:", req.query);
     const { restaurant, restaurantId, date } = req.query;
@@ -1161,7 +1161,7 @@ app.get("/api/load", (req, res) => {
       try {
         // restaurantId 우선 사용, 없으면 restaurant 사용 (하위 호환성)
         const identifier = restaurantId || restaurant;
-        const menuData = getMenuData(identifier, date);
+        const menuData = await getMenuData(identifier, date);
 
         if (!menuData) {
           console.log("[/api/load] 데이터 없음:", restaurant, date);
@@ -1211,7 +1211,7 @@ app.get("/api/load", (req, res) => {
     // 목록 조회
     else if (req.query.list === "true") {
       try {
-        const list = getMenuDataList();
+        const list = await getMenuDataList();
         res.json(list);
       } catch (listError) {
         console.error("[/api/load] 목록 조회 오류:", listError);
@@ -1239,7 +1239,7 @@ app.get("/api/load", (req, res) => {
 });
 
 // 식당의 모든 메뉴 데이터 삭제 API
-app.delete("/api/menu-data/restaurant/:restaurantName", (req, res) => {
+app.delete("/api/menu-data/restaurant/:restaurantName", async (req, res) => {
   try {
     const { restaurantName } = req.params;
 
@@ -1249,7 +1249,7 @@ app.delete("/api/menu-data/restaurant/:restaurantName", (req, res) => {
       });
     }
 
-    const result = deleteAllMenuDataByRestaurant(restaurantName);
+    const result = await deleteAllMenuDataByRestaurant(restaurantName);
 
     res.json({
       success: true,
@@ -1266,7 +1266,7 @@ app.delete("/api/menu-data/restaurant/:restaurantName", (req, res) => {
 });
 
 // restaurant_id 기반 식당의 모든 메뉴 데이터 삭제
-app.delete("/api/menu-data/restaurant-id/:restaurantId", (req, res) => {
+app.delete("/api/menu-data/restaurant-id/:restaurantId", async (req, res) => {
   try {
     const restaurantId = parseInt(req.params.restaurantId, 10);
 
@@ -1276,7 +1276,7 @@ app.delete("/api/menu-data/restaurant-id/:restaurantId", (req, res) => {
       });
     }
 
-    const result = deleteAllMenuDataByRestaurantId(restaurantId);
+    const result = await deleteAllMenuDataByRestaurantId(restaurantId);
 
     res.json({
       success: true,
@@ -1296,7 +1296,7 @@ app.delete("/api/menu-data/restaurant-id/:restaurantId", (req, res) => {
 app.post("/api/publish", async (req, res) => {
   try {
     // 활성화된 날짜 범위 조회
-    const activeDateRanges = getActiveDateRanges();
+    const activeDateRanges = await getActiveDateRanges();
     if (activeDateRanges.length === 0) {
       return res.status(400).json({
         error:
@@ -1308,7 +1308,7 @@ app.post("/api/publish", async (req, res) => {
     console.log("[게시] 활성 날짜 범위:", activeDateRange);
 
     // DB에서 활성 날짜 범위의 데이터만 조회
-    const allMenuData = getAllMenuData();
+    const allMenuData = await getAllMenuData();
     const allData = allMenuData.filter(
       (data) => data.date_range === activeDateRange
     );
@@ -1344,7 +1344,7 @@ app.post("/api/publish", async (req, res) => {
     }
 
     // 기준데이터(restaurants) 조회하여 식당 ID를 키로 하는 맵 생성
-    const allRestaurants = getAllRestaurants();
+    const allRestaurants = await getAllRestaurants();
     const restaurantMap = {};
     allRestaurants.forEach((r) => {
       restaurantMap[r.id] = r;
@@ -1542,7 +1542,7 @@ app.post("/api/auto-publish-and-push", async (req, res) => {
     console.log("[자동 게시] 1단계: 메뉴 데이터 게시 중...");
 
     // 활성화된 날짜 범위 조회
-    const activeDateRanges = getActiveDateRanges();
+    const activeDateRanges = await getActiveDateRanges();
     if (activeDateRanges.length === 0) {
       return res.status(400).json({
         error: "활성화된 날짜 범위가 없습니다.",
@@ -1551,7 +1551,7 @@ app.post("/api/auto-publish-and-push", async (req, res) => {
     const activeDateRange = activeDateRanges[0].date_range;
 
     // DB에서 활성 날짜 범위의 데이터만 조회
-    const allMenuData = getAllMenuData();
+    const allMenuData = await getAllMenuData();
     const allData = allMenuData.filter(
       (data) => data.date_range === activeDateRange
     );
@@ -1575,7 +1575,7 @@ app.post("/api/auto-publish-and-push", async (req, res) => {
     }
 
     // 기준데이터 조회
-    const allRestaurants = getAllRestaurants();
+    const allRestaurants = await getAllRestaurants();
     const restaurantMap = {};
     allRestaurants.forEach((r) => {
       restaurantMap[r.id] = r;
@@ -1680,7 +1680,7 @@ app.post("/api/auto-publish-and-push", async (req, res) => {
     // 커밋 메시지 생성
     let commitMessage = "자동 업데이트: 메뉴 데이터";
     if (restaurant_id && day_id) {
-      const restaurant = getRestaurantById(parseInt(restaurant_id, 10));
+      const restaurant = await getRestaurantById(parseInt(restaurant_id, 10));
       if (restaurant) {
         commitMessage = `자동 업데이트: ${restaurant.name} ${day_id}요일 메뉴`;
       }
@@ -1759,7 +1759,7 @@ app.post("/api/auto-publish-and-push", async (req, res) => {
 // ==================== 블로그 생성 API ====================
 
 // 블로그 생성 상태 확인 엔드포인트 (디버깅용)
-app.get("/api/blog/status", (req, res) => {
+app.get("/api/blog/status", async (req, res) => {
   try {
     const viewerDistPath = path.join(
       __dirname,
@@ -2041,7 +2041,7 @@ app.post("/api/blog/generate", async (req, res) => {
     let gptContent = null;
     try {
       console.log("[블로그 생성] GPT 콘텐츠 생성 시작...");
-      const allMenuData = getAllMenuData();
+      const allMenuData = await getAllMenuData();
       // 해당 날짜 범위의 메뉴 데이터만 필터링
       const relevantMenuData = allMenuData.filter(
         (menu) => menu.date_range === dateRange
@@ -2147,7 +2147,7 @@ app.post("/api/blog/generate", async (req, res) => {
 });
 
 // 저장된 데이터 조회 엔드포인트 (기존 호환성 유지)
-app.get("/api/data", (req, res) => {
+app.get("/api/data", async (req, res) => {
   try {
     const data = loadMenuData();
     res.json(data);
@@ -2163,11 +2163,11 @@ app.get("/api/data", (req, res) => {
 // ==================== 날짜 범위 관리 API ====================
 
 // 날짜 범위 목록 조회
-app.get("/api/date-ranges", (req, res) => {
+app.get("/api/date-ranges", async (req, res) => {
   try {
     const { active_only } = req.query;
     const dateRanges =
-      active_only === "true" ? getActiveDateRanges() : getAllDateRanges();
+      active_only === "true" ? await getActiveDateRanges() : await getAllDateRanges();
     res.json(dateRanges);
   } catch (error) {
     console.error("날짜 범위 목록 조회 오류:", error);
@@ -2179,7 +2179,7 @@ app.get("/api/date-ranges", (req, res) => {
 });
 
 // 날짜 범위 추가
-app.post("/api/date-ranges", (req, res) => {
+app.post("/api/date-ranges", async (req, res) => {
   try {
     const { date_range, year, week } = req.body;
     if (!date_range || year === undefined || week === undefined) {
@@ -2188,7 +2188,7 @@ app.post("/api/date-ranges", (req, res) => {
       });
     }
 
-    const newDateRange = addDateRange({
+    const newDateRange = await addDateRange({
       date_range,
       year,
       week,
@@ -2206,14 +2206,14 @@ app.post("/api/date-ranges", (req, res) => {
 });
 
 // 날짜 범위 수정
-app.put("/api/date-ranges/:id", (req, res) => {
+app.put("/api/date-ranges/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: "유효하지 않은 ID입니다." });
     }
 
-    const result = updateDateRange(id, req.body);
+    const result = await updateDateRange(id, req.body);
     if (result.changes === 0) {
       return res.status(404).json({ error: "날짜 범위를 찾을 수 없습니다." });
     }
@@ -2227,14 +2227,14 @@ app.put("/api/date-ranges/:id", (req, res) => {
 });
 
 // 날짜 범위 삭제
-app.delete("/api/date-ranges/:id", (req, res) => {
+app.delete("/api/date-ranges/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: "유효하지 않은 ID입니다." });
     }
 
-    const result = deleteDateRange(id);
+    const result = await deleteDateRange(id);
     if (result.changes === 0) {
       return res.status(404).json({ error: "날짜 범위를 찾을 수 없습니다." });
     }
@@ -2248,7 +2248,7 @@ app.delete("/api/date-ranges/:id", (req, res) => {
 });
 
 // Health check
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
   res.json({ status: "ok" });
 });
 
@@ -2826,7 +2826,7 @@ app.get("/api/admin/dashboard-summary", async (req, res) => {
     };
 
     // 식당 수
-    const restaurants = getAllRestaurants();
+    const restaurants = await getAllRestaurants();
     const restaurantsStats = {
       total: restaurants?.length || 0,
     };
@@ -3393,7 +3393,7 @@ app.post("/api/webhook/upload-from-url", async (req, res) => {
     );
 
     // 활성 날짜 범위 조회
-    const activeDateRanges = getActiveDateRanges();
+    const activeDateRanges = await getActiveDateRanges();
     if (activeDateRanges.length === 0) {
       return res.status(400).json({
         error: "활성화된 날짜 범위가 없습니다.",
@@ -3402,7 +3402,7 @@ app.post("/api/webhook/upload-from-url", async (req, res) => {
     const activeDateRange = activeDateRanges[0].date_range;
 
     // 식당 정보 조회 및 검증
-    const restaurant = getRestaurantById(restaurantIdNum);
+    const restaurant = await getRestaurantById(restaurantIdNum);
     if (!restaurant) {
       return res.status(404).json({
         error: "식당을 찾을 수 없습니다.",
@@ -3684,7 +3684,7 @@ ${ocrText}
     console.log(`[웹훅 업로드] 이미지 저장 완료: ${imagePath}`);
 
     // 4. 기존 데이터 조회
-    const existingData = getMenuData(restaurantIdNum, activeDateRange);
+    const existingData = await getMenuData(restaurantIdNum, activeDateRange);
 
     let finalMenus = existingData?.menus || {
       월: { lunch: [], dinner: [] },
@@ -3745,7 +3745,7 @@ ${ocrText}
       excluded_menu_items: existingData?.excluded_menu_items || [],
     };
 
-    saveMenuData(savedData);
+    await saveMenuData(savedData);
 
     console.log(
       `[웹훅 업로드] 저장 완료: restaurant_id=${restaurantIdNum}, date_range=${activeDateRange}`
@@ -3821,7 +3821,7 @@ app.post("/api/webhook/upload-binary", upload.single("image"), async (req, res) 
     );
 
     // 활성 날짜 범위 조회
-    const activeDateRanges = getActiveDateRanges();
+    const activeDateRanges = await getActiveDateRanges();
     if (activeDateRanges.length === 0) {
       return res.status(400).json({
         error: "활성화된 날짜 범위가 없습니다.",
@@ -3830,7 +3830,7 @@ app.post("/api/webhook/upload-binary", upload.single("image"), async (req, res) 
     const activeDateRange = activeDateRanges[0].date_range;
 
     // 식당 정보 조회 및 검증
-    const restaurant = getRestaurantById(restaurantIdNum);
+    const restaurant = await getRestaurantById(restaurantIdNum);
     if (!restaurant) {
       return res.status(404).json({
         error: "식당을 찾을 수 없습니다.",
@@ -4036,7 +4036,7 @@ ${ocrText}
     console.log(`[웹훅 바이너리] 이미지 저장 완료: ${imagePath}`);
 
     // 4. 기존 데이터 조회
-    const existingData = getMenuData(restaurantIdNum, activeDateRange);
+    const existingData = await getMenuData(restaurantIdNum, activeDateRange);
 
     let finalMenus = existingData?.menus || {
       월: { lunch: [], dinner: [] },
@@ -4097,7 +4097,7 @@ ${ocrText}
       excluded_menu_items: existingData?.excluded_menu_items || [],
     };
 
-    saveMenuData(savedData);
+    await saveMenuData(savedData);
 
     console.log(
       `[웹훅 바이너리] 저장 완료: restaurant_id=${restaurantIdNum}, date_range=${activeDateRange}`
@@ -4128,11 +4128,11 @@ ${ocrText}
 // ==================== 식당 관리 API ====================
 
 // 식당 목록 조회
-app.get("/api/restaurants", (req, res) => {
+app.get("/api/restaurants", async (req, res) => {
   try {
     const { active_only } = req.query;
     const restaurants =
-      active_only === "true" ? getActiveRestaurants() : getAllRestaurants();
+      active_only === "true" ? await getActiveRestaurants() : await getAllRestaurants();
     res.json(restaurants);
   } catch (error) {
     console.error("식당 목록 조회 오류:", error);
@@ -4146,7 +4146,7 @@ app.get("/api/restaurants", (req, res) => {
 });
 
 // 식당 추가
-app.post("/api/restaurants", (req, res) => {
+app.post("/api/restaurants", async (req, res) => {
   try {
     const {
       name,
@@ -4162,7 +4162,7 @@ app.post("/api/restaurants", (req, res) => {
       return res.status(400).json({ error: "식당 이름은 필수입니다." });
     }
 
-    const newRestaurant = addRestaurant({
+    const newRestaurant = await addRestaurant({
       name,
       building_name,
       price_lunch,
@@ -4180,12 +4180,12 @@ app.post("/api/restaurants", (req, res) => {
 });
 
 // 식당 수정
-app.put("/api/restaurants/:id", (req, res) => {
+app.put("/api/restaurants/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
 
-    const result = updateRestaurant(id, updateData);
+    const result = await updateRestaurant(id, updateData);
     if (result.changes === 0) {
       return res
         .status(404)
@@ -4202,7 +4202,7 @@ app.put("/api/restaurants/:id", (req, res) => {
 });
 
 // 식당 순서 변경
-app.put("/api/restaurants/reorder", (req, res) => {
+app.put("/api/restaurants/reorder", async (req, res) => {
   try {
     const { orders } = req.body; // [{ id: 1, sort_order: 1 }, ...]
     if (!Array.isArray(orders)) {
@@ -4211,7 +4211,7 @@ app.put("/api/restaurants/reorder", (req, res) => {
         .json({ error: "올바르지 않은 데이터 형식입니다." });
     }
 
-    updateRestaurantOrders(orders);
+    await updateRestaurantOrders(orders);
     res.json({ success: true });
   } catch (error) {
     console.error("식당 순서 변경 오류:", error);
@@ -4222,10 +4222,10 @@ app.put("/api/restaurants/reorder", (req, res) => {
 });
 
 // 식당 삭제
-app.delete("/api/restaurants/:id", (req, res) => {
+app.delete("/api/restaurants/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const result = deleteRestaurant(id);
+    const result = await deleteRestaurant(id);
     if (result.changes === 0) {
       return res.status(404).json({ error: "해당 식당을 찾을 수 없습니다." });
     }
@@ -4239,11 +4239,11 @@ app.delete("/api/restaurants/:id", (req, res) => {
 // ==================== 날짜 범위 관리 API ====================
 
 // 날짜 범위 목록 조회
-app.get("/api/date-ranges", (req, res) => {
+app.get("/api/date-ranges", async (req, res) => {
   try {
     const { active_only } = req.query;
     const dateRanges =
-      active_only === "true" ? getActiveDateRanges() : getAllDateRanges();
+      active_only === "true" ? await getActiveDateRanges() : await getAllDateRanges();
     res.json(dateRanges);
   } catch (error) {
     console.error("날짜 범위 목록 조회 오류:", error);
@@ -4255,7 +4255,7 @@ app.get("/api/date-ranges", (req, res) => {
 });
 
 // 날짜 범위 추가
-app.post("/api/date-ranges", (req, res) => {
+app.post("/api/date-ranges", async (req, res) => {
   try {
     const { date_range, year, week } = req.body;
     if (!date_range || year === undefined || week === undefined) {
@@ -4264,7 +4264,7 @@ app.post("/api/date-ranges", (req, res) => {
       });
     }
 
-    const newDateRange = addDateRange({
+    const newDateRange = await addDateRange({
       date_range,
       year,
       week,
@@ -4282,14 +4282,14 @@ app.post("/api/date-ranges", (req, res) => {
 });
 
 // 날짜 범위 수정
-app.put("/api/date-ranges/:id", (req, res) => {
+app.put("/api/date-ranges/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: "유효하지 않은 ID입니다." });
     }
 
-    const result = updateDateRange(id, req.body);
+    const result = await updateDateRange(id, req.body);
     if (result.changes === 0) {
       return res.status(404).json({ error: "날짜 범위를 찾을 수 없습니다." });
     }
@@ -4303,14 +4303,14 @@ app.put("/api/date-ranges/:id", (req, res) => {
 });
 
 // 날짜 범위 삭제
-app.delete("/api/date-ranges/:id", (req, res) => {
+app.delete("/api/date-ranges/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: "유효하지 않은 ID입니다." });
     }
 
-    const result = deleteDateRange(id);
+    const result = await deleteDateRange(id);
     if (result.changes === 0) {
       return res.status(404).json({ error: "날짜 범위를 찾을 수 없습니다." });
     }
