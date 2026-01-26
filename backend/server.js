@@ -38,6 +38,12 @@ import {
   generateBlogContent,
 } from "./utils/blogGenerator.js";
 import { getDailyNews } from "./utils/newsProvider.js";
+import {
+  uploadImage as uploadToStorage,
+  generateStorageFileName,
+  resolveImageUrl,
+  isSupabaseStoragePath,
+} from "./utils/supabaseStorage.js";
 import puppeteer from "puppeteer";
 import { createWorker } from "tesseract.js";
 
@@ -758,36 +764,40 @@ ${ocrText}
       };
     }
 
-    // 이미지 업로드 처리
+    // 이미지 업로드 처리 (Supabase Storage)
     let imagePath = null;
     let imagePaths = existing?.image_paths || null;
 
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const fileExt = path.extname(req.file.originalname) || ".jpg";
+    const storageFileName = generateStorageFileName(
+      restaurant_id,
+      activeDateRange,
+      fileExt
+    );
+    const { storagePath } = await uploadToStorage(
+      fileBuffer,
+      storageFileName,
+      req.file.mimetype
+    );
+    // temp 파일 삭제
+    try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+
     if (type === "전체요일") {
       // 전체 요일 모드: 하나의 이미지
-      imagePath = moveFileToDestination(
-        req.file.path,
-        restaurant.name,
-        activeDateRange,
-        req.file.filename
-      );
+      imagePath = storagePath;
       imagePaths = null;
-      console.log("[외부 API] 전체 요일 이미지 저장 완료:", imagePath);
+      console.log("[외부 API] 전체 요일 이미지 저장 완료 (Supabase):", imagePath);
     } else {
       // 개별 요일 모드: 요일별 이미지
       if (!imagePaths) {
         imagePaths = {};
       }
-      const dayImagePath = moveFileToDestination(
-        req.file.path,
-        restaurant.name,
-        activeDateRange,
-        req.file.filename
-      );
-      imagePaths[day_id] = dayImagePath;
-      imagePath = imagePaths["월"] || existing?.image_path || dayImagePath;
+      imagePaths[day_id] = storagePath;
+      imagePath = imagePaths["월"] || existing?.image_path || storagePath;
       console.log(
-        `[외부 API] ${day_id}요일 이미지 저장 완료:`,
-        dayImagePath
+        `[외부 API] ${day_id}요일 이미지 저장 완료 (Supabase):`,
+        storagePath
       );
     }
 
@@ -934,14 +944,23 @@ app.post(
         // 전체 요일 모드: 하나의 이미지
         const imageFile = files?.image?.[0];
         if (imageFile) {
-          // 임시 폴더에서 목적지로 이동
-          imagePath = moveFileToDestination(
-            imageFile.path,
-            adminData.name,
+          // temp 파일을 읽어서 Supabase Storage에 업로드
+          const buffer = fs.readFileSync(imageFile.path);
+          const ext = path.extname(imageFile.originalname) || ".jpg";
+          const fileName = generateStorageFileName(
+            adminData.restaurantId || adminData.name,
             adminData.date,
-            imageFile.filename
+            ext
           );
-          console.log("전체 요일 이미지 저장 완료:", imagePath);
+          const { storagePath } = await uploadToStorage(
+            buffer,
+            fileName,
+            imageFile.mimetype
+          );
+          imagePath = storagePath;
+          // temp 파일 삭제
+          try { fs.unlinkSync(imageFile.path); } catch (e) { /* ignore */ }
+          console.log("전체 요일 이미지 저장 완료 (Supabase):", imagePath);
         } else if (existing?.image_path) {
           imagePath = existing.image_path;
         }
@@ -954,23 +973,31 @@ app.post(
           imagePaths = {};
         }
 
-        days.forEach((day) => {
+        for (const day of days) {
           const dayFile = files?.[`image_${day}`]?.[0];
           if (dayFile) {
-            // 임시 폴더에서 목적지로 이동
-            const dayImagePath = moveFileToDestination(
-              dayFile.path,
-              adminData.name,
+            // temp 파일을 읽어서 Supabase Storage에 업로드
+            const buffer = fs.readFileSync(dayFile.path);
+            const ext = path.extname(dayFile.originalname) || ".jpg";
+            const fileName = generateStorageFileName(
+              adminData.restaurantId || adminData.name,
               adminData.date,
-              dayFile.filename
+              ext
             );
-            imagePaths[day] = dayImagePath;
-            console.log(`${day}요일 이미지 저장 완료:`, dayImagePath);
+            const { storagePath } = await uploadToStorage(
+              buffer,
+              fileName,
+              dayFile.mimetype
+            );
+            imagePaths[day] = storagePath;
+            // temp 파일 삭제
+            try { fs.unlinkSync(dayFile.path); } catch (e) { /* ignore */ }
+            console.log(`${day}요일 이미지 저장 완료 (Supabase):`, storagePath);
           } else if (existing?.image_paths?.[day]) {
             // 기존 이미지 유지
             imagePaths[day] = existing.image_paths[day];
           }
-        });
+        }
 
         // image_path는 첫 번째 이미지 또는 null
         imagePath = imagePaths["월"] || existing?.image_path || null;
@@ -1169,7 +1196,7 @@ app.get("/api/load", async (req, res) => {
           return res.status(200).json(null);
         }
 
-        // 이미지 URL 생성 - 이미지 경로를 직접 사용 (URL 인코딩 문제 방지)
+        // 이미지 URL 생성 - Supabase Storage 또는 legacy 경로 지원
         let imageUrl = null;
         let imageUrls = null;
 
@@ -1179,18 +1206,14 @@ app.get("/api/load", async (req, res) => {
           const days = ["월", "화", "수", "목", "금"];
           days.forEach((day) => {
             if (menuData.image_paths[day]) {
-              imageUrls[day] = `/api/images/path/${encodeURIComponent(
-                menuData.image_paths[day]
-              )}`;
+              imageUrls[day] = resolveImageUrl(menuData.image_paths[day]);
             }
           });
         }
 
         // 하위 호환성을 위해 imageUrl도 유지
         if (menuData.image_path) {
-          imageUrl = `/api/images/path/${encodeURIComponent(
-            menuData.image_path
-          )}`;
+          imageUrl = resolveImageUrl(menuData.image_path);
         } else if (imageUrls?.["월"]) {
           imageUrl = imageUrls["월"];
         }
@@ -1372,11 +1395,20 @@ app.post("/api/publish", async (req, res) => {
       const imagePathsByDay = dbData.image_paths || {};
       const days = ["월", "화", "수", "목", "금"];
 
-      // 요일별 이미지 파일 복사
+      // 요일별 이미지 파일 복사 (legacy 로컬 경로만)
       if (Object.keys(imagePathsByDay).length > 0) {
         days.forEach((day) => {
           if (imagePathsByDay[day]) {
             try {
+              // Supabase Storage 경로는 로컬 복사 건너뜀
+              if (isSupabaseStoragePath(imagePathsByDay[day])) {
+                console.log(
+                  `[${day}요일] Supabase Storage 이미지, 로컬 복사 건너뜀:`,
+                  imagePathsByDay[day]
+                );
+                return;
+              }
+
               const imageAbsolutePath = path.join(
                 __dirname,
                 imagePathsByDay[day]
@@ -1423,35 +1455,38 @@ app.post("/api/publish", async (req, res) => {
 
       // 전체 요일 모드: 단일 이미지 처리
       if (!imageBase64 && dbData.image_path) {
-        try {
-          const imageAbsolutePath = path.join(__dirname, dbData.image_path);
-          if (fs.existsSync(imageAbsolutePath)) {
-            const imageBuffer = fs.readFileSync(imageAbsolutePath);
-            const imageExt = path.extname(imageAbsolutePath).toLowerCase();
-            let mimeType = "image/jpeg";
+        // Supabase Storage 경로는 로컬 복사 건너뜀
+        if (!isSupabaseStoragePath(dbData.image_path)) {
+          try {
+            const imageAbsolutePath = path.join(__dirname, dbData.image_path);
+            if (fs.existsSync(imageAbsolutePath)) {
+              const imageBuffer = fs.readFileSync(imageAbsolutePath);
+              const imageExt = path.extname(imageAbsolutePath).toLowerCase();
+              let mimeType = "image/jpeg";
 
-            if (imageExt === ".png") mimeType = "image/png";
-            else if (imageExt === ".gif") mimeType = "image/gif";
-            else if (imageExt === ".webp") mimeType = "image/webp";
+              if (imageExt === ".png") mimeType = "image/png";
+              else if (imageExt === ".gif") mimeType = "image/gif";
+              else if (imageExt === ".webp") mimeType = "image/webp";
 
-            imageBase64 = `data:${mimeType};base64,${imageBuffer.toString(
-              "base64"
-            )}`;
+              imageBase64 = `data:${mimeType};base64,${imageBuffer.toString(
+                "base64"
+              )}`;
 
-            // 이미지 파일을 viewer/public/images/로도 복사 (상대 경로 참조용)
-            const imageFileName = path.basename(imageAbsolutePath);
-            const viewerImagePath = path.join(viewerImagesDir, imageFileName);
-            if (
-              !fs.existsSync(viewerImagePath) ||
-              fs.statSync(imageAbsolutePath).mtime >
-                fs.statSync(viewerImagePath).mtime
-            ) {
-              fs.copyFileSync(imageAbsolutePath, viewerImagePath);
-              console.log("이미지 복사 완료:", viewerImagePath);
+              // 이미지 파일을 viewer/public/images/로도 복사 (상대 경로 참조용)
+              const imageFileName = path.basename(imageAbsolutePath);
+              const viewerImagePath = path.join(viewerImagesDir, imageFileName);
+              if (
+                !fs.existsSync(viewerImagePath) ||
+                fs.statSync(imageAbsolutePath).mtime >
+                  fs.statSync(viewerImagePath).mtime
+              ) {
+                fs.copyFileSync(imageAbsolutePath, viewerImagePath);
+                console.log("이미지 복사 완료:", viewerImagePath);
+              }
             }
+          } catch (imageError) {
+            console.error("이미지 처리 오류:", imageError);
           }
-        } catch (imageError) {
-          console.error("이미지 처리 오류:", imageError);
         }
       }
 
@@ -1810,12 +1845,17 @@ app.post("/api/blog/generate", async (req, res) => {
           table .text-indigo-700 {
             color: #4338ca !important;
           }
+
+          /* 좋아요 버튼 완전히 숨김 (블로그 이미지용) */
+          table button {
+            display: none !important;
+          }
         `;
         document.head.appendChild(style);
-        console.log('[Puppeteer] 텍스트 색상 강제 적용 완료');
+        console.log('[Puppeteer] 텍스트 색상 강제 적용 및 좋아요 버튼 숨김 완료');
       });
 
-      console.log("[블로그 생성] 텍스트 색상 강제 적용 완료, 스크린샷 캡처 시작");
+      console.log("[블로그 생성] 스타일 조정 완료, 스크린샷 캡처 시작");
 
       // 색상 적용 후 잠깐 대기
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -3592,27 +3632,20 @@ ${ocrText}
       });
     }
 
-    // 3. 이미지 저장 (일반 업로드와 동일한 구조 사용)
-    const timestamp = Date.now();
-    const filename = `${restaurant.name}_${activeDateRange}_${timestamp}.${extension}`;
+    // 3. 이미지 저장 (Supabase Storage)
+    const storageFileName = generateStorageFileName(
+      restaurantIdNum,
+      activeDateRange,
+      extension
+    );
+    const contentTypeForStorage = `image/${extension === "jpg" ? "jpeg" : extension}`;
+    const { storagePath: imagePath } = await uploadToStorage(
+      imageBuffer,
+      storageFileName,
+      contentTypeForStorage
+    );
 
-    // 디렉토리 구조: uploads/{restaurant}/{dateRange}/
-    const safeRestaurant = restaurant.name.replace(/[^a-zA-Z0-9가-힣]/g, "_");
-    const safeDateRange = activeDateRange.replace(/[^a-zA-Z0-9가-힣]/g, "_");
-    const destDir = path.join(uploadsDir, safeRestaurant, safeDateRange);
-
-    if (!fs.existsSync(destDir)) {
-      fs.mkdirSync(destDir, { recursive: true });
-    }
-
-    const destPath = path.join(destDir, filename);
-    fs.writeFileSync(destPath, imageBuffer);
-
-    // 상대 경로 생성 (프론트엔드에서 사용)
-    const relativePath = path.relative(__dirname, destPath);
-    const imagePath = relativePath.split(path.sep).join("/");
-
-    console.log(`[웹훅 업로드] 이미지 저장 완료: ${imagePath}`);
+    console.log(`[웹훅 업로드] 이미지 저장 완료 (Supabase): ${imagePath}`);
 
     // 4. 기존 데이터 조회
     const existingData = await getMenuData(restaurantIdNum, activeDateRange);
@@ -3943,28 +3976,20 @@ ${ocrText}
       });
     }
 
-    // 3. 이미지 저장 (일반 업로드와 동일한 구조 사용)
-    const timestamp = Date.now();
+    // 3. 이미지 저장 (Supabase Storage)
     const fileExt = path.extname(req.file.originalname) || ".jpg";
-    const filename = `${restaurant.name}_${activeDateRange}_${timestamp}${fileExt}`;
+    const storageFileName = generateStorageFileName(
+      restaurantIdNum,
+      activeDateRange,
+      fileExt
+    );
+    const { storagePath: imagePath } = await uploadToStorage(
+      imageBuffer,
+      storageFileName,
+      req.file.mimetype
+    );
 
-    // 디렉토리 구조: uploads/{restaurant}/{dateRange}/
-    const safeRestaurant = restaurant.name.replace(/[^a-zA-Z0-9가-힣]/g, "_");
-    const safeDateRange = activeDateRange.replace(/[^a-zA-Z0-9가-힣]/g, "_");
-    const destDir = path.join(uploadsDir, safeRestaurant, safeDateRange);
-
-    if (!fs.existsSync(destDir)) {
-      fs.mkdirSync(destDir, { recursive: true });
-    }
-
-    const destPath = path.join(destDir, filename);
-    fs.writeFileSync(destPath, imageBuffer);
-
-    // 상대 경로 생성 (프론트엔드에서 사용)
-    const relativePath = path.relative(__dirname, destPath);
-    const imagePath = relativePath.split(path.sep).join("/");
-
-    console.log(`[웹훅 바이너리] 이미지 저장 완료: ${imagePath}`);
+    console.log(`[웹훅 바이너리] 이미지 저장 완료 (Supabase): ${imagePath}`);
 
     // 4. 기존 데이터 조회
     const existingData = await getMenuData(restaurantIdNum, activeDateRange);
