@@ -460,11 +460,8 @@ function App() {
             const hasDayData = (lunchMenu && lunchMenu.length > 0) || (dinnerMenu && dinnerMenu.length > 0);
 
             const getImageUrl = (imageUrl) => {
-              if (imageUrl.startsWith("data:")) {
-                return imageUrl;
-              }
-              const basePath = import.meta.env.BASE_URL;
-              return `${basePath}${imageUrl}`.replace(/\/\//g, "/");
+              // menuApi.js에서 이미 전체 경로를 구성하므로 그대로 반환
+              return imageUrl;
             };
 
             const displayImageUrl = dayImageUrl
@@ -623,13 +620,8 @@ function App() {
                     const hasDayData = (lunchMenu && lunchMenu.length > 0) || (dinnerMenu && dinnerMenu.length > 0);
 
                     const getImageUrl = (imageUrl) => {
-                      // base64 이미지는 그대로 사용
-                      if (imageUrl.startsWith("data:")) {
-                        return imageUrl;
-                      }
-                      // 상대 경로인 경우 base 경로 추가
-                      const basePath = import.meta.env.BASE_URL;
-                      return `${basePath}${imageUrl}`.replace(/\/\//g, "/");
+                      // menuApi.js에서 이미 전체 경로를 구성하므로 그대로 반환
+                      return imageUrl;
                     };
 
                     // 표시할 이미지 URL 결정: 요일별 이미지 우선, 없으면 전체 이미지
