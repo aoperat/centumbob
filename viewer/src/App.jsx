@@ -16,7 +16,7 @@ import ProfileModal from "./components/ProfileModal";
 import ChatWindowV2 from "./components/ChatWindowV2";
 import CommunityModal from "./components/community/CommunityModal";
 import { getPageViews, incrementPageView } from "./utils/api";
-import { getActiveMenuData } from "./utils/menuApi";
+import { getActiveMenuData, subscribeToMenuChanges } from "./utils/menuApi";
 import { getUserLocation, addDistanceToMenuData, getNaverMapUrl, getDirectionsUrl } from "./utils/location";
 import { useAuth } from "./hooks/useAuth";
 import { useChat } from "./hooks/useChatV2";
@@ -65,6 +65,8 @@ function App() {
   });
   // 모바일: 데이터 있는 식당만 표시 토글
   const [showOnlyWithData, setShowOnlyWithData] = useState(false);
+  // 데이터 업데이트 알림
+  const [showUpdateNotification, setShowUpdateNotification] = useState(false);
 
   const tableScrollRef = useRef(null);
 
@@ -103,46 +105,76 @@ function App() {
     loadUserLocation();
   }, []);
 
+  // 메뉴 데이터 로드 함수 (재사용 가능하도록 별도 함수로 분리)
+  const loadMenuData = async (showNotification = false) => {
+    try {
+      if (showNotification) {
+        setLoading(false); // 백그라운드 업데이트는 로딩 표시 안함
+      } else {
+        setLoading(true);
+      }
+
+      // Supabase에서 직접 메뉴 데이터 조회
+      let data = await getActiveMenuData();
+
+      // 배열로 받아야 하며, 만약 객체라면 에러 처리
+      if (!Array.isArray(data)) {
+        throw new Error("데이터 형식이 올바르지 않습니다. 배열이어야 합니다.");
+      }
+
+      // 사용자 위치가 있으면 거리 정보 추가 및 거리순 정렬
+      if (userLocation) {
+        data = addDistanceToMenuData(data, userLocation);
+        // 거리순으로 정렬 (가까운 순서)
+        data.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+      }
+
+      setMenuData(data);
+
+      // 첫 번째 식당의 날짜 정보 가져오기
+      const firstCafeteria = data[0];
+      if (firstCafeteria && firstCafeteria.data) {
+        setCurrentDate(firstCafeteria.data.date || "");
+      }
+
+      // 업데이트 알림 숨기기
+      if (showNotification) {
+        setShowUpdateNotification(false);
+      }
+    } catch (err) {
+      console.error("데이터 로드 오류:", err);
+      setError(err.message || "메뉴 데이터를 불러오는데 실패했습니다.");
+    } finally {
+      if (!showNotification) {
+        setLoading(false);
+      }
+    }
+  };
+
   // JSON 데이터 로드 (위치 로딩 완료 후 한 번만 실행)
   useEffect(() => {
     if (!locationLoaded) return; // 위치 로딩이 완료될 때까지 대기
-
-    const loadMenuData = async () => {
-      try {
-        setLoading(true);
-
-        // Supabase에서 직접 메뉴 데이터 조회
-        let data = await getActiveMenuData();
-
-        // 배열로 받아야 하며, 만약 객체라면 에러 처리
-        if (!Array.isArray(data)) {
-          throw new Error("데이터 형식이 올바르지 않습니다. 배열이어야 합니다.");
-        }
-
-        // 사용자 위치가 있으면 거리 정보 추가 및 거리순 정렬
-        if (userLocation) {
-          data = addDistanceToMenuData(data, userLocation);
-          // 거리순으로 정렬 (가까운 순서)
-          data.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
-        }
-
-        setMenuData(data);
-
-        // 첫 번째 식당의 날짜 정보 가져오기
-        const firstCafeteria = data[0];
-        if (firstCafeteria && firstCafeteria.data) {
-          setCurrentDate(firstCafeteria.data.date || "");
-        }
-      } catch (err) {
-        console.error("데이터 로드 오류:", err);
-        setError(err.message || "메뉴 데이터를 불러오는데 실패했습니다.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadMenuData();
   }, [locationLoaded]); // 위치 로딩 완료 시 한 번만 실행
+
+  // Realtime 구독: 메뉴 데이터 변경 감지
+  useEffect(() => {
+    if (!locationLoaded) return; // 위치 로딩이 완료될 때까지 대기
+
+    console.log('[App] Realtime 구독 설정 시작');
+
+    const subscription = subscribeToMenuChanges((change) => {
+      console.log('[App] 데이터 변경 감지:', change);
+      // 변경사항이 있으면 알림 표시
+      setShowUpdateNotification(true);
+    });
+
+    // 컴포넌트 언마운트 시 구독 해제
+    return () => {
+      console.log('[App] Realtime 구독 해제');
+      subscription.unsubscribe();
+    };
+  }, [locationLoaded]);
 
   // 식당별 역대 인기 메뉴 로드
   useEffect(() => {
@@ -956,6 +988,30 @@ function App() {
         onClose={() => setIsCommunityModalOpen(false)}
         menuData={menuData}
       />
+
+      {/* 데이터 업데이트 알림 토스트 */}
+      {showUpdateNotification && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
+          <div className="bg-blue-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-[90vw] sm:max-w-md">
+            <div className="flex-1">
+              <p className="font-bold text-sm sm:text-base">새로운 메뉴 업데이트!</p>
+              <p className="text-xs sm:text-sm text-blue-100 mt-0.5">최신 메뉴로 새로고침하세요</p>
+            </div>
+            <button
+              onClick={() => loadMenuData(true)}
+              className="px-4 py-2 bg-white text-blue-600 rounded-lg font-bold text-sm hover:bg-blue-50 transition-colors whitespace-nowrap"
+            >
+              새로고침
+            </button>
+            <button
+              onClick={() => setShowUpdateNotification(false)}
+              className="p-1 hover:bg-blue-700 rounded-full transition-colors"
+            >
+              <IconX className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

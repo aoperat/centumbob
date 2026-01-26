@@ -11,6 +11,58 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
+ * 메뉴 데이터 변경사항 실시간 구독
+ * @param {Function} callback - 변경 시 호출될 콜백 함수
+ * @returns {Object} Supabase 구독 객체 (unsubscribe 메서드 포함)
+ */
+export const subscribeToMenuChanges = (callback) => {
+  console.log('[Menu API] Realtime 구독 시작');
+
+  // 메뉴 데이터 변경 감지
+  const menuSubscription = supabase
+    .channel('menu-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*', // INSERT, UPDATE, DELETE 모두 감지
+        schema: 'public',
+        table: 'centumbob_menu_data',
+      },
+      (payload) => {
+        console.log('[Menu API] 메뉴 데이터 변경 감지:', payload);
+        callback({ type: 'menu_data', payload });
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'centumbob_cafeteria_restaurants',
+      },
+      (payload) => {
+        console.log('[Menu API] 식당 데이터 변경 감지:', payload);
+        callback({ type: 'restaurant', payload });
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'centumbob_date_ranges',
+      },
+      (payload) => {
+        console.log('[Menu API] 날짜 범위 변경 감지:', payload);
+        callback({ type: 'date_range', payload });
+      }
+    )
+    .subscribe();
+
+  return menuSubscription;
+};
+
+/**
  * 활성화된 날짜 범위의 메뉴 데이터 조회
  * @returns {Promise<Array>} 메뉴 데이터 배열 (viewer 형식으로 변환됨)
  */
@@ -255,4 +307,5 @@ export default {
   getActiveMenuData,
   getRestaurantMenu,
   getRestaurants,
+  subscribeToMenuChanges,
 };
