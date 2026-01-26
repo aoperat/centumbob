@@ -1,3 +1,5 @@
+import { isSupabaseStoragePath, getPublicUrl } from "./supabaseStorage.js";
+
 // 가격 포맷팅 함수: 숫자만 있으면 "7,000원" 형식으로 변환
 export const formatPrice = (price) => {
   if (!price) return "";
@@ -79,31 +81,42 @@ export const transformDbDataForViewer = (dbData, imageBase64 = null, restaurantI
   // 요일별 이미지가 있으면 요일별로 처리, 없으면 전체 요일 모드로 처리
   const imageUrls = [];
   const imageUrlsByDay = {}; // 요일별 이미지 URL
-  
+
+  // 이미지 경로를 viewer용 URL로 변환하는 헬퍼
+  const toViewerImageUrl = (imgPath) => {
+    if (!imgPath) return null;
+    if (isSupabaseStoragePath(imgPath)) {
+      return getPublicUrl(imgPath);
+    }
+    // legacy 경로: 파일명 추출 후 images/ 프리픽스
+    const imageFileName = imgPath.split(/[/\\]/).pop();
+    return `images/${imageFileName}`;
+  };
+
   // 요일별 이미지 처리
   if (image_paths) {
     days.forEach(day => {
       if (image_paths[day]) {
-        const imageFileName = image_paths[day].split(/[/\\]/).pop();
-        const dayImageUrl = `images/${imageFileName}`;
-        imageUrlsByDay[day] = dayImageUrl;
-        // 하위 호환성: 첫 번째 이미지를 imageUrls에 추가
-        if (imageUrls.length === 0) {
-          imageUrls.push(dayImageUrl);
+        const dayImageUrl = toViewerImageUrl(image_paths[day]);
+        if (dayImageUrl) {
+          imageUrlsByDay[day] = dayImageUrl;
+          // 하위 호환성: 첫 번째 이미지를 imageUrls에 추가
+          if (imageUrls.length === 0) {
+            imageUrls.push(dayImageUrl);
+          }
         }
       }
     });
   }
-  
+
   // 전체 요일 모드: 하나의 이미지
   if (imageUrls.length === 0) {
     if (imageBase64) {
       // base64 인코딩된 이미지 사용
       imageUrls.push(imageBase64);
     } else if (image_path) {
-      // 상대 경로로 이미지 참조 (viewer/public/images/ 폴더에 복사됨)
-      const imageFileName = image_path.split(/[/\\]/).pop();
-      imageUrls.push(`images/${imageFileName}`);
+      const url = toViewerImageUrl(image_path);
+      if (url) imageUrls.push(url);
     }
   }
 

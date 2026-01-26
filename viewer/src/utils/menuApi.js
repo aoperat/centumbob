@@ -63,6 +63,33 @@ export const subscribeToMenuChanges = (callback) => {
 };
 
 /**
+ * 이미지 경로를 표시 가능한 URL로 변환
+ * - http:// / https:// → 그대로 사용 (Supabase public URL 등)
+ * - uploads/ → legacy 로컬 경로 (filename 추출 후 basePath + images/)
+ * - 그 외 → Supabase Storage 경로
+ * @param {string} imagePath - DB에 저장된 이미지 경로
+ * @param {string} basePath - viewer base path (예: "/centumbob_v2/")
+ * @returns {string|null} 접근 가능한 이미지 URL
+ */
+const resolveMenuImageUrl = (imagePath, basePath) => {
+  if (!imagePath) return null;
+
+  // 이미 절대 URL인 경우
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+
+  // Legacy 로컬 경로 (uploads/ 로 시작)
+  if (imagePath.startsWith('uploads/') || imagePath.startsWith('uploads\\')) {
+    const fileName = imagePath.split('/').pop();
+    return `${basePath}images/${fileName}`.replace(/\/\//g, '/');
+  }
+
+  // Supabase Storage 경로
+  return `${supabaseUrl}/storage/v1/object/public/centumbob-menu-images/${imagePath}`;
+};
+
+/**
  * 활성화된 날짜 범위의 메뉴 데이터 조회
  * @returns {Promise<Array>} 메뉴 데이터 배열 (viewer 형식으로 변환됨)
  */
@@ -148,11 +175,11 @@ export const getActiveMenuData = async () => {
 
           days.forEach((day) => {
             if (dbData.image_paths[day]) {
-              const imagePath = dbData.image_paths[day];
-              const fileName = imagePath.split('/').pop();
-              const fullUrl = `${basePath}images/${fileName}`.replace(/\/\//g, '/');
-              imageUrlsByDay[day] = fullUrl;
-              uniqueImages.add(fullUrl);
+              const fullUrl = resolveMenuImageUrl(dbData.image_paths[day], basePath);
+              if (fullUrl) {
+                imageUrlsByDay[day] = fullUrl;
+                uniqueImages.add(fullUrl);
+              }
             }
           });
 
@@ -160,14 +187,15 @@ export const getActiveMenuData = async () => {
         }
         // 전체요일 모드 (image_path 단일 문자열) - 모든 요일에 동일 이미지
         else if (dbData?.image_path) {
-          const fileName = dbData.image_path.split('/').pop();
-          const fullUrl = `${basePath}images/${fileName}`.replace(/\/\//g, '/');
+          const fullUrl = resolveMenuImageUrl(dbData.image_path, basePath);
 
-          imageUrlsByDay = {};
-          days.forEach((day) => {
-            imageUrlsByDay[day] = fullUrl;
-          });
-          imageUrlsArray = [fullUrl];
+          if (fullUrl) {
+            imageUrlsByDay = {};
+            days.forEach((day) => {
+              imageUrlsByDay[day] = fullUrl;
+            });
+            imageUrlsArray = [fullUrl];
+          }
         }
 
         // Viewer 형식으로 변환 (기존 menu-data.json 구조와 동일하게)
