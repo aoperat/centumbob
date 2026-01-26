@@ -1644,6 +1644,8 @@ app.post("/api/blog/generate", async (req, res) => {
           "--disable-features=IsolateOrigins,site-per-process",
           "--force-color-profile=srgb", // 색상 프로파일 강제 설정
           "--font-render-hinting=none", // 폰트 렌더링 개선
+          "--enable-font-antialiasing", // 폰트 안티앨리어싱 활성화
+          "--disable-lcd-text", // LCD 텍스트 렌더링 비활성화 (선명도 개선)
         ],
       };
 
@@ -1680,8 +1682,13 @@ app.post("/api/blog/generate", async (req, res) => {
     }
 
     // 뷰포트 크기 설정 (식단표 전체가 보이도록)
-    await page.setViewport({ width: 1920, height: 1080 });
-    console.log("[블로그 생성] 뷰포트 설정 완료");
+    // deviceScaleFactor를 높여 고해상도 렌더링
+    await page.setViewport({
+      width: 1920,
+      height: 1080,
+      deviceScaleFactor: 2 // 2배 해상도로 렌더링 (Retina 디스플레이)
+    });
+    console.log("[블로그 생성] 뷰포트 설정 완료 (2x 해상도)");
 
     // 화면 모드로 렌더링 (프린트 모드 방지)
     await page.emulateMediaType('screen');
@@ -1767,6 +1774,51 @@ app.post("/api/blog/generate", async (req, res) => {
 
     try {
       console.log("[블로그 생성] 스크린샷 생성 시작...");
+
+      // 스크린샷 전 텍스트 색상 강제 적용 (흐릿한 색상 문제 해결)
+      await page.evaluate(() => {
+        // 모든 텍스트 요소의 색상을 진하게 설정
+        const style = document.createElement('style');
+        style.textContent = `
+          table * {
+            color: #000000 !important;
+            opacity: 1 !important;
+            -webkit-font-smoothing: antialiased !important;
+            -moz-osx-font-smoothing: grayscale !important;
+          }
+          table th {
+            color: #1e293b !important;
+          }
+          table td {
+            color: #334155 !important;
+          }
+          table .text-slate-800 {
+            color: #1e293b !important;
+          }
+          table .text-slate-700 {
+            color: #334155 !important;
+          }
+          table .text-slate-600 {
+            color: #475569 !important;
+          }
+          table .text-slate-500 {
+            color: #64748b !important;
+          }
+          table .text-orange-700 {
+            color: #c2410c !important;
+          }
+          table .text-indigo-700 {
+            color: #4338ca !important;
+          }
+        `;
+        document.head.appendChild(style);
+        console.log('[Puppeteer] 텍스트 색상 강제 적용 완료');
+      });
+
+      console.log("[블로그 생성] 텍스트 색상 강제 적용 완료, 스크린샷 캡처 시작");
+
+      // 색상 적용 후 잠깐 대기
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // 메뉴 테이블만 스크린샷 캡처
       const tableElement = await page.$("main table");
