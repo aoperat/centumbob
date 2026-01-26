@@ -63,6 +63,8 @@ function App() {
     const hour = new Date().getHours();
     return hour < 14 ? "점심" : "저녁";
   });
+  // 모바일: 데이터 있는 식당만 표시 토글
+  const [showOnlyWithData, setShowOnlyWithData] = useState(false);
 
   const tableScrollRef = useRef(null);
 
@@ -405,34 +407,53 @@ function App() {
       {/* 메인 컨텐츠 영역 (테이블 구조) */}
       <main className="w-full max-w-[1800px] mx-auto px-3 sm:px-4 mt-4 sm:mt-6 flex-1 pb-8">
         {/* 모바일: 식단 비교 헤더 + 점심/저녁 토글 */}
-        <div className="md:hidden mb-3 flex items-center justify-between">
-          <div className="text-xs font-medium text-slate-500">
-            <span className="text-blue-600 font-bold">{activeDay}요일</span>{" "}
-            <span className={mealType === "점심" ? "text-orange-600 font-bold" : "text-indigo-600 font-bold"}>{mealType}</span>{" "}
-            식단 비교
+        <div className="md:hidden mb-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-medium text-slate-500">
+              <span className="text-blue-600 font-bold">{activeDay}요일</span>{" "}
+              <span className={mealType === "점심" ? "text-orange-600 font-bold" : "text-indigo-600 font-bold"}>{mealType}</span>{" "}
+              식단 비교
+            </div>
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+              <button
+                onClick={() => setMealType("점심")}
+                className={`px-3 py-1 text-xs font-bold rounded transition-colors flex items-center gap-1 ${
+                  mealType === "점심"
+                    ? "bg-orange-500 text-white shadow-sm"
+                    : "bg-transparent text-slate-500"
+                }`}
+              >
+                <span>☀️</span>
+                점심
+              </button>
+              <button
+                onClick={() => setMealType("저녁")}
+                className={`px-3 py-1 text-xs font-bold rounded transition-colors flex items-center gap-1 ${
+                  mealType === "저녁"
+                    ? "bg-indigo-500 text-white shadow-sm"
+                    : "bg-transparent text-slate-500"
+                }`}
+              >
+                <span>🌙</span>
+                저녁
+              </button>
+            </div>
           </div>
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+
+          {/* 데이터 필터 토글 */}
+          <div className="flex items-center justify-end">
             <button
-              onClick={() => setMealType("점심")}
-              className={`px-3 py-1 text-xs font-bold rounded transition-colors flex items-center gap-1 ${
-                mealType === "점심"
-                  ? "bg-orange-500 text-white shadow-sm"
-                  : "bg-transparent text-slate-500"
+              onClick={() => setShowOnlyWithData(!showOnlyWithData)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                showOnlyWithData
+                  ? "bg-blue-500 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600"
               }`}
             >
-              <span>☀️</span>
-              점심
-            </button>
-            <button
-              onClick={() => setMealType("저녁")}
-              className={`px-3 py-1 text-xs font-bold rounded transition-colors flex items-center gap-1 ${
-                mealType === "저녁"
-                  ? "bg-indigo-500 text-white shadow-sm"
-                  : "bg-transparent text-slate-500"
-              }`}
-            >
-              <span>🌙</span>
-              저녁
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              <span>{showOnlyWithData ? "전체 보기" : "메뉴 있는 곳만"}</span>
             </button>
           </div>
         </div>
@@ -446,7 +467,37 @@ function App() {
 
         {/* 모바일: 카드 레이아웃 */}
         <div className="md:hidden space-y-3">
-          {cafeteriaKeys.map((name, idx) => {
+          {(() => {
+            const filteredKeys = cafeteriaKeys.filter((name) => {
+              // "메뉴 있는 곳만" 필터가 켜져 있으면 현재 선택된 식사시간의 메뉴가 있는 곳만 표시
+              if (!showOnlyWithData) return true;
+
+              const currentMenu = mealType === "점심"
+                ? getMenuData(name, activeDay, "점심").menu
+                : getMenuData(name, activeDay, "저녁").menu;
+
+              return currentMenu && currentMenu.length > 0;
+            });
+
+            // 필터링 결과가 비어있을 때
+            if (filteredKeys.length === 0) {
+              return (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
+                  <svg className="w-16 h-16 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-slate-600 font-medium mb-1">
+                    {activeDay}요일 {mealType} 메뉴가 없습니다
+                  </p>
+                  <p className="text-slate-400 text-sm">
+                    다른 요일이나 식사시간을 선택하거나<br/>
+                    "전체 보기"를 눌러주세요
+                  </p>
+                </div>
+              );
+            }
+
+            return filteredKeys.map((name, idx) => {
             const imageUrlsByDay = menuMap[name]?.imageUrlsByDay;
             const dayImageUrl = imageUrlsByDay?.[activeDay];
             const hasImageByDay = !!dayImageUrl;
@@ -567,7 +618,7 @@ function App() {
                 </div>
               </div>
             );
-          })}
+          })()}
         </div>
 
         {/* 데스크탑: 테이블 레이아웃 */}
