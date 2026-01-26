@@ -76,10 +76,10 @@ const DashboardTab = ({ onTabChange }) => {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-slate-600">데이터를 불러오는 중...</p>
+      <div className="p-4">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-3"></div>
+          <p className="text-slate-600 text-sm">데이터를 불러오는 중...</p>
         </div>
       </div>
     );
@@ -87,21 +87,21 @@ const DashboardTab = ({ onTabChange }) => {
 
   if (!dashboardData) {
     return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-red-600">대시보드 데이터를 불러올 수 없습니다.</p>
+      <div className="p-4">
+        <div className="text-center py-8">
+          <p className="text-red-600 text-sm">대시보드 데이터를 불러올 수 없습니다.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-4">
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">대시보드</h2>
-          <p className="text-sm text-slate-600 mt-1">시스템 전체 현황</p>
+          <h2 className="text-lg font-bold text-slate-800">대시보드</h2>
+          <p className="text-xs text-slate-600">시스템 전체 현황</p>
         </div>
         <button
           onClick={() => {
@@ -117,11 +117,11 @@ const DashboardTab = ({ onTabChange }) => {
 
       {/* 민원 관리 섹션 */}
       <div>
-        <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
-          <span className="text-2xl">💬</span>
+        <h3 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+          <span className="text-lg">💬</span>
           민원 관리
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <AdminCard
             title="총 민원"
             value={dashboardData.complaints?.total || 0}
@@ -159,11 +159,11 @@ const DashboardTab = ({ onTabChange }) => {
 
       {/* 광고 및 채팅 섹션 */}
       <div>
-        <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
-          <span className="text-2xl">📢</span>
+        <h3 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+          <span className="text-lg">📢</span>
           광고 및 채팅
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <AdminCard
             title="총 광고문의"
             value={dashboardData.ad_inquiries?.total || 0}
@@ -192,29 +192,29 @@ const DashboardTab = ({ onTabChange }) => {
       </div>
 
       {/* 최근 항목들 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 최근 민원 */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4">최근 민원</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <h3 className="text-sm font-bold text-slate-800 mb-3">최근 민원</h3>
           {recentComplaints.length === 0 ? (
-            <p className="text-slate-500 text-sm text-center py-8">
+            <p className="text-slate-500 text-xs text-center py-6">
               최근 민원이 없습니다.
             </p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {recentComplaints.map((complaint) => (
                 <div
                   key={complaint.id}
                   onClick={() => onTabChange("complaint-admin")}
-                  className="p-3 border border-slate-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all cursor-pointer"
+                  className="p-2.5 border border-slate-200 rounded-lg hover:border-blue-500 hover:shadow-sm transition-all cursor-pointer"
                 >
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-1.5">
                     <StatusBadge status={complaint.status} type="complaint" />
                     <span className="text-xs text-slate-500">
                       {new Date(complaint.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <p className="font-bold text-slate-800 text-sm mb-1">
+                  <p className="font-bold text-slate-800 text-xs mb-0.5">
                     {complaint.title}
                   </p>
                   <p className="text-xs text-slate-600">
@@ -227,24 +227,24 @@ const DashboardTab = ({ onTabChange }) => {
         </div>
 
         {/* 최근 광고문의 */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4">최근 광고문의</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <h3 className="text-sm font-bold text-slate-800 mb-3">최근 광고문의</h3>
           {recentAdInquiries.length === 0 ? (
-            <p className="text-slate-500 text-sm text-center py-8">
+            <p className="text-slate-500 text-xs text-center py-6">
               최근 광고문의가 없습니다.
             </p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {recentAdInquiries.map((inquiry) => (
                 <div
                   key={inquiry.id}
                   onClick={() => onTabChange("ad-admin")}
-                  className="p-3 border border-slate-200 rounded-lg hover:border-purple-500 hover:shadow-md transition-all cursor-pointer"
+                  className="p-2.5 border border-slate-200 rounded-lg hover:border-purple-500 hover:shadow-sm transition-all cursor-pointer"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
                       <StatusBadge status={inquiry.status} type="ad_inquiry" />
-                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                      <span className="px-1.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
                         {inquiry.ad_type}
                       </span>
                     </div>
@@ -252,7 +252,7 @@ const DashboardTab = ({ onTabChange }) => {
                       {new Date(inquiry.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <p className="font-bold text-slate-800 text-sm mb-1">
+                  <p className="font-bold text-slate-800 text-xs mb-0.5">
                     {inquiry.company_name}
                   </p>
                   <p className="text-xs text-slate-600">

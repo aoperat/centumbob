@@ -114,23 +114,23 @@ function App() {
     <AdminLayout currentTab={currentTab} onTabChange={setCurrentTab}>
       {/* 액션 버튼 (입력 탭에서만 표시) */}
       {currentTab === 'entry' && (
-        <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-6 py-3 flex justify-end gap-2 shadow-sm">
+        <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 py-2 flex justify-end gap-2 shadow-sm">
           <button
             onClick={() => {
               if (entryTabRef.current) {
                 entryTabRef.current.save();
               }
             }}
-            className="px-5 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 shadow-sm"
+            className="px-4 py-2 text-sm bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5 shadow-sm"
           >
-            <IconSave size={18} />
+            <IconSave size={16} />
             데이터 저장
           </button>
           <button
             onClick={handlePublish}
-            className="px-5 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
+            className="px-4 py-2 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5 shadow-sm"
           >
-            <IconSave size={18} />
+            <IconSave size={16} />
             데이터 게시
           </button>
         </div>

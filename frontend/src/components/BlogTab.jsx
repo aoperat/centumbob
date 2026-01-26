@@ -41,14 +41,14 @@ const BlogTab = ({ dateRanges }) => {
   };
 
   return (
-    <div className="w-full h-full p-8 overflow-y-auto custom-scrollbar fade-in bg-slate-50">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="w-full h-full p-6 overflow-y-auto custom-scrollbar fade-in bg-slate-50">
+      <div className="max-w-6xl mx-auto space-y-4">
         {/* 헤더 */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-            <div className="flex items-center gap-3">
-              <div className="bg-purple-100 text-purple-700 p-2 rounded-lg">
-                <IconFileText size={24} />
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center gap-2">
+              <div className="bg-purple-100 text-purple-700 p-1.5 rounded-lg">
+                <IconFileText size={18} />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-800">블로그 포스트 생성</h3>
@@ -57,16 +57,16 @@ const BlogTab = ({ dateRanges }) => {
             </div>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="p-4 space-y-4">
             {/* 날짜 범위 선택 */}
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
+              <label className="block text-sm font-bold text-slate-700 mb-1.5">
                 날짜 범위 선택
               </label>
               <select
                 value={selectedDateRange}
                 onChange={(e) => setSelectedDateRange(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
                 disabled={isGenerating}
               >
                 <option value="">날짜 범위를 선택하세요</option>
@@ -77,7 +77,7 @@ const BlogTab = ({ dateRanges }) => {
                 ))}
               </select>
               {selectedDateRange && (
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-1.5 text-xs text-slate-500">
                   선택된 날짜 범위: <span className="font-bold">{selectedDateRange}</span>
                 </p>
               )}
@@ -85,7 +85,7 @@ const BlogTab = ({ dateRanges }) => {
 
             {/* 요일 선택 */}
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
+              <label className="block text-sm font-bold text-slate-700 mb-1.5">
                 요일 선택
               </label>
               <div className="flex gap-2">
@@ -94,9 +94,9 @@ const BlogTab = ({ dateRanges }) => {
                     key={day}
                     onClick={() => setSelectedDay(day)}
                     disabled={isGenerating}
-                    className={`flex-1 py-3 px-4 rounded-lg font-bold transition-all ${
+                    className={`flex-1 py-2 px-3 text-sm rounded-lg font-bold transition-all ${
                       selectedDay === day
-                        ? 'bg-blue-600 text-white shadow-md scale-105'
+                        ? 'bg-blue-600 text-white shadow-md'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
@@ -111,20 +111,20 @@ const BlogTab = ({ dateRanges }) => {
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating || !selectedDateRange}
-                className={`w-full py-4 px-6 rounded-lg font-bold text-white transition-all flex items-center justify-center gap-2 ${
+                className={`w-full py-2.5 px-5 rounded-lg font-bold text-white text-sm transition-all flex items-center justify-center gap-2 ${
                   isGenerating || !selectedDateRange
                     ? 'bg-slate-400 cursor-not-allowed'
-                    : 'bg-purple-600 hover:bg-purple-700 shadow-md hover:shadow-lg'
+                    : 'bg-purple-600 hover:bg-purple-700 shadow-sm hover:shadow-md'
                 }`}
               >
                 {isGenerating ? (
                   <>
-                    <IconLoader size={20} className="animate-spin" />
+                    <IconLoader size={16} className="animate-spin" />
                     생성 중...
                   </>
                 ) : (
                   <>
-                    <IconFileText size={20} />
+                    <IconFileText size={16} />
                     블로그 포스트 생성
                   </>
                 )}
@@ -133,9 +133,9 @@ const BlogTab = ({ dateRanges }) => {
 
             {/* 결과 표시 */}
             {result && (
-              <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <h4 className="font-bold text-green-800 mb-2">생성 완료!</h4>
-                <div className="space-y-1 text-sm text-green-700">
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <h4 className="font-bold text-green-800 mb-1.5 text-sm">생성 완료!</h4>
+                <div className="space-y-1 text-xs text-green-700">
                   <p>
                     <span className="font-bold">포스트 파일:</span> {result.postPath}
                   </p>
@@ -153,21 +153,21 @@ const BlogTab = ({ dateRanges }) => {
 
             {/* 에러 표시 */}
             {error && (
-              <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <h4 className="font-bold text-red-800 mb-2">오류 발생</h4>
-                <p className="text-sm text-red-700">{error}</p>
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <h4 className="font-bold text-red-800 mb-1.5 text-sm">오류 발생</h4>
+                <p className="text-xs text-red-700">{error}</p>
               </div>
             )}
           </div>
         </div>
 
         {/* 사용 방법 안내 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
-          <h4 className="font-bold text-blue-800 mb-3 flex items-center gap-2">
-            <IconFileText size={20} />
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2 text-sm">
+            <IconFileText size={16} />
             사용 방법
           </h4>
-          <ol className="space-y-2 text-sm text-blue-700 list-decimal list-inside">
+          <ol className="space-y-1.5 text-xs text-blue-700 list-decimal list-inside">
             <li>날짜 범위를 선택하세요 (예: "1월 5일 ~ 1월 9일")</li>
             <li>생성할 요일을 선택하세요 (월~금)</li>
             <li>"블로그 포스트 생성" 버튼을 클릭하세요</li>

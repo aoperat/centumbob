@@ -122,17 +122,17 @@ const ComplaintAdminTab = ({ restaurants }) => {
 
   return (
     <div className="w-full h-full overflow-y-auto custom-scrollbar fade-in bg-slate-50">
-      <div className="max-w-6xl mx-auto p-8 space-y-6">
+      <div className="max-w-6xl mx-auto p-6 space-y-4">
         {/* 헤더 */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">민원 관리</h2>
-            <p className="text-sm text-slate-500">제출된 민원을 조회하고 답변할 수 있습니다.</p>
+            <h2 className="text-lg font-bold text-slate-800">민원 관리</h2>
+            <p className="text-xs text-slate-500">제출된 민원을 조회하고 답변할 수 있습니다.</p>
           </div>
           <button
             onClick={loadComplaints}
             disabled={isLoading}
-            className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             {isLoading ? '새로고침 중...' : '새로고침'}
           </button>
@@ -140,21 +140,21 @@ const ComplaintAdminTab = ({ restaurants }) => {
 
         {/* 목록 뷰 */}
         {view === 'list' && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
               <h3 className="text-lg font-bold text-slate-800">민원 목록</h3>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-4 space-y-3">
               {/* 필터 */}
-              <div className="flex gap-4">
-                <div className="w-48">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+              <div className="flex gap-3">
+                <div className="w-40">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     상태 필터
                   </label>
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="all">전체</option>
                     <option value="pending">대기중</option>
@@ -164,13 +164,13 @@ const ComplaintAdminTab = ({ restaurants }) => {
                   </select>
                 </div>
                 <div className="flex-1">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     식당 필터
                   </label>
                   <select
                     value={restaurantFilter}
                     onChange={(e) => setRestaurantFilter(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="all">전체</option>
                     {restaurants.map((restaurant, idx) => (
@@ -181,16 +181,16 @@ const ComplaintAdminTab = ({ restaurants }) => {
               </div>
 
               {/* 통계 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="text-sm text-red-700 font-bold">읽지않음</div>
-                  <div className="text-2xl font-bold text-red-800">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="text-xs text-red-700 font-bold">읽지않음</div>
+                  <div className="text-xl font-bold text-red-800">
                     {complaints.filter(c => !c.is_read).length}
                   </div>
                 </div>
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="text-sm text-yellow-700 font-bold">대기중</div>
-                  <div className="text-2xl font-bold text-yellow-800">
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="text-xs text-yellow-700 font-bold">대기중</div>
+                  <div className="text-xl font-bold text-yellow-800">
                     {complaints.filter(c => c.status === 'pending').length}
                   </div>
                 </div>
@@ -198,45 +198,45 @@ const ComplaintAdminTab = ({ restaurants }) => {
 
               {/* 목록 */}
               {isLoading ? (
-                <div className="text-center py-12 text-slate-500">조회 중...</div>
+                <div className="text-center py-8 text-slate-500 text-sm">조회 중...</div>
               ) : complaints.length === 0 ? (
-                <div className="text-center py-12 text-slate-500">민원이 없습니다.</div>
+                <div className="text-center py-8 text-slate-500 text-sm">민원이 없습니다.</div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {complaints.map((complaint) => (
                     <div
                       key={complaint.id}
                       onClick={() => handleViewDetail(complaint)}
-                      className={`p-4 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-all ${
+                      className={`p-3 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-all ${
                         !complaint.is_read ? 'bg-yellow-50' : 'bg-white'
                       }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                             <StatusBadge status={complaint.status} type="complaint" />
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${getCategoryColor(complaint.category)}`}>
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${getCategoryColor(complaint.category)}`}>
                               {complaint.category}
                             </span>
-                            <span className="text-sm text-slate-500">{complaint.restaurant_name}</span>
+                            <span className="text-xs text-slate-500">{complaint.restaurant_name}</span>
                             {!complaint.is_read && (
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">
+                              <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700">
                                 NEW
                               </span>
                             )}
                             {complaint.admin_response && (
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700">
+                              <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700">
                                 답변완료
                               </span>
                             )}
                           </div>
-                          <h4 className="font-bold text-slate-800 mb-1">{complaint.title}</h4>
-                          <p className="text-sm text-slate-600 line-clamp-2">{complaint.content}</p>
-                          <div className="mt-2 text-xs text-slate-500">
+                          <h4 className="font-bold text-slate-800 mb-1 text-sm">{complaint.title}</h4>
+                          <p className="text-xs text-slate-600 line-clamp-2">{complaint.content}</p>
+                          <div className="mt-1.5 text-xs text-slate-500">
                             {complaint.user_name} ({complaint.user_email})
                           </div>
                         </div>
-                        <div className="text-right text-xs text-slate-500 ml-4">
+                        <div className="text-right text-xs text-slate-500 ml-3">
                           <div>{new Date(complaint.created_at).toLocaleDateString('ko-KR')}</div>
                         </div>
                       </div>
@@ -250,57 +250,57 @@ const ComplaintAdminTab = ({ restaurants }) => {
 
         {/* 상세 뷰 */}
         {view === 'detail' && selectedComplaint && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-800">민원 상세 및 답변</h3>
               <button
                 onClick={() => setView('list')}
                 className="text-slate-500 hover:text-slate-700"
               >
-                <IconX size={20} />
+                <IconX size={18} />
               </button>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-4 space-y-4">
               {/* 상태 및 카테고리 */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <StatusBadge status={selectedComplaint.status} type="complaint" />
-                <span className={`px-3 py-1 rounded-lg text-sm font-bold ${getCategoryColor(selectedComplaint.category)}`}>
+                <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getCategoryColor(selectedComplaint.category)}`}>
                   {selectedComplaint.category}
                 </span>
                 {!selectedComplaint.is_read && (
-                  <span className="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">
+                  <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700">
                     NEW
                   </span>
                 )}
               </div>
 
               {/* 상태 변경 버튼 */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => handleStatusChange('pending')}
                   disabled={updatingStatus || selectedComplaint.status === 'pending'}
-                  className="px-4 py-2 bg-yellow-100 text-yellow-700 font-bold rounded-lg hover:bg-yellow-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 text-sm bg-yellow-100 text-yellow-700 font-bold rounded-lg hover:bg-yellow-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   대기중
                 </button>
                 <button
                   onClick={() => handleStatusChange('processing')}
                   disabled={updatingStatus || selectedComplaint.status === 'processing'}
-                  className="px-4 py-2 bg-blue-100 text-blue-700 font-bold rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 font-bold rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   처리중
                 </button>
                 <button
                   onClick={() => handleStatusChange('resolved')}
                   disabled={updatingStatus || selectedComplaint.status === 'resolved'}
-                  className="px-4 py-2 bg-green-100 text-green-700 font-bold rounded-lg hover:bg-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 text-sm bg-green-100 text-green-700 font-bold rounded-lg hover:bg-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   해결됨
                 </button>
                 <button
                   onClick={() => handleStatusChange('closed')}
                   disabled={updatingStatus || selectedComplaint.status === 'closed'}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   종료
                 </button>
@@ -308,8 +308,8 @@ const ComplaintAdminTab = ({ restaurants }) => {
 
               {/* 민원 정보 */}
               <div>
-                <h4 className="text-xl font-bold text-slate-800 mb-2">{selectedComplaint.title}</h4>
-                <div className="text-sm text-slate-500 space-y-1">
+                <h4 className="text-lg font-bold text-slate-800 mb-1.5">{selectedComplaint.title}</h4>
+                <div className="text-xs text-slate-500 space-y-0.5">
                   <div>식당: {selectedComplaint.restaurant_name}</div>
                   {selectedComplaint.date_range && <div>날짜 범위: {selectedComplaint.date_range}</div>}
                   <div>작성자: {selectedComplaint.user_name} ({selectedComplaint.user_email})</div>
@@ -322,29 +322,29 @@ const ComplaintAdminTab = ({ restaurants }) => {
 
               {/* 민원 내용 */}
               <div>
-                <h5 className="font-bold text-slate-700 mb-2">민원 내용</h5>
-                <div className="p-4 bg-slate-50 rounded-lg text-slate-700 whitespace-pre-wrap">
+                <h5 className="font-bold text-slate-700 mb-1.5 text-sm">민원 내용</h5>
+                <div className="p-3 bg-slate-50 rounded-lg text-slate-700 text-sm whitespace-pre-wrap">
                   {selectedComplaint.content}
                 </div>
               </div>
 
               {/* 관리자 답변 작성 */}
               <div>
-                <h5 className="font-bold text-slate-700 mb-2">관리자 답변</h5>
+                <h5 className="font-bold text-slate-700 mb-1.5 text-sm">관리자 답변</h5>
                 <textarea
                   value={adminResponse}
                   onChange={(e) => setAdminResponse(e.target.value)}
                   placeholder="관리자 답변을 입력하세요"
-                  rows={6}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+                  rows={5}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
                 />
               </div>
 
               {/* 기존 답변 표시 */}
               {selectedComplaint.admin_response && (
                 <div>
-                  <h5 className="font-bold text-slate-700 mb-2">기존 답변</h5>
-                  <div className="p-4 bg-blue-50 rounded-lg text-slate-700 whitespace-pre-wrap">
+                  <h5 className="font-bold text-slate-700 mb-1.5 text-sm">기존 답변</h5>
+                  <div className="p-3 bg-blue-50 rounded-lg text-slate-700 text-sm whitespace-pre-wrap">
                     {selectedComplaint.admin_response}
                   </div>
                 </div>
@@ -354,14 +354,14 @@ const ComplaintAdminTab = ({ restaurants }) => {
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setView('list')}
-                  className="px-6 py-2 bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-colors"
+                  className="px-4 py-2 text-sm bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-colors"
                 >
                   목록으로
                 </button>
                 <button
                   onClick={handleUpdate}
                   disabled={updatingStatus}
-                  className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {updatingStatus ? '저장 중...' : '답변 저장'}
                 </button>

@@ -33,18 +33,18 @@ const AdminCard = ({ title, value, subtitle, icon, color = "blue", onClick }) =>
     <div
       onClick={onClick}
       className={`
-        border-2 rounded-xl p-4 transition-all
+        border-2 rounded-xl p-3 transition-all
         ${colorClasses[color] || colorClasses.blue}
         ${onClick ? "cursor-pointer hover:shadow-lg" : ""}
       `}
     >
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-slate-600">{title}</h3>
+      <div className="flex items-center justify-between mb-1.5">
+        <h3 className="text-xs font-medium text-slate-600">{title}</h3>
         {icon && (
-          <div className={`text-2xl ${iconColorClasses[color]}`}>{icon}</div>
+          <div className={`text-xl ${iconColorClasses[color]}`}>{icon}</div>
         )}
       </div>
-      <div className={`text-3xl font-bold mb-1 ${valueColorClasses[color]}`}>
+      <div className={`text-2xl font-bold mb-0.5 ${valueColorClasses[color]}`}>
         {value}
       </div>
       {subtitle && (

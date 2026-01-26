@@ -43,7 +43,7 @@ const AdminTable = ({ columns, data, onRowClick, sortable = true }) => {
                 key={column.key}
                 onClick={() => sortable && handleSort(column.key)}
                 className={`
-                  px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider
+                  px-4 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-wider
                   ${sortable ? "cursor-pointer hover:bg-slate-100" : ""}
                 `}
               >
@@ -64,7 +64,7 @@ const AdminTable = ({ columns, data, onRowClick, sortable = true }) => {
             <tr>
               <td
                 colSpan={columns.length}
-                className="px-6 py-8 text-center text-slate-500"
+                className="px-4 py-6 text-center text-slate-500 text-sm"
               >
                 표시할 데이터가 없습니다.
               </td>
@@ -82,7 +82,7 @@ const AdminTable = ({ columns, data, onRowClick, sortable = true }) => {
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className="px-6 py-4 whitespace-nowrap text-sm text-slate-900"
+                    className="px-4 py-2.5 whitespace-nowrap text-sm text-slate-900"
                   >
                     {column.render
                       ? column.render(row[column.key], row)
