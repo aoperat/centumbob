@@ -1638,12 +1638,12 @@ app.post("/api/blog/generate", async (req, res) => {
           "--no-sandbox",
           "--disable-setuid-sandbox",
           "--disable-dev-shm-usage",
-          "--disable-accelerated-2d-canvas",
           "--no-first-run",
           "--no-zygote",
-          "--disable-gpu",
           "--disable-web-security",
           "--disable-features=IsolateOrigins,site-per-process",
+          "--force-color-profile=srgb", // 색상 프로파일 강제 설정
+          "--font-render-hinting=none", // 폰트 렌더링 개선
         ],
       };
 
@@ -1682,6 +1682,10 @@ app.post("/api/blog/generate", async (req, res) => {
     // 뷰포트 크기 설정 (식단표 전체가 보이도록)
     await page.setViewport({ width: 1920, height: 1080 });
     console.log("[블로그 생성] 뷰포트 설정 완료");
+
+    // 화면 모드로 렌더링 (프린트 모드 방지)
+    await page.emulateMediaType('screen');
+    console.log("[블로그 생성] 미디어 타입을 'screen'으로 설정");
 
     // 페이지 로드 대기
     try {
@@ -1728,8 +1732,8 @@ app.post("/api/blog/generate", async (req, res) => {
       );
       console.log("[블로그 생성] 메뉴 테이블 렌더링 완료");
 
-      // 추가 대기 (애니메이션 및 레이아웃 안정화)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // 추가 대기 (애니메이션, 레이아웃 안정화, CSS 완전 적용)
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       console.log("[블로그 생성] 렌더링 안정화 대기 완료");
     } catch (waitError) {
       console.warn(
@@ -1771,6 +1775,7 @@ app.post("/api/blog/generate", async (req, res) => {
         await tableElement.screenshot({
           path: screenshotPath,
           type: "png",
+          omitBackground: false, // 배경색 유지
         });
       } else {
         // 테이블을 찾을 수 없으면 전체 페이지 캡처 (폴백)
@@ -1781,6 +1786,7 @@ app.post("/api/blog/generate", async (req, res) => {
           path: screenshotPath,
           fullPage: true,
           type: "png",
+          omitBackground: false, // 배경색 유지
         });
       }
 
