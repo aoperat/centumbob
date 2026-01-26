@@ -52,9 +52,9 @@ function App() {
         const activeRanges = dateRangeData.map(dr => dr.date_range);
         setDateRanges(activeRanges);
 
-        // 첫 번째 식당/날짜 선택
-        if (names.length > 0 && !selectedCafeteria) {
-          setSelectedCafeteria(names[0]);
+        // 첫 번째 식당/날짜 선택 (id로 저장)
+        if (restaurantData.length > 0 && !selectedCafeteria) {
+          setSelectedCafeteria(String(restaurantData[0].id));
         }
         if (activeRanges.length > 0 && !selectedDateRange) {
           setSelectedDateRange(activeRanges[0]);
@@ -73,12 +73,13 @@ function App() {
     loadData();
   }, []);
 
-  // 식당 목록이 바뀌면 선택값 안전장치
+  // 식당 목록이 바뀌면 선택값 안전장치 (id 기반)
   useEffect(() => {
-    if (!restaurants.includes(selectedCafeteria)) {
-      setSelectedCafeteria(restaurants[0] || "");
+    const idExists = restaurantsData.some(r => String(r.id) === selectedCafeteria);
+    if (!idExists) {
+      setSelectedCafeteria(restaurantsData.length > 0 ? String(restaurantsData[0].id) : "");
     }
-  }, [restaurants, selectedCafeteria]);
+  }, [restaurantsData, selectedCafeteria]);
 
   // 날짜 목록이 바뀌면 선택값 안전장치
   useEffect(() => {

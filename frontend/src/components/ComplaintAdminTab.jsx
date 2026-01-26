@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { IconX, IconCheck } from './Icons';
-import { getComplaints, updateComplaint } from '../utils/api';
+import { getComplaints, getComplaint, updateComplaint } from '../utils/api';
 import StatusBadge from './shared/StatusBadge';
 
 const ComplaintAdminTab = ({ restaurants }) => {
@@ -39,10 +39,22 @@ const ComplaintAdminTab = ({ restaurants }) => {
   };
 
   // 민원 상세 보기
-  const handleViewDetail = (complaint) => {
+  const handleViewDetail = async (complaint) => {
     setSelectedComplaint(complaint);
     setAdminResponse(complaint.admin_response || '');
     setView('detail');
+
+    // 백엔드에서 자동 읽음 처리 + 최신 데이터 반영
+    try {
+      const latest = await getComplaint(complaint.id);
+      if (latest) {
+        setSelectedComplaint(latest);
+        setAdminResponse(latest.admin_response || '');
+        await loadComplaints();
+      }
+    } catch (e) {
+      // 조회 실패해도 기존 데이터로 동작
+    }
   };
 
   // 민원 업데이트 (상태 변경 및 답변 작성)

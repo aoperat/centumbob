@@ -62,6 +62,10 @@ const EntryTab = forwardRef(
     const [isDeleting, setIsDeleting] = useState(false); // 데이터 삭제 로딩 상태
     const [excludedMenuItems, setExcludedMenuItems] = useState([]); // GPT 제외 항목 목록
 
+    // 선택된 식당 객체 및 이름 (id 기반 조회)
+    const selectedRestaurant = restaurantsData?.find(r => String(r.id) === selectedCafeteria);
+    const selectedRestaurantName = selectedRestaurant?.name || '';
+
     // 식당 목록 상세 정보 불러오기
     useEffect(() => {
       const fetchRestaurantDetails = async () => {
@@ -69,9 +73,9 @@ const EntryTab = forwardRef(
           const response = await fetch("/api/restaurants");
           if (response.ok) {
             const data = await response.json();
-            // 식당 이름을 키로 하는 객체로 변환
+            // 식당 id를 키로 하는 객체로 변환 (동명 식당 구분)
             const details = data.reduce((acc, curr) => {
-              acc[curr.name] = curr;
+              acc[String(curr.id)] = curr;
               return acc;
             }, {});
             setRestaurantDetails(details);
@@ -88,8 +92,8 @@ const EntryTab = forwardRef(
       const fetchData = async () => {
         if (!selectedCafeteria || !selectedDateRange) return;
 
-        // restaurantsData 배열에서 선택된 식당의 정보 찾기
-        const restaurant = restaurantsData?.find(r => r.name === selectedCafeteria);
+        // restaurantsData 배열에서 선택된 식당의 정보 찾기 (id 기반)
+        const restaurant = restaurantsData?.find(r => String(r.id) === selectedCafeteria);
         if (!restaurant) return;
 
         setIsLoading(true);
@@ -371,7 +375,7 @@ const EntryTab = forwardRef(
       try {
         const result = await fetchImageFromWebhook(
           currentRestaurant.webhook_url,
-          selectedCafeteria
+          selectedRestaurantName
         );
 
         if (result.success && result.imageData) {
@@ -485,17 +489,17 @@ const EntryTab = forwardRef(
 
     // 식당의 모든 데이터 삭제
     const handleDeleteAllData = async () => {
-      if (!selectedCafeteria) return;
+      if (!selectedCafeteria || !selectedRestaurantName) return;
 
       const confirmed = confirm(
-        `정말 '${selectedCafeteria}' 식당의 모든 메뉴 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`
+        `정말 '${selectedRestaurantName}' 식당의 모든 메뉴 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`
       );
 
       if (!confirmed) return;
 
       setIsDeleting(true);
       try {
-        await deleteAllMenuDataByRestaurant(selectedCafeteria);
+        await deleteAllMenuDataByRestaurant(selectedRestaurantName);
 
         // 데이터 초기화
         setMenuGrid({
@@ -528,21 +532,16 @@ const EntryTab = forwardRef(
           ? true
           : (currentRestaurant.use_all_days === true || currentRestaurant.use_all_days === 1);
 
-      // restaurantsData 배열에서 선택된 식당의 ID 찾기
-      let restaurant = null;
-      if (restaurantsData && restaurantsData.length > 0) {
-        restaurant = restaurantsData.find(r => r.name === selectedCafeteria);
-      }
-
-      if (!restaurant) {
+      // restaurantsData 배열에서 선택된 식당의 ID 찾기 (id 기반)
+      if (!selectedRestaurant) {
         console.error('restaurantsData에서 식당을 찾을 수 없습니다:', selectedCafeteria);
         alert('식당 정보를 찾을 수 없습니다. 페이지를 새로고침해주세요.');
         return;
       }
 
       const finalData = {
-        name: selectedCafeteria,
-        restaurantId: restaurant.id,
+        name: selectedRestaurantName,
+        restaurantId: selectedRestaurant.id,
         date: selectedDateRange,
         menus: menuGrid,
         use_all_days: useAllDays,
@@ -598,7 +597,7 @@ const EntryTab = forwardRef(
                   >
                     {restaurantsData && restaurantsData.length > 0 ? (
                       restaurantsData.map((res) => (
-                        <option key={res.id} value={res.name}>
+                        <option key={res.id} value={String(res.id)}>
                           {res.building_name ? `${res.name} (${res.building_name})` : res.name}
                         </option>
                       ))
