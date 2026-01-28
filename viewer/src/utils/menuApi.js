@@ -74,19 +74,26 @@ export const subscribeToMenuChanges = (callback) => {
 const resolveMenuImageUrl = (imagePath, basePath) => {
   if (!imagePath) return null;
 
+  console.log('[resolveMenuImageUrl] 원본 경로:', imagePath);
+
   // 이미 절대 URL인 경우
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    console.log('[resolveMenuImageUrl] 절대 URL:', imagePath);
     return imagePath;
   }
 
   // Legacy 로컬 경로 (uploads/ 로 시작)
   if (imagePath.startsWith('uploads/') || imagePath.startsWith('uploads\\')) {
-    const fileName = imagePath.split('/').pop();
-    return `${basePath}images/${fileName}`.replace(/\/\//g, '/');
+    const fileName = imagePath.split('/').pop().split('\\').pop();
+    const resolvedPath = `${basePath}images/${fileName}`.replace(/\/\//g, '/');
+    console.log('[resolveMenuImageUrl] Legacy 로컬 경로:', resolvedPath);
+    return resolvedPath;
   }
 
   // Supabase Storage 경로
-  return `${supabaseUrl}/storage/v1/object/public/centumbob-menu-images/${imagePath}`;
+  const supabasePath = `${supabaseUrl}/storage/v1/object/public/centumbob-menu-images/${imagePath}`;
+  console.log('[resolveMenuImageUrl] Supabase Storage 경로:', supabasePath);
+  return supabasePath;
 };
 
 /**

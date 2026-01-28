@@ -931,6 +931,8 @@ function App() {
                 alt="Original Menu"
                 className="max-w-full h-auto object-contain"
                 onError={(e) => {
+                  console.error('[이미지 로딩 실패] URL:', modalImage);
+                  console.error('[이미지 로딩 실패] Error:', e);
                   e.target.style.display = "none";
                 }}
               />
