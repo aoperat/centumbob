@@ -112,13 +112,36 @@ export function generateJekyllPost({ dateString, koreanDate, imagePath, postsDir
 
   const description = `${koreanDate} 센텀시티 구내식당 식단표 - 오늘의 점심 메뉴와 뉴스, 스몰토크 주제`;
 
+  // 요일 추출
+  const dayOfWeek = new Date(dateString).getDay();
+  const dayMap = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+  const dayKorean = dayMap[dayOfWeek];
+
+  // SEO 최적화 태그 생성
+  const tags = [
+    '센텀식단표',
+    '센텀시티식단표',
+    '센텀구내식당',
+    '센텀밥집',
+    '해운대구내식당',
+    '부산구내식당',
+    '센텀점심메뉴',
+    '센텀직장인',
+    '구내식당식단표',
+    '직장인점심',
+    '오늘의식단',
+    dayKorean + '식단',
+    '주간식단표',
+    '센텀맛집'
+  ];
+
   // Jekyll front matter 생성
   const frontMatter = `---
 layout: post
 title: "${title}"
 date: ${dateString} 08:00:00 +0900
-categories: [센텀밥집]
-tags: [센텀식단표, 구내식당식단표]
+categories: [센텀밥집, 센텀식단]
+tags: [${tags.join(', ')}]
 description: "${description}"
 image: ${imagePath}
 ---
@@ -438,6 +461,31 @@ export function generateTistoryPost({ dateString, koreanDate, imagePath, postsDi
   const filename = `${dateString}-tistory.html`;
   const filePath = path.join(tistoryDir, filename);
 
+  // 요일 추출
+  const dayOfWeek = new Date(dateString).getDay();
+  const dayMap = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+  const dayKorean = dayMap[dayOfWeek];
+
+  // SEO 최적화 태그 생성
+  const tags = [
+    '센텀식단표',
+    '센텀시티식단표',
+    '센텀구내식당',
+    '센텀밥집',
+    '해운대구내식당',
+    '부산구내식당',
+    '센텀점심메뉴',
+    '센텀직장인',
+    '구내식당식단표',
+    '직장인점심',
+    '오늘의식단',
+    dayKorean + '식단',
+    '주간식단표',
+    '센텀맛집'
+  ];
+
+  const description = `${koreanDate} 센텀시티 구내식당 식단표 - 오늘의 점심 메뉴와 뉴스, 스몰토크 주제`;
+
   // 뉴스 섹션 HTML 생성
   const busanNewsHtml = (gptContent?.newsBusan || []).map((item, index) => `
     <p><strong>${index + 1}. ${item.title}</strong><br>
@@ -459,6 +507,10 @@ export function generateTistoryPost({ dateString, koreanDate, imagePath, postsDi
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="${description}">
+  <meta name="keywords" content="${tags.join(', ')}">
+  <meta name="author" content="센텀밥집">
   <title>${title}</title>
   <style>
     body { font-family: 'Noto Sans KR', sans-serif; line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 20px; }
@@ -527,6 +579,13 @@ ${smallTalkHtml || '<p>스몰토크 주제가 없습니다.</p>'}
 
 <!--
 ====== 티스토리 에디터용 (HTML 모드에서 복사) ======
+
+제목: ${title}
+태그: ${tags.join(', ')}
+카테고리: 센텀밥집, 센텀식단
+
+====== 본문 시작 ======
+-->
 
 <p>👋 좋은 아침입니다, 센텀 직장인 여러분!</p>
 
