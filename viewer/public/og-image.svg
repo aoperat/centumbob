@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <!-- 배경 그라데이션 -->
+    <linearGradient id="bgGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF8C42;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF5722;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- 텍스트 그림자 -->
+    <filter id="shadow3" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- 배경 -->
+  <rect width="1200" height="630" fill="#FFF5F1"/>
+
+  <!-- 메인 로고 원 -->
+  <circle cx="300" cy="315" r="150" fill="url(#bgGradient3)"/>
+  <circle cx="300" cy="315" r="145" fill="none" stroke="#FF3D00" stroke-width="5" opacity="0.5"/>
+
+  <!-- '밥' 문자 -->
+  <text
+    x="300"
+    y="315"
+    font-family="'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif"
+    font-size="150"
+    font-weight="900"
+    fill="white"
+    text-anchor="middle"
+    dominant-baseline="central"
+    filter="url(#shadow3)"
+  >밥</text>
+
+  <!-- 제목 텍스트 -->
+  <text
+    x="550"
+    y="280"
+    font-family="'Noto Sans KR', 'Malgun Gothic', sans-serif"
+    font-size="90"
+    font-weight="700"
+    fill="#FF6B35"
+  >센텀밥집</text>
+
+  <!-- 부제목 텍스트 -->
+  <text
+    x="550"
+    y="380"
+    font-family="'Noto Sans KR', 'Malgun Gothic', sans-serif"
+    font-size="42"
+    font-weight="400"
+    fill="#6B7280"
+  >센텀시티 구내식당 식단표</text>
+</svg>

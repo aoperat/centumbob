@@ -1,0 +1,25 @@
+{
+  "name": "센텀밥집 - 센텀시티 구내식당 식단표",
+  "short_name": "센텀밥집",
+  "description": "센텀시티 구내식당의 주간 식단표를 확인하세요",
+  "start_url": "/centumbob/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FF6B35",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/centumbob/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/centumbob/apple-touch-icon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["food", "lifestyle"],
+  "lang": "ko"
+}
