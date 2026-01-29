@@ -8,7 +8,22 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Supabase 환경 변수가 설정되지 않았습니다.');
 }
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Safari 캐시 문제 방지를 위한 fetch 옵션
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    fetch: (url, options = {}) => {
+      return fetch(url, {
+        ...options,
+        cache: 'no-store', // 브라우저 캐시 완전 비활성화
+        headers: {
+          ...options.headers,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+        },
+      });
+    },
+  },
+});
 
 /**
  * 메뉴 데이터 변경사항 실시간 구독
@@ -175,14 +190,25 @@ export const getActiveMenuData = async () => {
         const days = ['월', '화', '수', '목', '금'];
         const basePath = import.meta.env.BASE_URL || '/centumbob_v2/';
 
+        // image_paths가 JSON 문자열인 경우 파싱
+        let imagePaths = dbData?.image_paths;
+        if (typeof imagePaths === 'string') {
+          try {
+            imagePaths = JSON.parse(imagePaths);
+          } catch (e) {
+            console.error('[Menu API] image_paths JSON 파싱 실패:', e);
+            imagePaths = null;
+          }
+        }
+
         // 개별요일 모드 (image_paths 객체)
-        if (dbData?.image_paths && typeof dbData.image_paths === 'object') {
+        if (imagePaths && typeof imagePaths === 'object') {
           imageUrlsByDay = {};
           const uniqueImages = new Set();
 
           days.forEach((day) => {
-            if (dbData.image_paths[day]) {
-              const fullUrl = resolveMenuImageUrl(dbData.image_paths[day], basePath);
+            if (imagePaths[day]) {
+              const fullUrl = resolveMenuImageUrl(imagePaths[day], basePath);
               if (fullUrl) {
                 imageUrlsByDay[day] = fullUrl;
                 uniqueImages.add(fullUrl);

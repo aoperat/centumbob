@@ -68,10 +68,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML 파일은 항상 네트워크 우선 (Network First)
+  // Service Worker 자체는 캐시하지 않음
+  if (url.pathname.endsWith('sw.js')) {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
+    );
+    return;
+  }
+
+  // HTML 파일은 항상 네트워크 우선 (Network First) + 캐시 무시
   if (request.destination === 'document' || url.pathname.endsWith('.html')) {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-store' })
         .then((response) => {
           // 성공 시 캐시 업데이트
           if (response && response.status === 200) {

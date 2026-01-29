@@ -7,16 +7,37 @@ import { AuthProvider } from './contexts/AuthContext'
 // 빌드 버전 (빌드 시 자동 생성)
 const APP_VERSION = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : 'dev';
 
+// Safari bfcache 감지 및 강제 새로고침
+const handleBfcache = () => {
+  window.addEventListener('pageshow', (event) => {
+    // persisted가 true이면 bfcache에서 복원된 것
+    if (event.persisted) {
+      console.log('[bfcache] 캐시된 페이지에서 복원됨. 새로고침 중...');
+      window.location.reload();
+    }
+  });
+
+  // Safari에서 페이지 언로드 시 bfcache 비활성화
+  window.addEventListener('pagehide', (event) => {
+    if (event.persisted) {
+      // bfcache에 저장되려고 할 때 - 캐시 무효화
+      console.log('[bfcache] 페이지 숨김 처리');
+    }
+  });
+};
+
 // Service Worker 등록
 const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator && APP_VERSION !== 'dev') {
     try {
       // Vite의 base path를 사용 (GitHub Pages 대응)
       const basePath = import.meta.env.BASE_URL || '/';
-      const swPath = `${basePath}sw.js`.replace(/\/+/g, '/'); // 중복 슬래시 제거
+      // 캐시 무효화를 위해 버전 쿼리 파라미터 추가
+      const swPath = `${basePath}sw.js?v=${APP_VERSION}`.replace(/\/+/g, '/');
 
       const registration = await navigator.serviceWorker.register(swPath, {
         scope: basePath,
+        updateViaCache: 'none', // Service Worker 파일 자체는 캐시하지 않음
       });
 
       console.log('[SW] 등록 완료:', registration.scope);
@@ -94,6 +115,9 @@ const checkVersion = async () => {
   }
   return true;
 };
+
+// Safari bfcache 처리
+handleBfcache();
 
 // Service Worker 등록 및 버전 체크 후 앱 렌더링
 Promise.all([registerServiceWorker(), checkVersion()]).then(([, shouldRender]) => {

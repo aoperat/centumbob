@@ -19,6 +19,10 @@ export default defineConfig({
       'localhost',
       '.local',
     ],
+    hmr: {
+      clientPort: 9103, // HMR 웹소켓 포트 명시
+      host: 'localhost', // HMR 호스트 명시
+    },
   },
   // 개발 환경에서는 '/' 사용, 프로덕션에서는 base 경로 사용
   // GitHub Actions에서 자동으로 레포지토리 이름으로 설정됨

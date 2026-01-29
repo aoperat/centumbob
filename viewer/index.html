@@ -58,27 +58,54 @@
     }
     </script>
   <script>
-    // 버전 체크 - 새 버전 배포 시 캐시 삭제
+    // 버전 체크 - 새 버전 배포 시 캐시 삭제 및 강제 새로고침
     // __APP_VERSION__ 은 빌드 시 자동으로 치환됩니다
     (function () {
       var VERSION = '__APP_VERSION__';
       var VERSION_KEY = 'centumbob_version';
+      var RELOAD_KEY = 'centumbob_reload_pending';
       if (VERSION.indexOf('__') === 0) return;
 
       var stored = localStorage.getItem(VERSION_KEY);
+      var reloadPending = localStorage.getItem(RELOAD_KEY);
+
+      // 이미 새로고침 대기 중이면 플래그 제거 후 진행
+      if (reloadPending) {
+        localStorage.removeItem(RELOAD_KEY);
+        console.log('[Version] 새로고침 완료');
+      }
 
       if (stored && stored !== VERSION) {
         console.log('[Version] 새 버전 감지:', VERSION, '(이전:', stored + ')');
+
+        // Service Worker 등록 해제
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            registrations.forEach(function(registration) {
+              registration.unregister();
+              console.log('[Version] Service Worker 등록 해제');
+            });
+          });
+        }
+
+        // 모든 캐시 삭제
         if ('caches' in window) {
           caches.keys().then(function (names) {
             return Promise.all(names.map(function (name) {
+              console.log('[Version] 캐시 삭제:', name);
               return caches.delete(name);
             }));
+          }).then(function() {
+            // 버전 저장 및 강제 새로고침
+            localStorage.setItem(VERSION_KEY, VERSION);
+            localStorage.setItem(RELOAD_KEY, 'true');
+            // 캐시 무시 새로고침
+            window.location.replace(window.location.href.split('?')[0] + '?_v=' + Date.now());
           });
+        } else {
+          localStorage.setItem(VERSION_KEY, VERSION);
         }
-      }
-
-      if (!stored || stored !== VERSION) {
+      } else if (!stored) {
         localStorage.setItem(VERSION_KEY, VERSION);
       }
     })();
