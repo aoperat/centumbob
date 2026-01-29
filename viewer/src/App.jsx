@@ -20,6 +20,7 @@ import { getActiveMenuData, subscribeToMenuChanges } from "./utils/menuApi";
 import { getUserLocation, addDistanceToMenuData, getNaverMapUrl, getDirectionsUrl } from "./utils/location";
 import { useAuth } from "./hooks/useAuth";
 import { useChat } from "./hooks/useChatV2";
+import { NearbyRestaurants } from "./components/nearby";
 import "./styles/animations.css";
 
 function App() {
@@ -67,6 +68,8 @@ function App() {
   const [showOnlyWithData, setShowOnlyWithData] = useState(false);
   // 데이터 업데이트 알림
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
+  // 메인 뷰 전환 (menu: 구내식당, nearby: 주변 맛집)
+  const [activeView, setActiveView] = useState("menu");
 
   const tableScrollRef = useRef(null);
 
@@ -93,9 +96,7 @@ function App() {
       try {
         const location = await getUserLocation();
         setUserLocation(location);
-        console.log('[위치] 사용자 위치:', location);
       } catch (error) {
-        console.warn('[위치] 위치 정보 가져오기 실패:', error.message);
         setLocationError(error.message);
       } finally {
         setLocationLoaded(true); // 위치 로딩 완료 (성공/실패 상관없이)
@@ -142,7 +143,6 @@ function App() {
         setShowUpdateNotification(false);
       }
     } catch (err) {
-      console.error("데이터 로드 오류:", err);
       setError(err.message || "메뉴 데이터를 불러오는데 실패했습니다.");
     } finally {
       if (!showNotification) {
@@ -159,19 +159,13 @@ function App() {
 
   // Realtime 구독: 메뉴 데이터 변경 감지
   useEffect(() => {
-    if (!locationLoaded) return; // 위치 로딩이 완료될 때까지 대기
+    if (!locationLoaded) return;
 
-    console.log('[App] Realtime 구독 설정 시작');
-
-    const subscription = subscribeToMenuChanges((change) => {
-      console.log('[App] 데이터 변경 감지:', change);
-      // 변경사항이 있으면 알림 표시
+    const subscription = subscribeToMenuChanges(() => {
       setShowUpdateNotification(true);
     });
 
-    // 컴포넌트 언마운트 시 구독 해제
     return () => {
-      console.log('[App] Realtime 구독 해제');
       subscription.unsubscribe();
     };
   }, [locationLoaded]);
@@ -180,10 +174,10 @@ function App() {
   useEffect(() => {
     const loadPopularMenus = async () => {
       try {
-        const data = await getAllRestaurantsPopularMenus(2); // 최소 2개 좋아요
+        const data = await getAllRestaurantsPopularMenus(2);
         setPopularMenusMap(data);
-      } catch (error) {
-        console.error('인기 메뉴 로드 실패:', error);
+      } catch {
+        // 인기 메뉴 로드 실패 시 무시
       }
     };
 
@@ -203,47 +197,31 @@ function App() {
       const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       
       // 경로가 /로 끝나면 그대로 날짜 추가, 아니면 / 추가 후 날짜
-      // 예: /centumbob/ -> /centumbob/2026-01-09
       pagePath = pagePath.endsWith('/') ? `${pagePath}${dateString}` : `${pagePath}/${dateString}`;
-      
-      console.log("방문자수 추적 경로 (일별):", pagePath); // 디버깅용
 
-      // 중복 카운트 방지: sessionStorage 사용
       const viewKey = `page_view_${pagePath}`;
       const hasViewed = sessionStorage.getItem(viewKey);
 
-      // 1. 방문자수 증가 (실패해도 조회는 시도)
       if (!hasViewed) {
         try {
           await incrementPageView(pagePath);
           sessionStorage.setItem(viewKey, "true");
-        } catch (err) {
-          console.warn("방문자수 증가 실패 (계속 진행):", err);
-          // 증가 실패는 무시하고 조회 진행
+        } catch {
+          // 증가 실패 무시
         }
       }
 
-      // 2. 방문자수 조회
       try {
         const result = await getPageViews(pagePath);
-        console.log("방문자수 API 응답:", result); // 디버깅용
 
         if (result?.success && result?.data) {
-          // Edge Function 응답 구조: { success: true, data: { view_count: number, ... } }
-          const viewCount = result.data.view_count ?? 0;
-          console.log("설정할 방문자수:", viewCount); // 디버깅용
-          setPageViewCount(viewCount);
+          setPageViewCount(result.data.view_count ?? 0);
         } else if (result?.data?.view_count !== undefined) {
-          // 다른 응답 구조 대비
           setPageViewCount(result.data.view_count);
         } else {
-          // 응답 구조가 예상과 다를 경우
-          console.warn("예상하지 못한 응답 구조:", result);
-          setPageViewCount(0); // 기본값 설정
+          setPageViewCount(0);
         }
-      } catch (error) {
-        console.error("방문자수 조회 실패:", error);
-        // 에러 발생 시에도 0으로 설정하여 "로딩 중..." 대신 표시
+      } catch {
         setPageViewCount(0);
       }
     };
@@ -436,7 +414,40 @@ function App() {
         </div>
       </div>
 
-      {/* 메인 컨텐츠 영역 (테이블 구조) */}
+      {/* 메인 뷰 전환 탭 */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-[1800px] mx-auto px-3 sm:px-4">
+          <div className="flex">
+            <button
+              onClick={() => setActiveView("menu")}
+              className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeView === "menu"
+                  ? "text-blue-600 border-blue-600"
+                  : "text-slate-500 border-transparent hover:text-slate-700"
+              }`}
+            >
+              🍽️ 구내식당
+            </button>
+            <button
+              onClick={() => setActiveView("nearby")}
+              className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeView === "nearby"
+                  ? "text-blue-600 border-blue-600"
+                  : "text-slate-500 border-transparent hover:text-slate-700"
+              }`}
+            >
+              🗺️ 주변 맛집
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 메인 컨텐츠 영역 */}
+      {activeView === "nearby" ? (
+        <NearbyRestaurants userLocation={userLocation} user={user} />
+      ) : (
+      <>
+      {/* 구내식당 메뉴 (테이블 구조) */}
       <main className="w-full max-w-[1800px] mx-auto px-3 sm:px-4 mt-4 sm:mt-6 flex-1 pb-8">
         {/* 모바일: 식단 비교 헤더 + 점심/저녁 토글 */}
         <div className="md:hidden mb-3 space-y-2">
@@ -899,6 +910,8 @@ function App() {
         </div>
 
       </main>
+      </>
+      )}
 
       {/* 하단 푸터 */}
       <Footer
@@ -931,8 +944,6 @@ function App() {
                 alt="Original Menu"
                 className="max-w-full h-auto object-contain"
                 onError={(e) => {
-                  console.error('[이미지 로딩 실패] URL:', modalImage);
-                  console.error('[이미지 로딩 실패] Error:', e);
                   e.target.style.display = "none";
                 }}
               />

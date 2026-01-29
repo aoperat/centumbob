@@ -1,11 +1,6 @@
 // Menu Likes API - Supabase 직접 조회
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient';
 import { getAnonymousId } from './anonymousUser';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
  * 메뉴 좋아요 토글 (좋아요/취소)

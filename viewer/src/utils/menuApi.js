@@ -1,34 +1,5 @@
 // Menu Data API - Supabase 직접 조회
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Supabase 환경 변수가 설정되지 않았습니다.');
-}
-
-// Safari 캐시 문제 방지를 위한 fetch 옵션
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  global: {
-    fetch: (url, options = {}) => {
-      // Headers 객체를 일반 객체로 변환 (Headers 객체는 spread가 안됨)
-      const existingHeaders = options.headers instanceof Headers
-        ? Object.fromEntries(options.headers.entries())
-        : (options.headers || {});
-
-      return fetch(url, {
-        ...options,
-        cache: 'no-store', // 브라우저 캐시 완전 비활성화
-        headers: {
-          ...existingHeaders,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          Pragma: 'no-cache',
-        },
-      });
-    },
-  },
-});
+import { supabase, supabaseUrl } from './supabaseClient';
 
 /**
  * 메뉴 데이터 변경사항 실시간 구독
@@ -36,22 +7,16 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
  * @returns {Object} Supabase 구독 객체 (unsubscribe 메서드 포함)
  */
 export const subscribeToMenuChanges = (callback) => {
-  console.log('[Menu API] Realtime 구독 시작');
-
-  // 메뉴 데이터 변경 감지
   const menuSubscription = supabase
     .channel('menu-changes')
     .on(
       'postgres_changes',
       {
-        event: '*', // INSERT, UPDATE, DELETE 모두 감지
+        event: '*',
         schema: 'public',
         table: 'centumbob_menu_data',
       },
-      (payload) => {
-        console.log('[Menu API] 메뉴 데이터 변경 감지:', payload);
-        callback({ type: 'menu_data', payload });
-      }
+      (payload) => callback({ type: 'menu_data', payload })
     )
     .on(
       'postgres_changes',
@@ -60,10 +25,7 @@ export const subscribeToMenuChanges = (callback) => {
         schema: 'public',
         table: 'centumbob_cafeteria_restaurants',
       },
-      (payload) => {
-        console.log('[Menu API] 식당 데이터 변경 감지:', payload);
-        callback({ type: 'restaurant', payload });
-      }
+      (payload) => callback({ type: 'restaurant', payload })
     )
     .on(
       'postgres_changes',
@@ -72,10 +34,7 @@ export const subscribeToMenuChanges = (callback) => {
         schema: 'public',
         table: 'centumbob_date_ranges',
       },
-      (payload) => {
-        console.log('[Menu API] 날짜 범위 변경 감지:', payload);
-        callback({ type: 'date_range', payload });
-      }
+      (payload) => callback({ type: 'date_range', payload })
     )
     .subscribe();
 
@@ -94,26 +53,19 @@ export const subscribeToMenuChanges = (callback) => {
 const resolveMenuImageUrl = (imagePath, basePath) => {
   if (!imagePath) return null;
 
-  console.log('[resolveMenuImageUrl] 원본 경로:', imagePath);
-
   // 이미 절대 URL인 경우
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    console.log('[resolveMenuImageUrl] 절대 URL:', imagePath);
     return imagePath;
   }
 
   // Legacy 로컬 경로 (uploads/ 로 시작)
   if (imagePath.startsWith('uploads/') || imagePath.startsWith('uploads\\')) {
     const fileName = imagePath.split('/').pop().split('\\').pop();
-    const resolvedPath = `${basePath}images/${fileName}`.replace(/\/\//g, '/');
-    console.log('[resolveMenuImageUrl] Legacy 로컬 경로:', resolvedPath);
-    return resolvedPath;
+    return `${basePath}images/${fileName}`.replace(/\/\//g, '/');
   }
 
   // Supabase Storage 경로
-  const supabasePath = `${supabaseUrl}/storage/v1/object/public/centumbob-menu-images/${imagePath}`;
-  console.log('[resolveMenuImageUrl] Supabase Storage 경로:', supabasePath);
-  return supabasePath;
+  return `${supabaseUrl}/storage/v1/object/public/centumbob-menu-images/${imagePath}`;
 };
 
 /**
@@ -134,12 +86,10 @@ export const getActiveMenuData = async () => {
     if (dateError) throw dateError;
 
     if (!activeDateRanges || activeDateRanges.length === 0) {
-      console.warn('활성화된 날짜 범위가 없습니다.');
       return [];
     }
 
     const activeDateRange = activeDateRanges[0].date_range;
-    console.log('[Menu API] 활성 날짜 범위:', activeDateRange);
 
     // 2. 활성 식당 목록 조회
     const { data: restaurants, error: restError } = await supabase
@@ -152,7 +102,6 @@ export const getActiveMenuData = async () => {
     if (restError) throw restError;
 
     if (!restaurants || restaurants.length === 0) {
-      console.warn('활성화된 식당이 없습니다.');
       return [];
     }
 
@@ -163,8 +112,6 @@ export const getActiveMenuData = async () => {
       .eq('date_range', activeDateRange);
 
     if (menuError) throw menuError;
-
-    console.log('[Menu API] 조회된 메뉴 데이터:', menuDataList?.length || 0);
 
     // 4. 메뉴 데이터 맵 생성 (restaurant_id -> 메뉴 데이터)
     const menuDataMap = {};
@@ -200,8 +147,7 @@ export const getActiveMenuData = async () => {
         if (typeof imagePaths === 'string') {
           try {
             imagePaths = JSON.parse(imagePaths);
-          } catch (e) {
-            console.error('[Menu API] image_paths JSON 파싱 실패:', e);
+          } catch {
             imagePaths = null;
           }
         }
@@ -271,11 +217,8 @@ export const getActiveMenuData = async () => {
         };
 
         viewerData.push(viewerItem);
-      } catch (transformError) {
-        console.error(
-          `[Menu API] 데이터 변환 오류 (${restaurant.name}):`,
-          transformError
-        );
+      } catch {
+        // 변환 오류 무시 (해당 식당 스킵)
       }
     });
 
@@ -286,11 +229,8 @@ export const getActiveMenuData = async () => {
       return (a.id || 0) - (b.id || 0);
     });
 
-    console.log('[Menu API] 변환된 viewer 데이터:', viewerData.length);
-
     return viewerData;
   } catch (error) {
-    console.error('[Menu API] 메뉴 데이터 조회 오류:', error);
     throw error;
   }
 };
@@ -342,7 +282,6 @@ export const getRestaurantMenu = async (restaurantId, dateRange) => {
 
     return data;
   } catch (error) {
-    console.error('[Menu API] 식당 메뉴 조회 오류:', error);
     throw error;
   }
 };
@@ -364,7 +303,6 @@ export const getRestaurants = async () => {
 
     return data || [];
   } catch (error) {
-    console.error('[Menu API] 식당 목록 조회 오류:', error);
     throw error;
   }
 };

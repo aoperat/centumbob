@@ -46,6 +46,7 @@ import {
 } from "./utils/supabaseStorage.js";
 import puppeteer from "puppeteer";
 import { createWorker } from "tesseract.js";
+import nearbyRestaurantsRouter from "./routes/nearbyRestaurants.js";
 
 dotenv.config();
 
@@ -167,6 +168,9 @@ app.use(
 );
 
 app.use(express.json());
+
+// 주변 식당 추천 커뮤니티 라우터
+app.use("/api/nearby-restaurants", nearbyRestaurantsRouter);
 
 // 헬스 체크 엔드포인트
 app.get("/api/health", async (req, res) => {
@@ -1943,6 +1947,38 @@ app.post("/api/blog/generate", async (req, res) => {
       // GPT 오류는 치명적이지 않으므로 계속 진행
     }
 
+    // 메뉴 데이터 가져오기 (식당별 카드용)
+    let relevantMenuDataForCards = [];
+    try {
+      const allMenuDataForCards = await getAllMenuData();
+      const allRestaurants = await getActiveRestaurants();
+
+      // 식당 정보를 Map으로 변환 (빠른 조회용)
+      const restaurantMap = new Map();
+      allRestaurants.forEach(r => {
+        restaurantMap.set(r.id, r);
+        restaurantMap.set(r.name, r);
+      });
+
+      // 메뉴 데이터에 식당 정보(가격) 병합
+      relevantMenuDataForCards = allMenuDataForCards
+        .filter((menu) => menu.date_range === dateRange)
+        .map(menu => {
+          const restaurant = restaurantMap.get(menu.restaurant_id) || restaurantMap.get(menu.restaurant_name);
+          return {
+            ...menu,
+            // menu_data의 가격이 없으면 restaurant 테이블의 가격 사용
+            price_lunch: menu.price_lunch || restaurant?.price_lunch || null,
+            price_dinner: menu.price_dinner || restaurant?.price_dinner || null,
+            building_name: restaurant?.building_name || null,
+          };
+        });
+
+      console.log("[블로그 생성] 식당별 카드용 메뉴 데이터:", relevantMenuDataForCards.length, "개");
+    } catch (menuError) {
+      console.warn("[블로그 생성] 식당별 카드 메뉴 데이터 로드 실패:", menuError.message);
+    }
+
     // Jekyll 블로그 포스트 생성
     let postPath;
     try {
@@ -1953,6 +1989,7 @@ app.post("/api/blog/generate", async (req, res) => {
         imagePath: imageRelativePath,
         postsDir: postsDir,
         gptContent: gptContent,
+        menuDataList: relevantMenuDataForCards,
       });
       console.log("[블로그 생성] Jekyll 포스트 생성 완료:", postPath);
     } catch (postError) {
@@ -1969,6 +2006,8 @@ app.post("/api/blog/generate", async (req, res) => {
         imagePath: imageRelativePath,
         postsDir: postsDir,
         gptContent: gptContent,
+        menuDataList: relevantMenuDataForCards,
+        day: day,
       });
       console.log("[블로그 생성] 티스토리 HTML 생성 완료:", tistoryPath);
     } catch (tistoryError) {

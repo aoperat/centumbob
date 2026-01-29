@@ -82,16 +82,202 @@ export function parseDateFromRange(dateRange, day) {
 }
 
 /**
+ * 식당별 메뉴 카드 마크다운 생성
+ * @param {Array} menuDataList - 메뉴 데이터 배열
+ * @param {string} day - 요일 ("월", "화", "수", "목", "금")
+ * @returns {string} 마크다운 문자열
+ */
+function generateMenuCardsMarkdown(menuDataList, day) {
+  if (!menuDataList || menuDataList.length === 0) {
+    return '> 메뉴 정보가 없습니다.\n';
+  }
+
+  let markdown = '';
+
+  menuDataList.forEach((restaurant, index) => {
+    const dayMenu = restaurant.menus?.[day] || { lunch: [], dinner: [] };
+    const excludedItems = restaurant.excluded_menu_items || [];
+
+    // 제외 항목 필터링 (점심 메뉴만 표시)
+    const lunchMenus = (dayMenu.lunch || []).filter(item => !excludedItems.includes(item));
+
+    // 점심 메뉴가 없으면 스킵
+    if (lunchMenus.length === 0) {
+      return;
+    }
+
+    // 이미지 URL 처리
+    const imagePaths = restaurant.image_paths || {};
+    let imageUrl = imagePaths[day] || restaurant.image_path || null;
+
+    // Supabase Storage URL로 변환
+    if (imageUrl && !imageUrl.startsWith('http')) {
+      const supabaseUrl = process.env.SUPABASE_URL || '';
+      if (imageUrl.startsWith('menu-images/') || imageUrl.startsWith('centumbob-menu-images/')) {
+        imageUrl = `${supabaseUrl}/storage/v1/object/public/centumbob-menu-images/${imageUrl.replace('menu-images/', '').replace('centumbob-menu-images/', '')}`;
+      }
+    }
+
+    // 식당 카드 생성
+    markdown += `\n### 🍽️ ${restaurant.restaurant_name}\n\n`;
+
+    // 이미지가 있으면 표시
+    if (imageUrl) {
+      markdown += `![${restaurant.restaurant_name} 식단표](${imageUrl})\n\n`;
+    }
+
+    // 점심 메뉴
+    if (lunchMenus.length > 0) {
+      markdown += `**☀️ 점심**\n`;
+      lunchMenus.forEach(menu => {
+        markdown += `- ${menu}\n`;
+      });
+      markdown += '\n';
+    }
+
+    markdown += '---\n';
+  });
+
+  return markdown;
+}
+
+/**
+ * 메뉴 항목에 적절한 이모지 매핑
+ * @param {string} menuItem - 메뉴 항목명
+ * @returns {string} 이모지
+ */
+function getMenuEmoji(menuItem) {
+  const item = menuItem.toLowerCase();
+
+  // 밥류
+  if (item.includes('밥') || item.includes('rice')) return '🍚';
+  // 국/탕/찌개
+  if (item.includes('국') || item.includes('탕') || item.includes('찌개') || item.includes('전골')) return '🥣';
+  // 면류
+  if (item.includes('면') || item.includes('국수') || item.includes('파스타') || item.includes('라면') || item.includes('우동') || item.includes('칼국수')) return '🍝';
+  // 고기류
+  if (item.includes('불고기') || item.includes('갈비') || item.includes('삼겹') || item.includes('제육') || item.includes('돈') || item.includes('돼지') || item.includes('소고기')) return '🥩';
+  // 치킨/닭
+  if (item.includes('치킨') || item.includes('닭') || item.includes('통닭') || item.includes('윙봉')) return '🍗';
+  // 튀김류
+  if (item.includes('까스') || item.includes('커틀렛') || item.includes('튀김') || item.includes('후라이') || item.includes('너겟')) return '🍤';
+  // 찜/조림
+  if (item.includes('찜') || item.includes('조림') || item.includes('스테이크')) return '🍖';
+  // 볶음
+  if (item.includes('볶음') || item.includes('잡채')) return '🥘';
+  // 샐러드/나물
+  if (item.includes('샐러드') || item.includes('나물') || item.includes('무침') || item.includes('야채')) return '🥗';
+  // 김치
+  if (item.includes('김치')) return '🥬';
+  // 계란
+  if (item.includes('계란') || item.includes('달걀') || item.includes('오믈렛')) return '🍳';
+  // 두부
+  if (item.includes('두부')) return '🧈';
+  // 생선/해산물
+  if (item.includes('생선') || item.includes('고등어') || item.includes('삼치') || item.includes('조기') || item.includes('오징어') || item.includes('새우') || item.includes('해물')) return '🐟';
+  // 디저트
+  if (item.includes('디저트') || item.includes('케이크') || item.includes('티라미수') || item.includes('빵') || item.includes('과일')) return '🍰';
+  // 음료
+  if (item.includes('음료') || item.includes('커피') || item.includes('야쿠르트') || item.includes('우유')) return '🍶';
+  // 전/부침
+  if (item.includes('전') && (item.includes('김치') || item.includes('부추') || item.includes('파전'))) return '🥞';
+  // 만두
+  if (item.includes('만두')) return '🥟';
+  // 피클/절임
+  if (item.includes('피클') || item.includes('장아찌') || item.includes('오이')) return '🥒';
+  // 버섯
+  if (item.includes('버섯')) return '🍄';
+
+  // 기본값
+  return '🍴';
+}
+
+/**
+ * 가격 포맷팅 (숫자를 원화 형식으로)
+ * @param {string|number} price - 가격
+ * @returns {string} 포맷된 가격
+ */
+function formatPrice(price) {
+  if (!price) return '가격 미정';
+  const numPrice = typeof price === 'string' ? parseInt(price.replace(/[^0-9]/g, ''), 10) : price;
+  if (isNaN(numPrice) || numPrice === 0) return '가격 미정';
+  return `${numPrice.toLocaleString()}원`;
+}
+
+/**
+ * 식당별 메뉴 카드 HTML 생성 (인라인 스타일 - 티스토리 호환)
+ * @param {Array} menuDataList - 메뉴 데이터 배열
+ * @param {string} day - 요일 ("월", "화", "수", "목", "금")
+ * @returns {string} HTML 문자열
+ */
+function generateMenuCardsHtml(menuDataList, day) {
+  if (!menuDataList || menuDataList.length === 0) {
+    return '<p style="color: #6b7280; text-align: center; padding: 32px 0;">메뉴 정보가 없습니다.</p>';
+  }
+
+  // 카드 그리드 스타일 (CSS Grid 대신 Flexbox 사용 - 호환성)
+  let html = '<div style="display: flex; flex-wrap: wrap; gap: 24px; justify-content: center;">\n';
+
+  menuDataList.forEach((restaurant) => {
+    const dayMenu = restaurant.menus?.[day] || { lunch: [], dinner: [] };
+    const excludedItems = restaurant.excluded_menu_items || [];
+
+    // 제외 항목 필터링 (점심 메뉴만 표시)
+    const lunchMenus = (dayMenu.lunch || []).filter(item => !excludedItems.includes(item));
+
+    // 점심 메뉴가 없으면 스킵
+    if (lunchMenus.length === 0) {
+      return;
+    }
+
+    // 가격 정보
+    const priceLunch = restaurant.price_lunch || '';
+    const buildingName = restaurant.building_name || '';
+
+    // 식당 카드 생성 (인라인 스타일)
+    html += `
+    <div style="background: #ffffff; border-radius: 16px; padding: 24px; border: 1px solid #f3f4f6; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex: 1 1 300px; max-width: 380px; min-width: 280px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+            <div>
+                <h3 style="font-size: 18px; font-weight: 700; color: #1f2937; margin: 0 0 4px 0; line-height: 1.3;">${restaurant.restaurant_name}</h3>
+                ${buildingName ? `<p style="font-size: 13px; color: #2563eb; font-weight: 500; margin: 0;">${buildingName}</p>` : ''}
+            </div>
+            <span style="background: #fff7ed; color: #ea580c; border: 1px solid #ffedd5; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; white-space: nowrap;">${formatPrice(priceLunch)}</span>
+        </div>
+        <div style="border-top: 1px dashed #e5e7eb; padding-top: 16px;">
+            <ul style="list-style: none; padding: 0; margin: 0; color: #4b5563; font-size: 14px;">`;
+
+    // 점심 메뉴
+    lunchMenus.forEach(menu => {
+      const emoji = getMenuEmoji(menu);
+      html += `
+                <li style="display: flex; align-items: flex-start; margin-bottom: 8px;"><span style="margin-right: 8px;">${emoji}</span> ${menu}</li>`;
+    });
+
+    html += `
+            </ul>
+        </div>
+    </div>\n`;
+  });
+
+  html += '</div>\n';
+
+  return html;
+}
+
+/**
  * Jekyll 블로그 포스트 생성 (센텀 직장인 모닝 브리핑 스타일)
  * @param {Object} params
  * @param {string} params.dateString - "2025-01-05" 형식
  * @param {string} params.koreanDate - "2025년 1월 5일" 형식
- * @param {string} params.imagePath - 이미지 파일 경로 (상대 경로)
+ * @param {string} params.imagePath - 이미지 파일 경로 (상대 경로) - 대표 이미지용
  * @param {string} params.postsDir - _posts 폴더 경로
  * @param {Object} params.gptContent - GPT 생성 콘텐츠
+ * @param {Array} params.menuDataList - 메뉴 데이터 배열 (식당별 카드용)
+ * @param {string} params.day - 요일 ("월", "화", "수", "목", "금")
  * @returns {string} 생성된 포스트 파일 경로
  */
-export function generateJekyllPost({ dateString, koreanDate, imagePath, postsDir, gptContent = null }) {
+export function generateJekyllPost({ dateString, koreanDate, imagePath, postsDir, gptContent = null, menuDataList = null, day = null }) {
   // _posts 폴더가 없으면 생성
   if (!fs.existsSync(postsDir)) {
     fs.mkdirSync(postsDir, { recursive: true });
@@ -135,6 +321,11 @@ export function generateJekyllPost({ dateString, koreanDate, imagePath, postsDir
     '센텀맛집'
   ];
 
+  // 식당별 메뉴 카드 생성
+  const menuCardsMarkdown = menuDataList && day
+    ? generateMenuCardsMarkdown(menuDataList, day)
+    : `![${koreanDate} 식단표](${imagePath})\n`;
+
   // Jekyll front matter 생성
   const frontMatter = `---
 layout: post
@@ -150,9 +341,7 @@ image: ${imagePath}
 
 ## 🍴 오늘의 센텀 점심 식단표 (${koreanDate.split(' ')[1]} ${koreanDate.split(' ')[2]})
 
-![${koreanDate} 식단표](${imagePath})
-
----
+${menuCardsMarkdown}
 
 ## 💪 활기찬 하루를 위한 응원 한마디
 
@@ -441,16 +630,18 @@ ${newsData ? `- ⚠️ 매우 중요: [오늘의 실제 뉴스 데이터]에 제
 }
 
 /**
- * 티스토리용 HTML 블로그 포스트 생성
+ * 티스토리용 HTML 블로그 포스트 생성 (Tailwind CSS 기반)
  * @param {Object} params
  * @param {string} params.dateString - "2025-01-05" 형식
  * @param {string} params.koreanDate - "2025년 1월 5일" 형식
- * @param {string} params.imagePath - 이미지 파일 경로
+ * @param {string} params.imagePath - 이미지 파일 경로 (대표 이미지용)
  * @param {string} params.postsDir - 저장 폴더 경로
  * @param {Object} params.gptContent - GPT 생성 콘텐츠
+ * @param {Array} params.menuDataList - 메뉴 데이터 배열 (식당별 카드용)
+ * @param {string} params.day - 요일 ("월", "화", "수", "목", "금")
  * @returns {string} 생성된 HTML 파일 경로
  */
-export function generateTistoryPost({ dateString, koreanDate, imagePath, postsDir, gptContent = null }) {
+export function generateTistoryPost({ dateString, koreanDate, imagePath, postsDir, gptContent = null, menuDataList = null, day = null }) {
   // tistory 폴더 생성
   const tistoryDir = path.join(postsDir, 'tistory');
   if (!fs.existsSync(tistoryDir)) {
@@ -466,7 +657,7 @@ export function generateTistoryPost({ dateString, koreanDate, imagePath, postsDi
   const dayMap = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
   const dayKorean = dayMap[dayOfWeek];
 
-  // SEO 최적화 태그 생성
+  // SEO 최적화 태그 생성 (롱테일 키워드 추가)
   const tags = [
     '센텀식단표',
     '센텀시티식단표',
@@ -481,150 +672,156 @@ export function generateTistoryPost({ dateString, koreanDate, imagePath, postsDi
     '오늘의식단',
     dayKorean + '식단',
     '주간식단표',
-    '센텀맛집'
+    '센텀맛집',
+    '센텀오늘점심',
+    'BIFC식당',
+    '부산직장인점심'
   ];
 
   const description = `${koreanDate} 센텀시티 구내식당 식단표 - 오늘의 점심 메뉴와 뉴스, 스몰토크 주제`;
 
-  // 뉴스 섹션 HTML 생성
+  // 뉴스 섹션 HTML 생성 (인라인 스타일)
   const busanNewsHtml = (gptContent?.newsBusan || []).map((item, index) => `
-    <p><strong>${index + 1}. ${item.title}</strong><br>
-    ${item.content}</p>
-  `).join('');
+                <div style="background: #ffffff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #f3f4f6; margin-bottom: 12px;">
+                    <h4 style="font-weight: 600; color: #1f2937; margin: 0 0 8px 0; font-size: 15px;">${index + 1}. ${item.title}</h4>
+                    <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin: 0;">${item.content}</p>
+                </div>`).join('\n');
 
   const nationalNewsHtml = (gptContent?.newsNational || []).map((item, index) => `
-    <p><strong>${index + 1}. ${item.title}</strong><br>
-    ${item.content}</p>
-  `).join('');
+                <div style="background: #ffffff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #f3f4f6; margin-bottom: 12px;">
+                    <h4 style="font-weight: 600; color: #1f2937; margin: 0 0 8px 0; font-size: 15px;">${index + 1}. ${item.title}</h4>
+                    <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin: 0;">${item.content}</p>
+                </div>`).join('\n');
 
   const smallTalkHtml = (gptContent?.smallTalkList || []).map((item, index) => `
-    <p><strong>${index + 1}️⃣ ${item.topic}</strong><br>
-    : ${item.content}</p>
-  `).join('');
+                <div style="background: #fffbeb; border-radius: 12px; padding: 16px; border: 1px solid #fef3c7; margin-bottom: 12px;">
+                    <p style="font-weight: 600; color: #92400e; margin: 0 0 4px 0; font-size: 14px;">${index + 1}️⃣ ${item.topic}</p>
+                    <p style="color: #374151; font-size: 14px; margin: 0;">${item.content}</p>
+                </div>`).join('\n');
 
-  // HTML 콘텐츠 생성 (티스토리 에디터에 복사/붙여넣기 용)
+  // 식당별 메뉴 카드 HTML 생성
+  const menuCardsHtml = menuDataList && day
+    ? generateMenuCardsHtml(menuDataList, day)
+    : `<p class="text-center py-8"><img src="${imagePath}" alt="${koreanDate} 식단표" class="rounded-xl max-w-full"></p>`;
+
+  // HTML 콘텐츠 생성 (인라인 스타일 - 티스토리 호환)
   const htmlContent = `<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="${description}">
-  <meta name="keywords" content="${tags.join(', ')}">
-  <meta name="author" content="센텀밥집">
-  <title>${title}</title>
-  <style>
-    body { font-family: 'Noto Sans KR', sans-serif; line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 20px; }
-    h2 { color: #333; border-bottom: 2px solid #ff6b35; padding-bottom: 10px; margin-top: 30px; }
-    h3 { color: #555; margin-top: 20px; }
-    img { max-width: 100%; height: auto; border-radius: 8px; margin: 20px 0; }
-    .highlight { background: #fff3e0; padding: 15px; border-radius: 8px; margin: 15px 0; }
-    .news-section { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 15px 0; }
-    .footer { text-align: center; margin-top: 40px; padding: 20px; background: #333; color: white; border-radius: 8px; }
-    a { color: #ff6b35; text-decoration: none; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="${description}">
+    <meta name="keywords" content="${tags.join(', ')}">
+    <meta name="author" content="센텀밥집">
+    <!-- Open Graph / SNS 공유 최적화 -->
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="${title}">
+    <meta property="og:description" content="${description}">
+    <meta property="og:site_name" content="센텀밥집">
+    <meta property="og:locale" content="ko_KR">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="${title}">
+    <meta name="twitter:description" content="${description}">
+    <title>${title}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f8fafc;
+            padding: 20px;
+            margin: 0;
+            line-height: 1.6;
+            color: #1f2937;
+        }
+        a { color: #f97316; text-decoration: none; }
+        a:hover { color: #ea580c; }
+    </style>
 </head>
 <body>
 
-<p>👋 좋은 아침입니다, 센텀 직장인 여러분!</p>
+    <div style="max-width: 900px; margin: 0 auto;">
+        <!-- 헤더 -->
+        <header style="margin-bottom: 40px; text-align: center;">
+            <h1 style="font-size: 28px; font-weight: 700; color: #1f2937; margin: 0 0 8px 0;">🍱 오늘의 센텀 식단 안내</h1>
+            <p style="color: #6b7280; margin: 0; font-size: 15px;">${koreanDate} ${dayKorean} | 각 식당별 메뉴와 가격을 확인해보세요.</p>
+        </header>
 
-<h2>🍴 오늘의 센텀 점심 식단표 (${koreanDate.split(' ')[1]} ${koreanDate.split(' ')[2]})</h2>
+        <!-- 응원 메시지 -->
+        <div style="background: linear-gradient(to right, #fb923c, #fbbf24); border-radius: 16px; padding: 24px; margin-bottom: 32px; color: #ffffff; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+            <p style="font-size: 17px; font-weight: 500; margin: 0;">💪 ${gptContent?.overview || "오늘도 활기찬 하루 시작하세요!"}</p>
+        </div>
 
-<p><img src="${imagePath}" alt="${koreanDate} 식단표"></p>
+        <!-- 메뉴 카드 그리드 -->
+        <section style="margin-bottom: 48px;">
+            <h2 style="font-size: 22px; font-weight: 700; color: #1f2937; margin: 0 0 24px 0; display: flex; align-items: center;">
+                <span style="background: #f97316; width: 4px; height: 24px; border-radius: 2px; margin-right: 12px; display: inline-block;"></span>
+                🍴 오늘의 점심 메뉴
+            </h2>
+${menuCardsHtml}
+        </section>
 
-<hr>
+        <!-- 뉴스 섹션 -->
+        <section style="margin-bottom: 48px;">
+            <h2 style="font-size: 22px; font-weight: 700; color: #1f2937; margin: 0 0 24px 0; display: flex; align-items: center;">
+                <span style="background: #3b82f6; width: 4px; height: 24px; border-radius: 2px; margin-right: 12px; display: inline-block;"></span>
+                📰 오늘의 주요 뉴스
+            </h2>
+            <p style="color: #6b7280; margin: 0 0 16px 0; font-size: 14px;">바쁜 직장인분들을 위해 핵심 뉴스만 골라왔습니다.</p>
 
-<h2>💪 활기찬 하루를 위한 응원 한마디</h2>
+            <!-- 부산/지역 소식 -->
+            <div style="margin-bottom: 24px;">
+                <h3 style="font-size: 17px; font-weight: 600; color: #374151; margin: 0 0 12px 0;">🏢 부산/지역 소식</h3>
+                <div>
+${busanNewsHtml || '                <p style="color: #6b7280; text-align: center; padding: 16px 0;">부산 지역 소식이 없습니다.</p>'}
+                </div>
+            </div>
 
-<div class="highlight">
-<p>${gptContent?.overview || "오늘도 활기찬 하루 시작하세요!"}</p>
-</div>
+            <!-- 전국/경제 이슈 -->
+            <div>
+                <h3 style="font-size: 17px; font-weight: 600; color: #374151; margin: 0 0 12px 0;">🌏 전국/경제 이슈</h3>
+                <div>
+${nationalNewsHtml || '                <p style="color: #6b7280; text-align: center; padding: 16px 0;">전국 뉴스가 없습니다.</p>'}
+                </div>
+            </div>
+        </section>
 
-<hr>
+        <!-- 스몰토크 섹션 -->
+        <section style="margin-bottom: 48px;">
+            <h2 style="font-size: 22px; font-weight: 700; color: #1f2937; margin: 0 0 24px 0; display: flex; align-items: center;">
+                <span style="background: #f59e0b; width: 4px; height: 24px; border-radius: 2px; margin-right: 12px; display: inline-block;"></span>
+                🗣️ 오늘의 스몰토크 주제
+            </h2>
+            <p style="color: #6b7280; margin: 0 0 16px 0; font-size: 14px;">식사 시간에 가볍게 꺼내기 좋은 주제들입니다.</p>
+            <div>
+${smallTalkHtml || '                <p style="color: #6b7280; text-align: center; padding: 16px 0;">스몰토크 주제가 없습니다.</p>'}
+            </div>
+        </section>
 
-<h2>📰 오늘의 주요 뉴스 요약</h2>
-
-<p>바쁜 직장인분들을 위해 핵심 뉴스만 골라왔습니다.</p>
-
-<h3>🏢 [부산/지역 소식]</h3>
-<div class="news-section">
-${busanNewsHtml || '<p>부산 지역 소식이 없습니다.</p>'}
-</div>
-
-<h3>🌏 [전국/경제 이슈]</h3>
-<div class="news-section">
-${nationalNewsHtml || '<p>전국 뉴스가 없습니다.</p>'}
-</div>
-
-<hr>
-
-<h2>🗣️ 오늘의 스몰토크 주제 (3가지)</h2>
-
-<p>식사 시간에 가볍게 꺼내기 좋은 주제들입니다.</p>
-
-<div class="highlight">
-${smallTalkHtml || '<p>스몰토크 주제가 없습니다.</p>'}
-</div>
-
-<hr>
-
-<p>맛있는 점심 드시고 오후 업무도 화이팅하세요! 💪</p>
-
-<div class="footer">
-<p><strong>센텀밥집</strong> - 뉴스와 식단을 한 번에 전해드립니다.</p>
-<p>🔗 <a href="https://aoperat.github.io/centumbob" style="color: #ff6b35;">https://aoperat.github.io/centumbob</a></p>
-</div>
+        <!-- 푸터 -->
+        <footer style="text-align: center; padding: 32px 0; border-top: 1px solid #e5e7eb;">
+            <p style="color: #4b5563; margin: 0 0 16px 0;">맛있는 점심 드시고 오후 업무도 화이팅하세요! 💪</p>
+            <div>
+                <p style="font-weight: 700; color: #1f2937; margin: 0 0 4px 0;">센텀밥집</p>
+                <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">뉴스와 식단을 한 번에 전해드립니다.</p>
+                <a href="https://aoperat.github.io/centumbob" style="display: inline-block; color: #f97316; font-weight: 500;">
+                    🔗 https://aoperat.github.io/centumbob
+                </a>
+            </div>
+            <p style="margin-top: 24px; color: #9ca3af; font-size: 12px;">* 본 식단은 사정에 따라 변경될 수 있습니다.</p>
+        </footer>
+    </div>
 
 </body>
 </html>
 
 <!--
-====== 티스토리 에디터용 (HTML 모드에서 복사) ======
+====== 티스토리 에디터용 메타 정보 ======
 
 제목: ${title}
 태그: ${tags.join(', ')}
 카테고리: 센텀밥집, 센텀식단
-
-====== 본문 시작 ======
--->
-
-<p>👋 좋은 아침입니다, 센텀 직장인 여러분!</p>
-
-<h2>🍴 오늘의 센텀 점심 식단표 (${koreanDate.split(' ')[1]} ${koreanDate.split(' ')[2]})</h2>
-
-<p>[이미지: 식단표 이미지를 여기에 업로드하세요]</p>
-
-<hr>
-
-<h2>💪 활기찬 하루를 위한 응원 한마디</h2>
-
-<p>${gptContent?.overview || "오늘도 활기찬 하루 시작하세요!"}</p>
-
-<hr>
-
-<h2>📰 오늘의 주요 뉴스 요약</h2>
-
-<p>바쁜 직장인분들을 위해 핵심 뉴스만 골라왔습니다.</p>
-
-<h3>🏢 [부산/지역 소식]</h3>
-${busanNewsHtml}
-
-<h3>🌏 [전국/경제 이슈]</h3>
-${nationalNewsHtml}
-
-<hr>
-
-<h2>🗣️ 오늘의 스몰토크 주제 (3가지)</h2>
-
-<p>식사 시간에 가볍게 꺼내기 좋은 주제들입니다.</p>
-
-${smallTalkHtml}
-
-<hr>
-
-<p>맛있는 점심 드시고 오후 업무도 화이팅하세요! 💪</p>
-
-<p><strong>센텀밥집</strong> - 뉴스와 식단을 한 번에 전해드립니다.<br>
-🔗 <a href="https://aoperat.github.io/centumbob">https://aoperat.github.io/centumbob</a></p>
 
 -->
 `;
