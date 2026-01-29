@@ -12,11 +12,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     fetch: (url, options = {}) => {
+      // Headers 객체를 일반 객체로 변환 (Headers 객체는 spread가 안됨)
+      const existingHeaders = options.headers instanceof Headers
+        ? Object.fromEntries(options.headers.entries())
+        : (options.headers || {});
+
       return fetch(url, {
         ...options,
         cache: 'no-store', // 브라우저 캐시 완전 비활성화
         headers: {
-          ...options.headers,
+          ...existingHeaders,
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           Pragma: 'no-cache',
         },
