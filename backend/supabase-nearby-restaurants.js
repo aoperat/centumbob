@@ -188,7 +188,7 @@ export async function deleteRestaurant(id) {
 export async function getRestaurantReviews(restaurantId, { sort = 'newest', page = 1, limit = 10 } = {}) {
   let query = supabase
     .from('centumbob_restaurant_reviews')
-    .select('*, user:auth.users(id, email, raw_user_meta_data)')
+    .select('*')
     .eq('restaurant_id', restaurantId)
     .eq('is_deleted', false);
 

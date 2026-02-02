@@ -49,6 +49,11 @@ const Sidebar = ({ currentTab, onTabChange, unreadCounts = {}, isCollapsed = fal
       section: "콘텐츠",
       items: [
         {
+          id: "nearby-restaurant",
+          label: "주변맛집 관리",
+          icon: "🍽️",
+        },
+        {
           id: "blog",
           label: "블로그 생성",
           icon: "📰",

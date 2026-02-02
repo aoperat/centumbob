@@ -11,8 +11,8 @@ const RestaurantForm = ({ user, constants, userLocation, onClose, onSubmit, rest
   const [formData, setFormData] = useState({
     name: restaurant?.name || '',
     address: restaurant?.address || '',
-    latitude: restaurant?.latitude || userLocation?.latitude || '',
-    longitude: restaurant?.longitude || userLocation?.longitude || '',
+    latitude: restaurant?.latitude || '',
+    longitude: restaurant?.longitude || '',
     category: restaurant?.category || '',
     price_range: restaurant?.price_range || '',
     representative_menus: restaurant?.representative_menus?.join(', ') || '',
@@ -23,6 +23,40 @@ const RestaurantForm = ({ user, constants, userLocation, onClose, onSubmit, rest
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  // 현재 위치 가져오기
+  const handleUseCurrentLocation = () => {
+    if (userLocation) {
+      setFormData((prev) => ({
+        ...prev,
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+      }));
+      return;
+    }
+
+    setLocationLoading(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setFormData((prev) => ({
+            ...prev,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }));
+          setLocationLoading(false);
+        },
+        (err) => {
+          setError('위치 정보를 가져올 수 없습니다. 브라우저 설정을 확인해주세요.');
+          setLocationLoading(false);
+        }
+      );
+    } else {
+      setError('이 브라우저에서는 위치 서비스를 지원하지 않습니다.');
+      setLocationLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -137,40 +171,47 @@ const RestaurantForm = ({ user, constants, userLocation, onClose, onSubmit, rest
               />
             </div>
 
-            {/* 위도/경도 */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  위도 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  name="latitude"
-                  value={formData.latitude}
-                  onChange={handleChange}
-                  placeholder="35.1234"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  경도 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  name="longitude"
-                  value={formData.longitude}
-                  onChange={handleChange}
-                  placeholder="129.1234"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+            {/* 위치 정보 */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                위치 <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={locationLoading}
+                className={`w-full py-3 border-2 border-dashed rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                  formData.latitude && formData.longitude
+                    ? 'border-green-300 bg-green-50 text-green-700'
+                    : 'border-slate-300 text-slate-500 hover:border-blue-400 hover:text-blue-500'
+                }`}
+              >
+                {locationLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                    <span>위치 확인 중...</span>
+                  </>
+                ) : formData.latitude && formData.longitude ? (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>위치 설정됨 (다시 클릭하여 갱신)</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span>현재 위치 사용하기</span>
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-slate-500 mt-1">
+                식당이 있는 위치에서 버튼을 눌러주세요. GPS 기반으로 자동 설정됩니다.
+              </p>
             </div>
-            <p className="text-xs text-slate-500 -mt-2">
-              현재 위치를 기준으로 자동 입력됩니다. 네이버/카카오맵에서 정확한 좌표를 확인할 수 있습니다.
-            </p>
 
             {/* 카테고리 */}
             <div>

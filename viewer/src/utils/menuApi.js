@@ -1,5 +1,6 @@
 // Menu Data API - Supabase 직접 조회
 import { supabase, supabaseUrl } from './supabaseClient';
+import { getCurrentWeekRange } from './dateCalculator';
 
 /**
  * 메뉴 데이터 변경사항 실시간 구독
@@ -70,26 +71,14 @@ const resolveMenuImageUrl = (imagePath, basePath) => {
 
 /**
  * 활성화된 날짜 범위의 메뉴 데이터 조회
+ * - 한국 시간 기준 현재 주차를 자동으로 계산
+ * - 토요일 자정(00:00)에 다음 주로 전환
  * @returns {Promise<Array>} 메뉴 데이터 배열 (viewer 형식으로 변환됨)
  */
 export const getActiveMenuData = async () => {
   try {
-    // 1. 활성화된 날짜 범위 조회
-    const { data: activeDateRanges, error: dateError } = await supabase
-      .from('centumbob_date_ranges')
-      .select('*')
-      .eq('is_active', true)
-      .order('year', { ascending: false })
-      .order('week', { ascending: false })
-      .limit(1);
-
-    if (dateError) throw dateError;
-
-    if (!activeDateRanges || activeDateRanges.length === 0) {
-      return [];
-    }
-
-    const activeDateRange = activeDateRanges[0].date_range;
+    // 1. 현재 주차 자동 계산 (한국 시간 기준)
+    const { dateRange: activeDateRange } = getCurrentWeekRange();
 
     // 2. 활성 식당 목록 조회
     const { data: restaurants, error: restError } = await supabase

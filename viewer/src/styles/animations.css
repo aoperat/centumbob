@@ -49,3 +49,48 @@
 .animate-slide-up {
   animation: slideUp 0.4s ease-out forwards;
 }
+
+/* 룰렛 회전 애니메이션 */
+@keyframes rouletteSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(var(--spin-rotation));
+  }
+}
+
+.roulette-spinning {
+  animation: rouletteSpin var(--spin-duration) cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+/* 당첨 식당 하이라이트 (메뉴 탭에서) */
+@keyframes rouletteHighlight {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.4);
+  }
+}
+
+.roulette-highlight {
+  animation: rouletteHighlight 1s ease-out 3;
+  border: 2px solid #3b82f6 !important;
+}
+
+/* 모달 진입 애니메이션 */
+@keyframes rouletteModalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.roulette-modal-enter {
+  animation: rouletteModalEnter 0.3s ease-out forwards;
+}

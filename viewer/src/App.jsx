@@ -15,8 +15,10 @@ import AuthModal from "./components/AuthModal";
 import ProfileModal from "./components/ProfileModal";
 import ChatWindowV2 from "./components/ChatWindowV2";
 import CommunityModal from "./components/community/CommunityModal";
+import RouletteModal from "./components/RouletteModal";
 import { getPageViews, incrementPageView } from "./utils/api";
 import { getActiveMenuData, subscribeToMenuChanges } from "./utils/menuApi";
+import { getCurrentWeekRange } from "./utils/dateCalculator";
 import { getUserLocation, addDistanceToMenuData, getNaverMapUrl, getDirectionsUrl } from "./utils/location";
 import { useAuth } from "./hooks/useAuth";
 import { useChat } from "./hooks/useChatV2";
@@ -52,6 +54,7 @@ function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isCommunityModalOpen, setIsCommunityModalOpen] = useState(false);
   const [isChatWindowOpen, setIsChatWindowOpen] = useState(false);
+  const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false);
   const [pageViewCount, setPageViewCount] = useState(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -132,10 +135,14 @@ function App() {
 
       setMenuData(data);
 
-      // 첫 번째 식당의 날짜 정보 가져오기
+      // 날짜 정보 설정: 첫 번째 식당의 날짜 또는 현재 주차 자동 계산
       const firstCafeteria = data[0];
-      if (firstCafeteria && firstCafeteria.data) {
-        setCurrentDate(firstCafeteria.data.date || "");
+      if (firstCafeteria && firstCafeteria.data?.date) {
+        setCurrentDate(firstCafeteria.data.date);
+      } else {
+        // 메뉴 데이터가 없어도 현재 주차 표시
+        const { dateRange } = getCurrentWeekRange();
+        setCurrentDate(dateRange);
       }
 
       // 업데이트 알림 숨기기
@@ -149,6 +156,28 @@ function App() {
         setLoading(false);
       }
     }
+  };
+
+  // 룰렛에서 선택된 식당으로 이동
+  const handleRouletteSelection = (restaurant) => {
+    setActiveView("menu"); // 구내식당 탭으로 전환
+
+    setTimeout(() => {
+      // 모바일: 식당 카드로 스크롤
+      const mobileCard = document.querySelector(`[data-restaurant-id="${restaurant.id}"]`);
+      if (mobileCard) {
+        mobileCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        mobileCard.classList.add('roulette-highlight');
+        setTimeout(() => mobileCard.classList.remove('roulette-highlight'), 3000);
+      }
+
+      // 데스크톱: 식당 컬럼 하이라이트
+      const desktopColumn = document.querySelector(`[data-restaurant-col="${restaurant.id}"]`);
+      if (desktopColumn) {
+        desktopColumn.classList.add('roulette-highlight');
+        setTimeout(() => desktopColumn.classList.remove('roulette-highlight'), 3000);
+      }
+    }, 100);
   };
 
   // JSON 데이터 로드 (위치 로딩 완료 후 한 번만 실행)
@@ -346,10 +375,24 @@ function App() {
   }
 
   if (cafeteriaKeys.length === 0) {
+    // 평일인데 메뉴가 없는 경우
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-slate-600">표시할 데이터가 없습니다.</p>
+        <div className="text-center px-4">
+          <svg className="w-16 h-16 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-slate-700 font-semibold text-lg mb-2">
+            이번 주 메뉴가 아직 등록되지 않았습니다
+          </p>
+          <p className="text-slate-500 text-sm">
+            곧 새로운 메뉴가 등록될 예정이에요
+          </p>
+          {currentDate && (
+            <p className="text-slate-400 text-xs mt-4">
+              {currentDate}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -365,6 +408,7 @@ function App() {
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onOpenCommunity={() => setIsCommunityModalOpen(true)}
+        onOpenRoulette={() => setIsRouletteModalOpen(true)}
         onLogout={logout}
         activeDay={activeDay}
         onDayChange={setActiveDay}
@@ -567,7 +611,11 @@ function App() {
 
             // 메뉴 데이터가 없어도 식당은 표시
             return (
-              <div key={idx} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div
+                key={idx}
+                data-restaurant-id={menuMap[name]?.id}
+                className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+              >
                 {/* 카드 헤더 */}
                 <div className="bg-slate-50 p-3 border-b border-slate-200">
                   <div className="flex items-start justify-between mb-1">
@@ -727,6 +775,7 @@ function App() {
                     return (
                       <th
                         key={idx}
+                        data-restaurant-col={menuMap[name]?.id}
                         className="p-4 bg-slate-50 border-b border-slate-200 text-left min-w-[220px]"
                       >
                         <div className="flex flex-col gap-2 min-h-[88px]">
@@ -958,6 +1007,14 @@ function App() {
         onClose={() => setIsComplaintModalOpen(false)}
         restaurants={restaurants}
         dateRanges={dateRanges}
+      />
+
+      {/* 식당 룰렛 모달 */}
+      <RouletteModal
+        isOpen={isRouletteModalOpen}
+        onClose={() => setIsRouletteModalOpen(false)}
+        restaurants={menuData}
+        onSelectRestaurant={handleRouletteSelection}
       />
 
       {/* 광고문의 모달 */}

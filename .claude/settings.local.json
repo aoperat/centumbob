@@ -37,7 +37,8 @@
       "Bash(powershell -Command \"Stop-Process -Id 140316,152680 -Force\")",
       "Bash(powershell -Command \"Stop-Process -Id 82512 -Force\")",
       "Bash(git push)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(supabase projects:*)"
     ]
   }
 }

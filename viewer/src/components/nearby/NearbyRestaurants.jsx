@@ -151,14 +151,18 @@ const NearbyRestaurants = ({ userLocation, user }) => {
               </button>
 
               {/* 식당 등록 버튼 */}
-              {user && (
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  + 등록
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  if (user) {
+                    setShowAddForm(true);
+                  } else {
+                    alert('로그인 후 식당을 등록할 수 있습니다.');
+                  }
+                }}
+                className="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                + 등록
+              </button>
             </div>
           )}
 
@@ -276,13 +280,17 @@ const NearbyRestaurants = ({ userLocation, user }) => {
                         ? '조건에 맞는 식당이 없습니다.'
                         : '등록된 식당이 없습니다.'}
                     </p>
-                    {user && (
+                    {user ? (
                       <button
                         onClick={() => setShowAddForm(true)}
                         className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
                       >
                         첫 번째 식당 등록하기
                       </button>
+                    ) : (
+                      <p className="text-sm text-slate-400">
+                        로그인 후 식당을 등록할 수 있습니다.
+                      </p>
                     )}
                   </div>
                 ) : (

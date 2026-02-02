@@ -9,6 +9,7 @@ import AdInquiryAdminTab from './components/advertising/AdInquiryAdminTab';
 import ChatMonitorTab from './components/chat/ChatMonitorTab';
 import BlogTab from './components/BlogTab';
 import ApiGuideTab from './components/ApiGuideTab';
+import NearbyRestaurantTab from './components/NearbyRestaurantTab';
 import { saveMenuData, publishMenuData, getRestaurants, getDateRanges } from './utils/api';
 
 function App() {
@@ -187,6 +188,11 @@ function App() {
       {/* ================= 채팅 모니터 ================= */}
       {currentTab === 'chat-monitor' && (
         <ChatMonitorTab />
+      )}
+
+      {/* ================= 주변맛집 관리 ================= */}
+      {currentTab === 'nearby-restaurant' && (
+        <NearbyRestaurantTab />
       )}
 
       {/* ================= 블로그 생성 ================= */}

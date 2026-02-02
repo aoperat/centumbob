@@ -26,6 +26,7 @@ const NavBar = ({
   onOpenAuth,
   onOpenProfile,
   onOpenCommunity,
+  onOpenRoulette,
   activeDay,
   onDayChange,
   todayDay,
@@ -106,6 +107,15 @@ const NavBar = ({
               </button>
             )}
 
+            {/* 식당 룰렛 */}
+            <button
+              onClick={onOpenRoulette}
+              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-bold rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1.5"
+            >
+              <span>🎲</span>
+              <span>식당 룰렛</span>
+            </button>
+
             {/* 오늘의 투표 */}
             <button
               onClick={onOpenCommunity}
@@ -185,6 +195,14 @@ const NavBar = ({
                     프로필 설정
                   </button>
                 )}
+
+                <button
+                  onClick={() => handleMobileMenuClick(onOpenRoulette)}
+                  className="w-full px-4 py-3 text-left text-sm font-bold text-purple-600 hover:bg-purple-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="text-xl">🎲</span>
+                  식당 룰렛
+                </button>
 
                 <button
                   onClick={() => handleMobileMenuClick(onOpenCommunity)}

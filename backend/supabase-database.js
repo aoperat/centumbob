@@ -1,6 +1,7 @@
 // Supabase Database Module
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import { getCurrentWeekRange } from './utils/dateCalculator.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -420,21 +421,61 @@ export const getAllDateRanges = async () => {
   }
 };
 
-// 활성 날짜 범위만 조회
+// 활성 날짜 범위 조회 (자동 계산)
+// - 한국 시간 기준 현재 주차를 자동으로 계산
+// - 토요일 자정(00:00)에 다음 주로 전환
+// - DB에 해당 주차가 없으면 자동 생성
 export const getActiveDateRanges = async () => {
   try {
-    const { data, error } = await supabase
+    const { year, week, dateRange } = getCurrentWeekRange();
+
+    // 해당 주차가 DB에 있는지 확인
+    let { data, error } = await supabase
       .from('centumbob_date_ranges')
       .select('*')
-      .eq('is_active', true)
-      .order('year', { ascending: false })
-      .order('week', { ascending: false });
+      .eq('year', year)
+      .eq('week', week)
+      .single();
 
-    if (error) throw error;
+    // 에러가 있지만 "No rows found"가 아닌 경우
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
 
-    return data || [];
+    // 없으면 자동 생성
+    if (!data) {
+      const { data: newData, error: insertError } = await supabase
+        .from('centumbob_date_ranges')
+        .insert({
+          date_range: dateRange,
+          year,
+          week,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        // 동시 요청으로 인한 중복 오류 시 다시 조회
+        if (insertError.code === '23505') {
+          const { data: existingData } = await supabase
+            .from('centumbob_date_ranges')
+            .select('*')
+            .eq('year', year)
+            .eq('week', week)
+            .single();
+          data = existingData;
+        } else {
+          throw insertError;
+        }
+      } else {
+        data = newData;
+      }
+    }
+
+    return data ? [data] : [];
   } catch (error) {
-    console.error('활성 날짜 범위 목록 조회 오류:', error);
+    console.error('활성 날짜 범위 조회 오류:', error);
     throw error;
   }
 };
