@@ -175,6 +175,22 @@ export const getActiveMenuData = async () => {
         const priceLunch = dbData?.price_lunch || restaurant.price_lunch || '';
         const priceDinner = dbData?.price_dinner || restaurant.price_dinner || '';
 
+        // 가격 포맷팅 헬퍼 함수 (NaN 방지)
+        const formatPrice = (price) => {
+          if (!price) return '';
+
+          // 이미 포맷팅된 가격인지 확인 ("원"으로 끝나면 그대로 반환)
+          if (typeof price === 'string' && price.trim().endsWith('원')) {
+            return price.trim();
+          }
+
+          // 쉼표 제거 후 숫자로 변환 시도
+          const cleanPrice = typeof price === 'string' ? price.replace(/,/g, '') : price;
+          const numPrice = Number(cleanPrice);
+          if (isNaN(numPrice)) return '';
+          return `${numPrice.toLocaleString()}원`;
+        };
+
         const viewerItem = {
           id: restaurant.id,
           name: restaurant.name,
@@ -183,8 +199,8 @@ export const getActiveMenuData = async () => {
           type: 'text',
           has_dinner: restaurant.has_dinner,
           price: {
-            lunch: priceLunch ? `${Number(priceLunch).toLocaleString()}원` : '',
-            dinner: priceDinner ? `${Number(priceDinner).toLocaleString()}원` : '',
+            lunch: formatPrice(priceLunch),
+            dinner: formatPrice(priceDinner),
           },
           // 위치 정보 추가
           location: {

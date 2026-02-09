@@ -106,9 +106,26 @@ const EntryTab = forwardRef(
 
           if (data) {
             // 데이터가 있으면 저장된 데이터 사용
-            // 메뉴 정보 설정
+            // 메뉴 정보 설정 - 기본 구조와 병합하여 모든 요일이 존재하도록 보장
             if (data.menus) {
-              setMenuGrid(data.menus);
+              const defaultStructure = {
+                월: { lunch: [], dinner: [] },
+                화: { lunch: [], dinner: [] },
+                수: { lunch: [], dinner: [] },
+                목: { lunch: [], dinner: [] },
+                금: { lunch: [], dinner: [] },
+              };
+              // 각 요일별로 기본 구조와 병합
+              const mergedMenus = { ...defaultStructure };
+              Object.keys(defaultStructure).forEach(day => {
+                if (data.menus[day]) {
+                  mergedMenus[day] = {
+                    lunch: data.menus[day].lunch || [],
+                    dinner: data.menus[day].dinner || []
+                  };
+                }
+              });
+              setMenuGrid(mergedMenus);
             }
             // 제외 항목 목록 설정
             if (data.excluded_menu_items) {
@@ -1005,7 +1022,7 @@ const EntryTab = forwardRef(
                                 className="border-r border-slate-200 last:border-r-0 p-0 align-top h-80 bg-white hover:bg-slate-50/30 transition-colors"
                               >
                                 <MenuListEditor
-                                  items={menuGrid[day].lunch}
+                                  items={menuGrid[day]?.lunch || []}
                                   onChange={(newItems) =>
                                     handleMenuChange(day, "lunch", newItems)
                                   }
@@ -1030,7 +1047,7 @@ const EntryTab = forwardRef(
                                 className="border-r border-slate-200 last:border-r-0 p-0 align-top h-80 bg-white hover:bg-slate-50/30 transition-colors"
                               >
                                 <MenuListEditor
-                                  items={menuGrid[day].dinner}
+                                  items={menuGrid[day]?.dinner || []}
                                   onChange={(newItems) =>
                                     handleMenuChange(day, "dinner", newItems)
                                   }
